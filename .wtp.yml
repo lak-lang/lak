@@ -1,3 +1,10 @@
 version: "1.0"
 defaults:
   base_dir: ../worktrees/lak
+
+hooks:
+  post_create:
+    - type: command
+      command: mise trust
+    - type: command
+      command: lefthook install
