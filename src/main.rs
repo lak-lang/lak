@@ -10,15 +10,15 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Run a Lak program
-    Run,
+    /// Build a Lak program
+    Build,
 }
 
 fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Run => {
+        Commands::Build => {
             println!("Hello, World!");
         }
     }
