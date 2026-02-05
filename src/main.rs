@@ -4,11 +4,12 @@ mod lexer;
 mod parser;
 mod token;
 
+use ariadne::{Color, Label, Report, ReportKind, Source};
 use clap::{Parser, Subcommand};
 use codegen::Codegen;
 use inkwell::context::Context;
-use lexer::Lexer;
-use parser::Parser as LakParser;
+use lexer::{LexError, Lexer};
+use parser::{ParseError, Parser as LakParser};
 use std::path::Path;
 use std::process::Command;
 
@@ -42,19 +43,72 @@ fn main() {
     }
 }
 
+enum CompileError {
+    Lex(LexError),
+    Parse(ParseError),
+    Codegen(String),
+}
+
+fn report_error(filename: &str, source: &str, error: CompileError) {
+    match error {
+        CompileError::Lex(e) => {
+            Report::build(ReportKind::Error, (filename, e.span.start..e.span.end))
+                .with_message(&e.message)
+                .with_label(
+                    Label::new((filename, e.span.start..e.span.end))
+                        .with_message(&e.message)
+                        .with_color(Color::Red),
+                )
+                .finish()
+                .eprint((filename, Source::from(source)))
+                .ok();
+        }
+        CompileError::Parse(e) => {
+            Report::build(ReportKind::Error, (filename, e.span.start..e.span.end))
+                .with_message(&e.message)
+                .with_label(
+                    Label::new((filename, e.span.start..e.span.end))
+                        .with_message(&e.message)
+                        .with_color(Color::Red),
+                )
+                .finish()
+                .eprint((filename, Source::from(source)))
+                .ok();
+        }
+        CompileError::Codegen(msg) => {
+            eprintln!("Error: {}", msg);
+        }
+    }
+}
+
 fn build(file: &str) -> Result<(), String> {
     let source =
         std::fs::read_to_string(file).map_err(|e| format!("Failed to read file: {}", e))?;
 
     let mut lexer = Lexer::new(&source);
-    let tokens = lexer.tokenize().map_err(|e| e.to_string())?;
+    let tokens = match lexer.tokenize() {
+        Ok(tokens) => tokens,
+        Err(e) => {
+            report_error(file, &source, CompileError::Lex(e));
+            return Err("Compilation failed".to_string());
+        }
+    };
 
     let mut parser = LakParser::new(tokens);
-    let program = parser.parse().map_err(|e| e.to_string())?;
+    let program = match parser.parse() {
+        Ok(program) => program,
+        Err(e) => {
+            report_error(file, &source, CompileError::Parse(e));
+            return Err("Compilation failed".to_string());
+        }
+    };
 
     let context = Context::create();
     let mut codegen = Codegen::new(&context, "lak_module");
-    codegen.compile(&program)?;
+    if let Err(e) = codegen.compile(&program) {
+        report_error(file, &source, CompileError::Codegen(e));
+        return Err("Compilation failed".to_string());
+    }
 
     let source_path = Path::new(file);
     let stem = source_path

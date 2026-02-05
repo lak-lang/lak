@@ -10,13 +10,16 @@ pub struct Lexer<'a> {
 #[derive(Debug)]
 pub struct LexError {
     pub message: String,
-    pub line: usize,
-    pub column: usize,
+    pub span: Span,
 }
 
 impl std::fmt::Display for LexError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}:{}: {}", self.line, self.column, self.message)
+        write!(
+            f,
+            "{}:{}: {}",
+            self.span.line, self.span.column, self.message
+        )
     }
 }
 
@@ -106,8 +109,7 @@ impl<'a> Lexer<'a> {
     fn next_token(&mut self) -> Result<Token, LexError> {
         let c = self.current_char().ok_or_else(|| LexError {
             message: "Unexpected end of input".to_string(),
-            line: self.line,
-            column: self.column,
+            span: Span::new(self.pos, self.pos, self.line, self.column),
         })?;
 
         let start_pos = self.pos;
@@ -136,8 +138,7 @@ impl<'a> Lexer<'a> {
             }
             _ => Err(LexError {
                 message: format!("Unexpected character: '{}'", c),
-                line: self.line,
-                column: self.column,
+                span: Span::new(self.pos, self.pos + c.len_utf8(), self.line, self.column),
             }),
         }
     }
@@ -184,15 +185,18 @@ impl<'a> Lexer<'a> {
                         Some(c) => {
                             return Err(LexError {
                                 message: format!("Unknown escape sequence: \\{}", c),
-                                line: self.line,
-                                column: self.column,
+                                span: Span::new(
+                                    self.pos - 1,
+                                    self.pos + c.len_utf8(),
+                                    self.line,
+                                    self.column - 1,
+                                ),
                             });
                         }
                         None => {
                             return Err(LexError {
                                 message: "Unterminated string literal".to_string(),
-                                line: start_line,
-                                column: start_column,
+                                span: Span::new(start_pos, self.pos, start_line, start_column),
                             });
                         }
                     }
@@ -200,8 +204,7 @@ impl<'a> Lexer<'a> {
                 Some('\n') => {
                     return Err(LexError {
                         message: "Unterminated string literal (newline in string)".to_string(),
-                        line: self.line,
-                        column: self.column,
+                        span: Span::new(start_pos, self.pos, start_line, start_column),
                     });
                 }
                 Some(c) => {
@@ -211,8 +214,7 @@ impl<'a> Lexer<'a> {
                 None => {
                     return Err(LexError {
                         message: "Unterminated string literal".to_string(),
-                        line: start_line,
-                        column: start_column,
+                        span: Span::new(start_pos, self.pos, start_line, start_column),
                     });
                 }
             }
