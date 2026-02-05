@@ -218,13 +218,13 @@ fn build(file: &str) -> Result<(), String> {
         ));
     }
 
-    if let Err(e) = std::fs::remove_file(&object_path) {
-        if e.kind() != std::io::ErrorKind::NotFound {
-            eprintln!(
-                "Warning: Failed to remove temporary file '{}': {}",
-                object_path, e
-            );
-        }
+    if let Err(e) = std::fs::remove_file(&object_path)
+        && e.kind() != std::io::ErrorKind::NotFound
+    {
+        eprintln!(
+            "Warning: Failed to remove temporary file '{}': {}",
+            object_path, e
+        );
     }
 
     println!("Built: {}", output_path);
