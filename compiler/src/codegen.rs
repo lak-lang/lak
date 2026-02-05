@@ -23,17 +23,21 @@
 //! ```no_run
 //! use inkwell::context::Context;
 //! use lak::codegen::Codegen;
-//! use lak::ast::{Program, Stmt, Expr};
+//! use lak::ast::{Program, FnDef, Stmt, Expr};
 //! use std::path::Path;
 //!
 //! let context = Context::create();
 //! let mut codegen = Codegen::new(&context, "example");
 //!
 //! let program = Program {
-//!     stmts: vec![Stmt::Expr(Expr::Call {
-//!         callee: "println".to_string(),
-//!         args: vec![Expr::StringLiteral("Hello!".to_string())],
-//!     })],
+//!     functions: vec![FnDef {
+//!         name: "main".to_string(),
+//!         return_type: "void".to_string(),
+//!         body: vec![Stmt::Expr(Expr::Call {
+//!             callee: "println".to_string(),
+//!             args: vec![Expr::StringLiteral("Hello!".to_string())],
+//!         })],
+//!     }],
 //! };
 //!
 //! codegen.compile(&program).unwrap();
@@ -46,7 +50,7 @@
 //! * [Inkwell documentation](https://thedan64.github.io/inkwell/)
 //! * [LLVM Language Reference](https://llvm.org/docs/LangRef.html)
 
-use crate::ast::{Expr, Program, Stmt};
+use crate::ast::{Expr, FnDef, Program, Stmt};
 use inkwell::AddressSpace;
 use inkwell::OptimizationLevel;
 use inkwell::context::Context;
@@ -107,7 +111,7 @@ impl<'ctx> Codegen<'ctx> {
     ///
     /// This method generates the complete LLVM IR for the program, including:
     /// - External function declarations (e.g., `lak_println`)
-    /// - The `main` function with the program's statements
+    /// - The `main` function as the program entry point
     ///
     /// After calling this method, use [`write_object_file`](Self::write_object_file)
     /// to output the compiled code.
@@ -119,12 +123,37 @@ impl<'ctx> Codegen<'ctx> {
     /// # Errors
     ///
     /// Returns an error if:
+    /// - No `main` function is found
+    /// - The `main` function has an invalid signature
     /// - An unknown function is called
     /// - A built-in function is called with incorrect arguments
     /// - LLVM IR generation fails
     pub fn compile(&mut self, program: &Program) -> Result<(), String> {
         self.declare_lak_println();
-        self.generate_main(program)?;
+
+        // Find the main function
+        let main_fn = program
+            .functions
+            .iter()
+            .find(|f| f.name == "main")
+            .ok_or_else(|| {
+                if program.functions.is_empty() {
+                    "No main function found: program contains no function definitions".to_string()
+                } else {
+                    let names: Vec<_> = program.functions.iter().map(|f| f.name.as_str()).collect();
+                    format!("No main function found. Defined functions: {:?}", names)
+                }
+            })?;
+
+        // Validate main function signature
+        if main_fn.return_type != "void" {
+            return Err(format!(
+                "main function must return void, but found return type '{}'",
+                main_fn.return_type
+            ));
+        }
+
+        self.generate_main(main_fn)?;
         Ok(())
     }
 
@@ -141,11 +170,15 @@ impl<'ctx> Codegen<'ctx> {
             .add_function("lak_println", println_type, Some(Linkage::External));
     }
 
-    /// Generates the `main` function containing all program statements.
+    /// Generates the `main` function from a Lak function definition.
     ///
-    /// Creates a function with the signature `int main()` that executes
-    /// all statements in the program and returns 0 on success.
-    fn generate_main(&mut self, program: &Program) -> Result<(), String> {
+    /// Creates an LLVM function with the signature `int main()` that executes
+    /// all statements in the function body and returns 0 on success.
+    ///
+    /// # Arguments
+    ///
+    /// * `main_fn_def` - The Lak `main` function definition
+    fn generate_main(&mut self, main_fn_def: &FnDef) -> Result<(), String> {
         let i32_type = self.context.i32_type();
         let main_type = i32_type.fn_type(&[], false);
         let main_fn = self.module.add_function("main", main_type, None);
@@ -153,7 +186,7 @@ impl<'ctx> Codegen<'ctx> {
         let entry = self.context.append_basic_block(main_fn, "entry");
         self.builder.position_at_end(entry);
 
-        for stmt in &program.stmts {
+        for stmt in &main_fn_def.body {
             self.generate_stmt(stmt)?;
         }
 
@@ -305,6 +338,17 @@ impl<'ctx> Codegen<'ctx> {
 mod tests {
     use super::*;
 
+    /// Helper to create a Program with a main function
+    fn make_program(body: Vec<Stmt>) -> Program {
+        Program {
+            functions: vec![FnDef {
+                name: "main".to_string(),
+                return_type: "void".to_string(),
+                body,
+            }],
+        }
+    }
+
     #[test]
     fn test_codegen_new() {
         let context = Context::create();
@@ -313,14 +357,14 @@ mod tests {
     }
 
     #[test]
-    fn test_compile_empty_program() {
+    fn test_compile_empty_main() {
         let context = Context::create();
         let mut codegen = Codegen::new(&context, "test");
 
-        let program = Program { stmts: vec![] };
+        let program = make_program(vec![]);
         codegen
             .compile(&program)
-            .expect("Empty program should compile");
+            .expect("Empty main should compile");
 
         assert!(codegen.module.get_function("main").is_some());
     }
@@ -330,12 +374,10 @@ mod tests {
         let context = Context::create();
         let mut codegen = Codegen::new(&context, "test");
 
-        let program = Program {
-            stmts: vec![Stmt::Expr(Expr::Call {
-                callee: "println".to_string(),
-                args: vec![Expr::StringLiteral("hello".to_string())],
-            })],
-        };
+        let program = make_program(vec![Stmt::Expr(Expr::Call {
+            callee: "println".to_string(),
+            args: vec![Expr::StringLiteral("hello".to_string())],
+        })]);
 
         codegen
             .compile(&program)
@@ -349,18 +391,16 @@ mod tests {
         let context = Context::create();
         let mut codegen = Codegen::new(&context, "test");
 
-        let program = Program {
-            stmts: vec![
-                Stmt::Expr(Expr::Call {
-                    callee: "println".to_string(),
-                    args: vec![Expr::StringLiteral("first".to_string())],
-                }),
-                Stmt::Expr(Expr::Call {
-                    callee: "println".to_string(),
-                    args: vec![Expr::StringLiteral("second".to_string())],
-                }),
-            ],
-        };
+        let program = make_program(vec![
+            Stmt::Expr(Expr::Call {
+                callee: "println".to_string(),
+                args: vec![Expr::StringLiteral("first".to_string())],
+            }),
+            Stmt::Expr(Expr::Call {
+                callee: "println".to_string(),
+                args: vec![Expr::StringLiteral("second".to_string())],
+            }),
+        ]);
 
         codegen
             .compile(&program)
@@ -372,12 +412,10 @@ mod tests {
         let context = Context::create();
         let mut codegen = Codegen::new(&context, "test");
 
-        let program = Program {
-            stmts: vec![Stmt::Expr(Expr::Call {
-                callee: "println".to_string(),
-                args: vec![Expr::StringLiteral("hello\nworld\t!".to_string())],
-            })],
-        };
+        let program = make_program(vec![Stmt::Expr(Expr::Call {
+            callee: "println".to_string(),
+            args: vec![Expr::StringLiteral("hello\nworld\t!".to_string())],
+        })]);
 
         codegen
             .compile(&program)
@@ -385,16 +423,54 @@ mod tests {
     }
 
     #[test]
-    fn test_error_unknown_function() {
+    fn test_error_no_main_function() {
+        let context = Context::create();
+        let mut codegen = Codegen::new(&context, "test");
+
+        let program = Program { functions: vec![] };
+
+        let err = codegen
+            .compile(&program)
+            .expect_err("Should fail without main function");
+        assert!(
+            err.contains("No main function"),
+            "Expected 'No main function' in error: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn test_error_main_wrong_return_type() {
         let context = Context::create();
         let mut codegen = Codegen::new(&context, "test");
 
         let program = Program {
-            stmts: vec![Stmt::Expr(Expr::Call {
-                callee: "unknown_function".to_string(),
-                args: vec![],
-            })],
+            functions: vec![FnDef {
+                name: "main".to_string(),
+                return_type: "int".to_string(),
+                body: vec![],
+            }],
         };
+
+        let err = codegen
+            .compile(&program)
+            .expect_err("Should fail for main with wrong return type");
+        assert!(
+            err.contains("must return void"),
+            "Expected 'must return void' in error: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn test_error_unknown_function() {
+        let context = Context::create();
+        let mut codegen = Codegen::new(&context, "test");
+
+        let program = make_program(vec![Stmt::Expr(Expr::Call {
+            callee: "unknown_function".to_string(),
+            args: vec![],
+        })]);
 
         let err = codegen
             .compile(&program)
@@ -411,12 +487,10 @@ mod tests {
         let context = Context::create();
         let mut codegen = Codegen::new(&context, "test");
 
-        let program = Program {
-            stmts: vec![Stmt::Expr(Expr::Call {
-                callee: "println".to_string(),
-                args: vec![],
-            })],
-        };
+        let program = make_program(vec![Stmt::Expr(Expr::Call {
+            callee: "println".to_string(),
+            args: vec![],
+        })]);
 
         let err = codegen
             .compile(&program)
@@ -433,15 +507,13 @@ mod tests {
         let context = Context::create();
         let mut codegen = Codegen::new(&context, "test");
 
-        let program = Program {
-            stmts: vec![Stmt::Expr(Expr::Call {
-                callee: "println".to_string(),
-                args: vec![
-                    Expr::StringLiteral("a".to_string()),
-                    Expr::StringLiteral("b".to_string()),
-                ],
-            })],
-        };
+        let program = make_program(vec![Stmt::Expr(Expr::Call {
+            callee: "println".to_string(),
+            args: vec![
+                Expr::StringLiteral("a".to_string()),
+                Expr::StringLiteral("b".to_string()),
+            ],
+        })]);
 
         let err = codegen
             .compile(&program)
@@ -458,15 +530,13 @@ mod tests {
         let context = Context::create();
         let mut codegen = Codegen::new(&context, "test");
 
-        let program = Program {
-            stmts: vec![Stmt::Expr(Expr::Call {
-                callee: "println".to_string(),
-                args: vec![Expr::Call {
-                    callee: "other".to_string(),
-                    args: vec![],
-                }],
-            })],
-        };
+        let program = make_program(vec![Stmt::Expr(Expr::Call {
+            callee: "println".to_string(),
+            args: vec![Expr::Call {
+                callee: "other".to_string(),
+                args: vec![],
+            }],
+        })]);
 
         let err = codegen
             .compile(&program)
@@ -483,12 +553,10 @@ mod tests {
         let context = Context::create();
         let mut codegen = Codegen::new(&context, "test");
 
-        let program = Program {
-            stmts: vec![Stmt::Expr(Expr::Call {
-                callee: "println".to_string(),
-                args: vec![Expr::StringLiteral("test".to_string())],
-            })],
-        };
+        let program = make_program(vec![Stmt::Expr(Expr::Call {
+            callee: "println".to_string(),
+            args: vec![Expr::StringLiteral("test".to_string())],
+        })]);
 
         codegen.compile(&program).unwrap();
 
@@ -515,7 +583,7 @@ mod tests {
         let context = Context::create();
         let mut codegen = Codegen::new(&context, "test");
 
-        let program = Program { stmts: vec![] };
+        let program = make_program(vec![]);
         codegen.compile(&program).unwrap();
 
         let main_fn = codegen.module.get_function("main").unwrap();
@@ -523,5 +591,63 @@ mod tests {
         assert!(main_fn.get_type().get_return_type().is_some());
         // main takes no arguments
         assert_eq!(main_fn.count_params(), 0);
+    }
+
+    #[test]
+    fn test_main_function_not_first() {
+        // Verify that main is found even when it's not the first function
+        let context = Context::create();
+        let mut codegen = Codegen::new(&context, "test");
+
+        let program = Program {
+            functions: vec![
+                FnDef {
+                    name: "helper".to_string(),
+                    return_type: "void".to_string(),
+                    body: vec![],
+                },
+                FnDef {
+                    name: "main".to_string(),
+                    return_type: "void".to_string(),
+                    body: vec![],
+                },
+            ],
+        };
+
+        codegen
+            .compile(&program)
+            .expect("Should find main even if not first");
+        assert!(codegen.module.get_function("main").is_some());
+    }
+
+    #[test]
+    fn test_error_no_main_with_other_functions() {
+        // Verify error message includes defined function names
+        let context = Context::create();
+        let mut codegen = Codegen::new(&context, "test");
+
+        let program = Program {
+            functions: vec![
+                FnDef {
+                    name: "foo".to_string(),
+                    return_type: "void".to_string(),
+                    body: vec![],
+                },
+                FnDef {
+                    name: "bar".to_string(),
+                    return_type: "void".to_string(),
+                    body: vec![],
+                },
+            ],
+        };
+
+        let err = codegen
+            .compile(&program)
+            .expect_err("Should fail without main");
+        assert!(
+            err.contains("foo") && err.contains("bar"),
+            "Error should list defined functions: {}",
+            err
+        );
     }
 }

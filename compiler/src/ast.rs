@@ -6,7 +6,8 @@
 //! # Structure
 //!
 //! The AST has a hierarchical structure:
-//! - [`Program`] - The root node containing all statements
+//! - [`Program`] - The root node containing all function definitions
+//! - [`FnDef`] - A function definition with name, return type, and body
 //! - [`Stmt`] - Individual statements (currently only expression statements)
 //! - [`Expr`] - Expressions (string literals and function calls)
 //!
@@ -44,7 +45,7 @@ pub enum Expr {
 
 /// A statement in the Lak language.
 ///
-/// Statements are the top-level constructs that make up a program.
+/// Statements are constructs within function bodies.
 /// Currently, Lak only supports expression statements, but this enum
 /// provides a foundation for adding more statement types in the future
 /// (e.g., variable declarations, control flow).
@@ -57,33 +58,63 @@ pub enum Stmt {
     Expr(Expr),
 }
 
-/// The root node of a Lak program's AST.
+/// A function definition in the Lak language.
 ///
-/// A `Program` contains a sequence of statements that are executed
-/// in order when the program runs.
+/// Functions are the primary organizational unit in Lak. Every program
+/// must have a `main` function as its entry point.
 ///
 /// # Examples
 ///
-/// A simple program with one `println` call:
+/// ```text
+/// fn main() -> void {
+///     println("Hello, world!")
+/// }
+/// ```
+#[derive(Debug, Clone)]
+pub struct FnDef {
+    /// The name of the function.
+    pub name: String,
+    /// The return type of the function (e.g., "void", "int").
+    pub return_type: String,
+    /// The statements that make up the function body.
+    pub body: Vec<Stmt>,
+}
+
+/// The root node of a Lak program's AST.
+///
+/// A `Program` contains a collection of function definitions.
+/// Every valid program must have at least a `main` function.
+///
+/// # Examples
+///
+/// A simple program with a `main` function:
 ///
 /// ```text
 /// // Lak source code:
-/// println("Hello, world!")
+/// fn main() -> void {
+///     println("Hello, world!")
+/// }
 ///
 /// // Corresponding AST:
 /// Program {
-///     stmts: vec![
-///         Stmt::Expr(Expr::Call {
-///             callee: "println".to_string(),
-///             args: vec![Expr::StringLiteral("Hello, world!".to_string())],
-///         }),
+///     functions: vec![
+///         FnDef {
+///             name: "main".to_string(),
+///             return_type: "void".to_string(),
+///             body: vec![
+///                 Stmt::Expr(Expr::Call {
+///                     callee: "println".to_string(),
+///                     args: vec![Expr::StringLiteral("Hello, world!".to_string())],
+///                 }),
+///             ],
+///         },
 ///     ],
 /// }
 /// ```
 #[derive(Debug)]
 pub struct Program {
-    /// The statements that make up this program.
-    pub stmts: Vec<Stmt>,
+    /// The function definitions in this program.
+    pub functions: Vec<FnDef>,
 }
 
 #[cfg(test)]
@@ -162,24 +193,67 @@ mod tests {
 
     #[test]
     fn test_program_empty() {
-        let program = Program { stmts: vec![] };
-        assert!(program.stmts.is_empty());
+        let program = Program { functions: vec![] };
+        assert!(program.functions.is_empty());
     }
 
     #[test]
-    fn test_program_with_stmts() {
-        let stmts = vec![
-            Stmt::Expr(Expr::Call {
-                callee: "a".to_string(),
-                args: vec![],
-            }),
-            Stmt::Expr(Expr::Call {
-                callee: "b".to_string(),
-                args: vec![],
-            }),
-        ];
-        let program = Program { stmts };
-        assert_eq!(program.stmts.len(), 2);
+    fn test_program_with_functions() {
+        let functions = vec![FnDef {
+            name: "main".to_string(),
+            return_type: "void".to_string(),
+            body: vec![Stmt::Expr(Expr::Call {
+                callee: "println".to_string(),
+                args: vec![Expr::StringLiteral("hello".to_string())],
+            })],
+        }];
+        let program = Program { functions };
+        assert_eq!(program.functions.len(), 1);
+        assert_eq!(program.functions[0].name, "main");
+    }
+
+    #[test]
+    fn test_fn_def() {
+        let fn_def = FnDef {
+            name: "test".to_string(),
+            return_type: "void".to_string(),
+            body: vec![],
+        };
+        assert_eq!(fn_def.name, "test");
+        assert_eq!(fn_def.return_type, "void");
+        assert!(fn_def.body.is_empty());
+    }
+
+    #[test]
+    fn test_fn_def_with_body() {
+        let fn_def = FnDef {
+            name: "greet".to_string(),
+            return_type: "void".to_string(),
+            body: vec![
+                Stmt::Expr(Expr::Call {
+                    callee: "println".to_string(),
+                    args: vec![Expr::StringLiteral("hello".to_string())],
+                }),
+                Stmt::Expr(Expr::Call {
+                    callee: "println".to_string(),
+                    args: vec![Expr::StringLiteral("world".to_string())],
+                }),
+            ],
+        };
+        assert_eq!(fn_def.body.len(), 2);
+    }
+
+    #[test]
+    fn test_fn_def_clone() {
+        let fn_def = FnDef {
+            name: "test".to_string(),
+            return_type: "void".to_string(),
+            body: vec![Stmt::Expr(Expr::StringLiteral("x".to_string()))],
+        };
+        let cloned = fn_def.clone();
+        assert_eq!(fn_def.name, cloned.name);
+        assert_eq!(fn_def.return_type, cloned.return_type);
+        assert_eq!(fn_def.body.len(), cloned.body.len());
     }
 
     #[test]
@@ -245,10 +319,14 @@ mod tests {
     #[test]
     fn test_program_debug() {
         let program = Program {
-            stmts: vec![Stmt::Expr(Expr::StringLiteral("test".to_string()))],
+            functions: vec![FnDef {
+                name: "main".to_string(),
+                return_type: "void".to_string(),
+                body: vec![Stmt::Expr(Expr::StringLiteral("test".to_string()))],
+            }],
         };
         let debug_str = format!("{:?}", program);
         assert!(debug_str.contains("Program"));
-        assert!(debug_str.contains("stmts"));
+        assert!(debug_str.contains("functions"));
     }
 }

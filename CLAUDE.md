@@ -66,7 +66,9 @@ Source (.lak) → Lexer → Parser → Codegen → LLVM → Object File → Link
 
 ### Current Language Features
 
-The compiler currently supports a minimal subset:
+The compiler currently supports:
+- Function definitions with `fn name() -> void { ... }` syntax
+- `main` function as the program entry point (required)
 - `println("string")` - Print with newline (calls Lak runtime `lak_println`)
 - String literals with escape sequences (`\n`, `\t`, `\r`, `\\`, `\"`)
 - Line comments (`//`)

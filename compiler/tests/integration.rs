@@ -3,7 +3,7 @@
 //! These tests verify the full compilation pipeline from source code
 //! to executable output.
 
-use lak::ast::{Expr, Program, Stmt};
+use lak::ast::{Expr, FnDef, Program, Stmt};
 use lak::codegen::Codegen;
 use lak::lexer::Lexer;
 use lak::parser::Parser;
@@ -113,16 +113,23 @@ fn compile_error(source: &str) -> Option<(CompileStage, String)> {
 
 #[test]
 fn test_hello_world() {
-    let output = compile_and_run(r#"println("Hello, World!")"#).unwrap();
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    println("Hello, World!")
+}"#,
+    )
+    .unwrap();
     assert_eq!(output, "Hello, World!\n");
 }
 
 #[test]
 fn test_multiple_println() {
     let output = compile_and_run(
-        r#"println("first")
-println("second")
-println("third")"#,
+        r#"fn main() -> void {
+    println("first")
+    println("second")
+    println("third")
+}"#,
     )
     .unwrap();
     assert_eq!(output, "first\nsecond\nthird\n");
@@ -130,44 +137,75 @@ println("third")"#,
 
 #[test]
 fn test_escape_sequences() {
-    let output = compile_and_run(r#"println("hello\tworld")"#).unwrap();
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    println("hello\tworld")
+}"#,
+    )
+    .unwrap();
     assert_eq!(output, "hello\tworld\n");
 }
 
 #[test]
 fn test_escape_newline() {
-    let output = compile_and_run(r#"println("line1\nline2")"#).unwrap();
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    println("line1\nline2")
+}"#,
+    )
+    .unwrap();
     assert_eq!(output, "line1\nline2\n");
 }
 
 #[test]
 fn test_empty_string() {
-    let output = compile_and_run(r#"println("")"#).unwrap();
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    println("")
+}"#,
+    )
+    .unwrap();
     assert_eq!(output, "\n");
 }
 
 #[test]
 fn test_escaped_quotes() {
-    let output = compile_and_run(r#"println("say \"hello\"")"#).unwrap();
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    println("say \"hello\"")
+}"#,
+    )
+    .unwrap();
     assert_eq!(output, "say \"hello\"\n");
 }
 
 #[test]
 fn test_escaped_backslash() {
-    let output = compile_and_run(r#"println("path\\to\\file")"#).unwrap();
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    println("path\\to\\file")
+}"#,
+    )
+    .unwrap();
     assert_eq!(output, "path\\to\\file\n");
 }
 
 #[test]
-fn test_empty_program() {
-    // Empty program should compile and run without output
-    let output = compile_and_run("").unwrap();
+fn test_empty_main() {
+    // Empty main should compile and run without output
+    let output = compile_and_run("fn main() -> void {}").unwrap();
     assert_eq!(output, "");
 }
 
 #[test]
 fn test_comments_only() {
-    let output = compile_and_run("// this is a comment\n// another comment").unwrap();
+    let output = compile_and_run(
+        r#"// this is a comment
+fn main() -> void {
+    // another comment
+}"#,
+    )
+    .unwrap();
     assert_eq!(output, "");
 }
 
@@ -175,11 +213,41 @@ fn test_comments_only() {
 fn test_code_with_comments() {
     let output = compile_and_run(
         r#"// Print greeting
-println("hi") // inline comment
-// end"#,
+fn main() -> void {
+    println("hi") // inline comment
+    // end
+}"#,
     )
     .unwrap();
     assert_eq!(output, "hi\n");
+}
+
+#[test]
+fn test_multiple_functions_definition() {
+    // Multiple function definitions should compile; only main executes
+    let output = compile_and_run(
+        r#"fn helper() -> void {}
+fn main() -> void {
+    println("main executed")
+}
+fn another() -> void {}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "main executed\n");
+}
+
+#[test]
+fn test_main_not_first() {
+    // main function doesn't need to be first
+    let output = compile_and_run(
+        r#"fn first() -> void {}
+fn second() -> void {}
+fn main() -> void {
+    println("found main")
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "found main\n");
 }
 
 // ===================
@@ -188,7 +256,7 @@ println("hi") // inline comment
 
 #[test]
 fn test_compile_error_syntax() {
-    let result = compile_error(r#"println("unclosed"#);
+    let result = compile_error(r#"fn main() -> void { println("unclosed }"#);
     let (stage, msg) = result.expect("Expected compilation to fail");
     assert!(
         matches!(stage, CompileStage::Lex),
@@ -205,7 +273,7 @@ fn test_compile_error_syntax() {
 
 #[test]
 fn test_compile_error_unknown_function() {
-    let result = compile_error(r#"unknown_func("test")"#);
+    let result = compile_error(r#"fn main() -> void { unknown_func("test") }"#);
     let (stage, msg) = result.expect("Expected compilation to fail");
     assert!(
         matches!(stage, CompileStage::Codegen),
@@ -221,8 +289,42 @@ fn test_compile_error_unknown_function() {
 }
 
 #[test]
-fn test_compile_error_missing_paren() {
-    let result = compile_error("println");
+fn test_compile_error_missing_main() {
+    let result = compile_error("");
+    let (stage, msg) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Codegen),
+        "Expected Codegen error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert!(
+        msg.contains("No main function"),
+        "Expected 'No main function' in error: {}",
+        msg
+    );
+}
+
+#[test]
+fn test_compile_error_main_wrong_return_type() {
+    let result = compile_error("fn main() -> int {}");
+    let (stage, msg) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Codegen),
+        "Expected Codegen error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert!(
+        msg.contains("must return void"),
+        "Expected 'must return void' in error: {}",
+        msg
+    );
+}
+
+#[test]
+fn test_compile_error_top_level_statement() {
+    let result = compile_error(r#"println("hello")"#);
     let (stage, msg) = result.expect("Expected compilation to fail");
     assert!(
         matches!(stage, CompileStage::Parse),
@@ -230,16 +332,11 @@ fn test_compile_error_missing_paren() {
         stage,
         msg
     );
-    assert!(
-        msg.contains("Expected '('"),
-        "Expected \"Expected '('\" in error: {}",
-        msg
-    );
 }
 
 #[test]
 fn test_compile_error_invalid_escape() {
-    let result = compile_error(r#"println("\z")"#);
+    let result = compile_error(r#"fn main() -> void { println("\z") }"#);
     let (stage, msg) = result.expect("Expected compilation to fail");
     assert!(
         matches!(stage, CompileStage::Lex),
@@ -260,25 +357,31 @@ fn test_compile_error_invalid_escape() {
 
 #[test]
 fn test_lexer_parser_integration() {
-    let source = r#"println("test")"#;
+    let source = r#"fn main() -> void { println("test") }"#;
 
     let mut lexer = Lexer::new(source);
     let tokens = lexer.tokenize().unwrap();
-    assert_eq!(tokens.len(), 5); // identifier, lparen, string, rparen, eof
+    // fn, main, (, ), ->, void, {, println, (, string, ), }, eof
+    assert_eq!(tokens.len(), 13);
 
     let mut parser = Parser::new(tokens);
     let program = parser.parse().unwrap();
-    assert_eq!(program.stmts.len(), 1);
+    assert_eq!(program.functions.len(), 1);
+    assert_eq!(program.functions[0].name, "main");
 }
 
 #[test]
 fn test_ast_to_codegen() {
     // Build AST directly and compile
     let program = Program {
-        stmts: vec![Stmt::Expr(Expr::Call {
-            callee: "println".to_string(),
-            args: vec![Expr::StringLiteral("direct AST".to_string())],
-        })],
+        functions: vec![FnDef {
+            name: "main".to_string(),
+            return_type: "void".to_string(),
+            body: vec![Stmt::Expr(Expr::Call {
+                callee: "println".to_string(),
+                args: vec![Expr::StringLiteral("direct AST".to_string())],
+            })],
+        }],
     };
 
     let context = Context::create();
@@ -290,18 +393,33 @@ fn test_ast_to_codegen() {
 
 #[test]
 fn test_special_characters() {
-    let output = compile_and_run(r#"println("!@#$%^&*(){}[]|;:'<>,.?/")"#).unwrap();
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    println("!@#$%^&*(){}[]|;:'<>,.?/")
+}"#,
+    )
+    .unwrap();
     assert_eq!(output, "!@#$%^&*(){}[]|;:'<>,.?/\n");
 }
 
 #[test]
 fn test_unicode_string() {
-    let output = compile_and_run(r#"println("こんにちは世界")"#).unwrap();
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    println("こんにちは世界")
+}"#,
+    )
+    .unwrap();
     assert_eq!(output, "こんにちは世界\n");
 }
 
 #[test]
 fn test_mixed_escapes() {
-    let output = compile_and_run(r#"println("tab:\there\nnewline")"#).unwrap();
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    println("tab:\there\nnewline")
+}"#,
+    )
+    .unwrap();
     assert_eq!(output, "tab:\there\nnewline\n");
 }

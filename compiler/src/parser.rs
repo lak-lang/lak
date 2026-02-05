@@ -11,10 +11,11 @@
 //!
 //! # Grammar
 //!
-//! The current Lak grammar is minimal:
+//! The current Lak grammar:
 //!
 //! ```text
-//! program     → stmt* EOF
+//! program     → fn_def* EOF
+//! fn_def      → "fn" IDENTIFIER "(" ")" "->" IDENTIFIER "{" stmt* "}"
 //! stmt        → expr_stmt
 //! expr_stmt   → expr
 //! expr        → call | STRING
@@ -28,13 +29,14 @@
 //! use lak::lexer::Lexer;
 //! use lak::parser::Parser;
 //!
-//! let mut lexer = Lexer::new("println(\"hello\")");
+//! let mut lexer = Lexer::new("fn main() -> void { println(\"hello\") }");
 //! let tokens = lexer.tokenize().unwrap();
 //!
 //! let mut parser = Parser::new(tokens);
 //! let program = parser.parse().unwrap();
 //!
-//! assert_eq!(program.stmts.len(), 1);
+//! assert_eq!(program.functions.len(), 1);
+//! assert_eq!(program.functions[0].name, "main");
 //! ```
 //!
 //! # See Also
@@ -43,7 +45,7 @@
 //! * [`crate::ast`] - Defines the AST types produced by the parser
 //! * [`crate::codegen`] - Consumes the AST to generate LLVM IR
 
-use crate::ast::{Expr, Program, Stmt};
+use crate::ast::{Expr, FnDef, Program, Stmt};
 use crate::token::{Span, Token, TokenKind};
 
 /// A recursive descent parser for the Lak language.
@@ -102,7 +104,7 @@ impl Parser {
     /// Parses the entire token stream into a [`Program`].
     ///
     /// This is the main entry point for parsing. It repeatedly parses
-    /// statements until the end of file is reached.
+    /// function definitions until the end of file is reached.
     ///
     /// # Returns
     ///
@@ -111,19 +113,100 @@ impl Parser {
     ///
     /// # Errors
     ///
-    /// Returns an error if any statement fails to parse. Common causes:
-    /// - Unexpected token where a specific token was expected
-    /// - Missing parentheses in function calls
-    /// - Unrecognized expression forms
+    /// Returns an error if any function definition fails to parse. Common causes:
+    /// - Missing `fn` keyword at top level
+    /// - Malformed function signature
+    /// - Syntax errors in function body
     pub fn parse(&mut self) -> Result<Program, ParseError> {
-        let mut stmts = Vec::new();
+        let mut functions = Vec::new();
 
         while !self.is_eof() {
-            let stmt = self.parse_stmt()?;
-            stmts.push(stmt);
+            let fn_def = self.parse_fn_def()?;
+            functions.push(fn_def);
         }
 
-        Ok(Program { stmts })
+        Ok(Program { functions })
+    }
+
+    /// Parses a function definition.
+    ///
+    /// # Grammar
+    ///
+    /// ```text
+    /// fn_def → "fn" IDENTIFIER "(" ")" "->" IDENTIFIER "{" stmt* "}"
+    /// ```
+    ///
+    /// Currently only parameterless functions are supported.
+    fn parse_fn_def(&mut self) -> Result<FnDef, ParseError> {
+        // Expect `fn` keyword
+        self.expect(&TokenKind::Fn)?;
+
+        // Expect function name (identifier)
+        let name = self.expect_identifier()?;
+
+        // Expect `(` `)`
+        self.expect(&TokenKind::LeftParen)?;
+        self.expect(&TokenKind::RightParen)?;
+
+        // Expect `->` return_type
+        self.expect(&TokenKind::Arrow)?;
+        let return_type = self.expect_identifier()?;
+
+        // Expect `{` body `}`
+        self.expect(&TokenKind::LeftBrace)?;
+
+        let mut body = Vec::new();
+        while !matches!(self.current_kind(), TokenKind::RightBrace) && !self.is_eof() {
+            let stmt = self.parse_stmt()?;
+            body.push(stmt);
+        }
+
+        self.expect(&TokenKind::RightBrace)?;
+
+        Ok(FnDef {
+            name,
+            return_type,
+            body,
+        })
+    }
+
+    /// Expects an identifier token and returns its name.
+    fn expect_identifier(&mut self) -> Result<String, ParseError> {
+        match self.current_kind().clone() {
+            TokenKind::Identifier(name) => {
+                self.advance();
+                Ok(name)
+            }
+            _ => Err(ParseError {
+                message: format!(
+                    "Expected identifier, found {}",
+                    Self::token_kind_display(self.current_kind())
+                ),
+                span: self.current_span(),
+            }),
+        }
+    }
+
+    /// Returns a user-friendly display string for a token kind.
+    fn token_kind_display(kind: &TokenKind) -> String {
+        match kind {
+            TokenKind::Fn => "'fn' keyword".to_string(),
+            TokenKind::LeftBrace => "'{'".to_string(),
+            TokenKind::RightBrace => "'}'".to_string(),
+            TokenKind::LeftParen => "'('".to_string(),
+            TokenKind::RightParen => "')'".to_string(),
+            TokenKind::Arrow => "'->'".to_string(),
+            TokenKind::Comma => "','".to_string(),
+            TokenKind::Identifier(s) => format!("identifier '{}'", s),
+            TokenKind::StringLiteral(s) => {
+                if s.len() > 20 {
+                    format!("string \"{}...\"", &s[..20])
+                } else {
+                    format!("string \"{}\"", s)
+                }
+            }
+            TokenKind::Eof => "end of file".to_string(),
+        }
     }
 
     /// Returns a reference to the current token.
@@ -178,7 +261,11 @@ impl Parser {
             Ok(())
         } else {
             Err(ParseError {
-                message: format!("Expected {:?}, found {:?}", expected, self.current_kind()),
+                message: format!(
+                    "Expected {}, found {}",
+                    Self::token_kind_display(expected),
+                    Self::token_kind_display(self.current_kind())
+                ),
                 span: self.current_span(),
             })
         }
@@ -278,15 +365,21 @@ mod tests {
         parser.parse()
     }
 
-    /// Helper function to parse input and extract the first expression.
-    fn parse_first_expr(input: &str) -> Expr {
+    /// Helper function to parse a function definition and extract the first expression from its body.
+    fn parse_first_expr(body_code: &str) -> Expr {
+        let input = format!("fn test() -> void {{ {} }}", body_code);
         let program =
-            parse(input).unwrap_or_else(|e| panic!("Failed to parse input {:?}: {}", input, e));
+            parse(&input).unwrap_or_else(|e| panic!("Failed to parse input {:?}: {}", input, e));
 
-        let first_stmt = program
-            .stmts
+        let first_fn = program
+            .functions
             .first()
-            .unwrap_or_else(|| panic!("Input {:?} produced no statements", input));
+            .unwrap_or_else(|| panic!("Input {:?} produced no functions", input));
+
+        let first_stmt = first_fn
+            .body
+            .first()
+            .unwrap_or_else(|| panic!("Function has no statements"));
 
         match first_stmt {
             Stmt::Expr(expr) => expr.clone(),
@@ -297,23 +390,64 @@ mod tests {
     fn parse_error(input: &str) -> ParseError {
         match parse(input) {
             Ok(program) => panic!(
-                "Expected parsing to fail for input {:?}, but it succeeded with {} statements",
+                "Expected parsing to fail for input {:?}, but it succeeded with {} functions",
                 input,
-                program.stmts.len()
+                program.functions.len()
             ),
             Err(e) => e,
         }
     }
 
     // ===================
-    // Basic parsing
+    // Function definition parsing
     // ===================
 
     #[test]
     fn test_empty_program() {
         let program = parse("").unwrap();
-        assert!(program.stmts.is_empty());
+        assert!(program.functions.is_empty());
     }
+
+    #[test]
+    fn test_main_function_empty_body() {
+        let program = parse("fn main() -> void {}").unwrap();
+        assert_eq!(program.functions.len(), 1);
+        assert_eq!(program.functions[0].name, "main");
+        assert_eq!(program.functions[0].return_type, "void");
+        assert!(program.functions[0].body.is_empty());
+    }
+
+    #[test]
+    fn test_main_function_with_body() {
+        let program = parse(r#"fn main() -> void { println("hello") }"#).unwrap();
+        assert_eq!(program.functions.len(), 1);
+        assert_eq!(program.functions[0].name, "main");
+        assert_eq!(program.functions[0].body.len(), 1);
+    }
+
+    #[test]
+    fn test_multiple_functions() {
+        let program = parse("fn foo() -> void {} fn bar() -> void {}").unwrap();
+        assert_eq!(program.functions.len(), 2);
+        assert_eq!(program.functions[0].name, "foo");
+        assert_eq!(program.functions[1].name, "bar");
+    }
+
+    #[test]
+    fn test_function_with_multiple_statements() {
+        let program = parse(
+            r#"fn main() -> void {
+                println("first")
+                println("second")
+            }"#,
+        )
+        .unwrap();
+        assert_eq!(program.functions[0].body.len(), 2);
+    }
+
+    // ===================
+    // Basic expression parsing (within function body)
+    // ===================
 
     #[test]
     fn test_call_no_args() {
@@ -452,19 +586,19 @@ mod tests {
     }
 
     // ===================
-    // Multiple statements
+    // Multiple statements in function body
     // ===================
 
     #[test]
-    fn test_multiple_statements() {
-        let program = parse("f()\ng()").unwrap();
-        assert_eq!(program.stmts.len(), 2);
+    fn test_multiple_statements_in_body() {
+        let program = parse("fn main() -> void { f() g() }").unwrap();
+        assert_eq!(program.functions[0].body.len(), 2);
 
-        match &program.stmts[0] {
+        match &program.functions[0].body[0] {
             Stmt::Expr(Expr::Call { callee, .. }) => assert_eq!(callee, "f"),
             _ => panic!("Expected f call"),
         }
-        match &program.stmts[1] {
+        match &program.functions[0].body[1] {
             Stmt::Expr(Expr::Call { callee, .. }) => assert_eq!(callee, "g"),
             _ => panic!("Expected g call"),
         }
@@ -472,16 +606,8 @@ mod tests {
 
     #[test]
     fn test_statements_with_comments() {
-        let program = parse("f() // c\ng()").unwrap();
-        assert_eq!(program.stmts.len(), 2);
-    }
-
-    #[test]
-    fn test_statements_on_same_line() {
-        // Note: In Lak, statements aren't separated by semicolons,
-        // but parsing should still work when tokens are contiguous
-        let program = parse("a() b()").unwrap();
-        assert_eq!(program.stmts.len(), 2);
+        let program = parse("fn main() -> void { f() // c\ng() }").unwrap();
+        assert_eq!(program.functions[0].body.len(), 2);
     }
 
     // ===================
@@ -515,45 +641,90 @@ mod tests {
     // ===================
 
     #[test]
-    fn test_error_missing_left_paren() {
-        let err = parse_error("func");
-        assert!(err.message.contains("Expected '('"));
+    fn test_error_top_level_statement() {
+        let err = parse_error(r#"println("hello")"#);
+        assert!(
+            err.message.contains("'fn' keyword"),
+            "Expected error about 'fn' keyword, got: {}",
+            err.message
+        );
     }
 
     #[test]
-    fn test_error_missing_right_paren() {
-        let err = parse_error(r#"func("a""#);
-        assert!(err.message.contains("RightParen"));
+    fn test_error_missing_function_name() {
+        let err = parse_error("fn () -> void {}");
+        assert!(
+            err.message.contains("identifier"),
+            "Expected error about 'identifier', got: {}",
+            err.message
+        );
     }
 
     #[test]
-    fn test_error_unexpected_left_paren() {
-        let err = parse_error("(");
-        assert!(err.message.contains("Unexpected token"));
+    fn test_error_missing_arrow() {
+        let err = parse_error("fn main() void {}");
+        assert!(
+            err.message.contains("'->'"),
+            "Expected error about '->', got: {}",
+            err.message
+        );
     }
 
     #[test]
-    fn test_error_unexpected_comma() {
-        let err = parse_error(",");
-        assert!(err.message.contains("Unexpected token"));
+    fn test_error_missing_return_type() {
+        let err = parse_error("fn main() -> {}");
+        assert!(
+            err.message.contains("identifier"),
+            "Expected error about 'identifier', got: {}",
+            err.message
+        );
+    }
+
+    #[test]
+    fn test_error_missing_left_brace() {
+        let err = parse_error("fn main() -> void }");
+        assert!(
+            err.message.contains("'{'"),
+            "Expected error about '{{', got: {}",
+            err.message
+        );
+    }
+
+    #[test]
+    fn test_error_missing_right_brace() {
+        let err = parse_error("fn main() -> void {");
+        assert!(
+            err.message.contains("'}'"),
+            "Expected error about '}}', got: {}",
+            err.message
+        );
+    }
+
+    #[test]
+    fn test_error_missing_right_paren_in_call() {
+        let err = parse_error(r#"fn main() -> void { func("a" }"#);
+        assert!(
+            err.message.contains("')'"),
+            "Expected error about ')', got: {}",
+            err.message
+        );
     }
 
     #[test]
     fn test_error_double_comma() {
-        let err = parse_error(r#"f("a",,"b")"#);
+        let err = parse_error(r#"fn main() -> void { f("a",,"b") }"#);
         assert!(err.message.contains("Unexpected token"));
     }
 
     #[test]
     fn test_error_leading_comma() {
-        let err = parse_error(r#"f(,"a")"#);
+        let err = parse_error(r#"fn main() -> void { f(,"a") }"#);
         assert!(err.message.contains("Unexpected token"));
     }
 
     #[test]
     fn test_error_trailing_comma() {
-        // Trailing comma should error (no implicit nil in Lak)
-        let err = parse_error(r#"f("a",)"#);
+        let err = parse_error(r#"fn main() -> void { f("a",) }"#);
         assert!(err.message.contains("Unexpected token"));
     }
 
@@ -604,5 +775,45 @@ mod tests {
         let display = format!("{}", err);
         assert!(display.contains("2:3"));
         assert!(display.contains("Test error"));
+    }
+
+    // ===================
+    // Additional coverage tests
+    // ===================
+
+    #[test]
+    fn test_error_missing_left_paren_in_fn_def() {
+        // Function definition without left parenthesis after name
+        let err = parse_error("fn main -> void {}");
+        assert!(
+            err.message.contains("'('"),
+            "Expected error about '(', got: {}",
+            err.message
+        );
+    }
+
+    #[test]
+    fn test_error_function_with_params() {
+        // Function definition with parameters (not supported yet)
+        let err = parse_error("fn main(x) -> void {}");
+        assert!(
+            err.message.contains("')'"),
+            "Expected error about ')' (params not supported), got: {}",
+            err.message
+        );
+    }
+
+    #[test]
+    fn test_unicode_function_name() {
+        let program = parse("fn 挨拶() -> void {}").unwrap();
+        assert_eq!(program.functions.len(), 1);
+        assert_eq!(program.functions[0].name, "挨拶");
+    }
+
+    #[test]
+    fn test_unicode_return_type() {
+        // Although not a valid type, parser should accept any identifier
+        let program = parse("fn main() -> 型 {}").unwrap();
+        assert_eq!(program.functions[0].return_type, "型");
     }
 }

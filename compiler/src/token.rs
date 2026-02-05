@@ -90,11 +90,23 @@ pub enum TokenKind {
     /// like `\n` are already converted to their actual characters).
     StringLiteral(String),
 
+    /// The `fn` keyword for function definitions.
+    Fn,
+
     /// A left parenthesis `(`.
     LeftParen,
 
     /// A right parenthesis `)`.
     RightParen,
+
+    /// A left brace `{`.
+    LeftBrace,
+
+    /// A right brace `}`.
+    RightBrace,
+
+    /// An arrow `->` for return type annotation.
+    Arrow,
 
     /// A comma `,`.
     Comma,
@@ -200,7 +212,15 @@ mod tests {
     fn test_token_kind_punctuation() {
         assert!(matches!(TokenKind::LeftParen, TokenKind::LeftParen));
         assert!(matches!(TokenKind::RightParen, TokenKind::RightParen));
+        assert!(matches!(TokenKind::LeftBrace, TokenKind::LeftBrace));
+        assert!(matches!(TokenKind::RightBrace, TokenKind::RightBrace));
         assert!(matches!(TokenKind::Comma, TokenKind::Comma));
+        assert!(matches!(TokenKind::Arrow, TokenKind::Arrow));
+    }
+
+    #[test]
+    fn test_token_kind_fn() {
+        assert!(matches!(TokenKind::Fn, TokenKind::Fn));
     }
 
     #[test]

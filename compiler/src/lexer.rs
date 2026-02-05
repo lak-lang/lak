@@ -246,10 +246,33 @@ impl<'a> Lexer<'a> {
                 let span = Span::new(start_pos, self.pos, start_line, start_column);
                 Ok(Token::new(TokenKind::RightParen, span))
             }
+            '{' => {
+                self.advance();
+                let span = Span::new(start_pos, self.pos, start_line, start_column);
+                Ok(Token::new(TokenKind::LeftBrace, span))
+            }
+            '}' => {
+                self.advance();
+                let span = Span::new(start_pos, self.pos, start_line, start_column);
+                Ok(Token::new(TokenKind::RightBrace, span))
+            }
             ',' => {
                 self.advance();
                 let span = Span::new(start_pos, self.pos, start_line, start_column);
                 Ok(Token::new(TokenKind::Comma, span))
+            }
+            '-' => {
+                self.advance();
+                if self.current_char() == Some('>') {
+                    self.advance();
+                    let span = Span::new(start_pos, self.pos, start_line, start_column);
+                    Ok(Token::new(TokenKind::Arrow, span))
+                } else {
+                    Err(LexError {
+                        message: "Expected '>' after '-'".to_string(),
+                        span: Span::new(start_pos, self.pos, start_line, start_column),
+                    })
+                }
             }
             '"' => self.read_string(start_pos, start_line, start_column),
             _ if c.is_alphabetic() || c == '_' => {
@@ -364,10 +387,12 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    /// Reads an identifier from the input.
+    /// Reads an identifier or keyword from the input.
     ///
     /// Identifiers consist of a Unicode alphabetic character or underscore
     /// followed by any number of Unicode alphanumeric characters or underscores.
+    /// If the identifier matches a keyword (e.g., `fn`), the appropriate
+    /// keyword token is returned instead.
     ///
     /// # Arguments
     ///
@@ -377,7 +402,7 @@ impl<'a> Lexer<'a> {
     ///
     /// # Returns
     ///
-    /// A [`Token`] with kind [`TokenKind::Identifier`] containing the identifier text.
+    /// A [`Token`] with kind [`TokenKind::Identifier`] or a keyword token.
     fn read_identifier(
         &mut self,
         start_pos: usize,
@@ -394,7 +419,14 @@ impl<'a> Lexer<'a> {
 
         let value = self.input[start_pos..self.pos].to_string();
         let span = Span::new(start_pos, self.pos, start_line, start_column);
-        Token::new(TokenKind::Identifier(value), span)
+
+        // Check for keywords
+        let kind = match value.as_str() {
+            "fn" => TokenKind::Fn,
+            _ => TokenKind::Identifier(value),
+        };
+
+        Token::new(kind, span)
     }
 }
 
@@ -472,6 +504,24 @@ mod tests {
                 TokenKind::Eof
             ]
         );
+    }
+
+    #[test]
+    fn test_left_brace() {
+        let kinds = tokenize_kinds("{");
+        assert_eq!(kinds, vec![TokenKind::LeftBrace, TokenKind::Eof]);
+    }
+
+    #[test]
+    fn test_right_brace() {
+        let kinds = tokenize_kinds("}");
+        assert_eq!(kinds, vec![TokenKind::RightBrace, TokenKind::Eof]);
+    }
+
+    #[test]
+    fn test_arrow() {
+        let kinds = tokenize_kinds("->");
+        assert_eq!(kinds, vec![TokenKind::Arrow, TokenKind::Eof]);
     }
 
     #[test]
@@ -559,6 +609,45 @@ mod tests {
         assert_eq!(
             kinds,
             vec![TokenKind::Identifier("日本語".to_string()), TokenKind::Eof]
+        );
+    }
+
+    // ===================
+    // Keywords
+    // ===================
+
+    #[test]
+    fn test_keyword_fn() {
+        let kinds = tokenize_kinds("fn");
+        assert_eq!(kinds, vec![TokenKind::Fn, TokenKind::Eof]);
+    }
+
+    #[test]
+    fn test_fn_not_prefix() {
+        // "fn_test" should be an identifier, not fn + identifier
+        let kinds = tokenize_kinds("fn_test");
+        assert_eq!(
+            kinds,
+            vec![TokenKind::Identifier("fn_test".to_string()), TokenKind::Eof]
+        );
+    }
+
+    #[test]
+    fn test_function_definition_tokens() {
+        let kinds = tokenize_kinds("fn main() -> void {}");
+        assert_eq!(
+            kinds,
+            vec![
+                TokenKind::Fn,
+                TokenKind::Identifier("main".to_string()),
+                TokenKind::LeftParen,
+                TokenKind::RightParen,
+                TokenKind::Arrow,
+                TokenKind::Identifier("void".to_string()),
+                TokenKind::LeftBrace,
+                TokenKind::RightBrace,
+                TokenKind::Eof
+            ]
         );
     }
 
@@ -844,6 +933,31 @@ mod tests {
         assert_eq!(tokens[0].span.column, 4);
     }
 
+    #[test]
+    fn test_arrow_span() {
+        let mut lexer = Lexer::new("->");
+        let tokens = lexer.tokenize().unwrap();
+
+        assert_eq!(tokens[0].span.start, 0);
+        assert_eq!(tokens[0].span.end, 2); // `->` is 2 characters
+        assert_eq!(tokens[0].span.line, 1);
+        assert_eq!(tokens[0].span.column, 1);
+    }
+
+    #[test]
+    fn test_brace_span() {
+        let mut lexer = Lexer::new("{ }");
+        let tokens = lexer.tokenize().unwrap();
+
+        // Left brace
+        assert_eq!(tokens[0].span.start, 0);
+        assert_eq!(tokens[0].span.end, 1);
+
+        // Right brace
+        assert_eq!(tokens[1].span.start, 2);
+        assert_eq!(tokens[1].span.end, 3);
+    }
+
     // ===================
     // Error cases
     // ===================
@@ -888,6 +1002,18 @@ mod tests {
     fn test_error_unexpected_char_dollar() {
         let err = tokenize_error("$");
         assert!(err.message.contains("Unexpected character"));
+    }
+
+    #[test]
+    fn test_error_minus_without_arrow() {
+        let err = tokenize_error("-");
+        assert!(err.message.contains("Expected '>' after '-'"));
+    }
+
+    #[test]
+    fn test_error_minus_with_other_char() {
+        let err = tokenize_error("-x");
+        assert!(err.message.contains("Expected '>' after '-'"));
     }
 
     #[test]
