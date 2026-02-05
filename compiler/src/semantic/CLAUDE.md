@@ -13,7 +13,17 @@ Validates an AST for semantic correctness before code generation. Performs name 
 | `mod.rs` | `SemanticAnalyzer` struct, `analyze()` entry point |
 | `error.rs` | `SemanticError`, `SemanticErrorKind` |
 | `symbol.rs` | `SymbolTable`, `FunctionInfo`, `VariableInfo` |
-| `tests.rs` | Unit tests |
+| `tests/` | Unit tests (see below) |
+
+### Test Structure
+
+| File | Coverage |
+|------|----------|
+| `tests/mod.rs` | Test helpers, SemanticError Display tests |
+| `tests/function_tests.rs` | Function definition, main validation, undefined function, scope isolation |
+| `tests/variable_tests.rs` | Duplicate/undefined variable detection |
+| `tests/type_tests.rs` | Type mismatch, overflow, invalid expressions, println arguments, valid programs |
+| `tests/symbol_table_tests.rs` | SymbolTable data structure unit tests |
 
 ## Analysis Phases
 
