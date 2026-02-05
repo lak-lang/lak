@@ -42,6 +42,28 @@ fn test_compile_error_missing_main() {
 }
 
 #[test]
+fn test_compile_error_missing_main_with_other_functions() {
+    let result = compile_error("fn hoge() -> void {}");
+    let (stage, msg) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Codegen),
+        "Expected Codegen error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert!(
+        msg.contains("No main function"),
+        "Expected 'No main function' in error: {}",
+        msg
+    );
+    assert!(
+        msg.contains("hoge"),
+        "Expected defined function name 'hoge' in error: {}",
+        msg
+    );
+}
+
+#[test]
 fn test_compile_error_main_wrong_return_type() {
     let result = compile_error("fn main() -> int {}");
     let (stage, msg) = result.expect("Expected compilation to fail");

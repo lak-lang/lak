@@ -36,6 +36,7 @@ fn test_ast_to_codegen() {
         functions: vec![FnDef {
             name: "main".to_string(),
             return_type: "void".to_string(),
+            return_type_span: dummy_span(),
             body: vec![Stmt::new(
                 StmtKind::Expr(Expr::new(
                     ExprKind::Call {
@@ -49,6 +50,7 @@ fn test_ast_to_codegen() {
                 )),
                 dummy_span(),
             )],
+            span: dummy_span(),
         }],
     };
 
@@ -66,6 +68,7 @@ fn test_ast_let_to_codegen() {
         functions: vec![FnDef {
             name: "main".to_string(),
             return_type: "void".to_string(),
+            return_type_span: dummy_span(),
             body: vec![
                 Stmt::new(
                     StmtKind::Let {
@@ -84,6 +87,7 @@ fn test_ast_let_to_codegen() {
                     dummy_span(),
                 ),
             ],
+            span: dummy_span(),
         }],
     };
 
@@ -102,6 +106,7 @@ fn test_error_string_literal_as_int_value() {
         functions: vec![FnDef {
             name: "main".to_string(),
             return_type: "void".to_string(),
+            return_type_span: dummy_span(),
             body: vec![Stmt::new(
                 StmtKind::Let {
                     name: "x".to_string(),
@@ -110,6 +115,7 @@ fn test_error_string_literal_as_int_value() {
                 },
                 dummy_span(),
             )],
+            span: dummy_span(),
         }],
     };
 
@@ -117,10 +123,10 @@ fn test_error_string_literal_as_int_value() {
     let mut codegen = Codegen::new(&context, "test");
     let err = codegen.compile(&program).expect_err("Should fail");
     assert!(
-        err.message
+        err.message()
             .contains("String literals cannot be used as integer values"),
         "Expected 'String literals cannot be used as integer values' in error: {}",
-        err.message
+        err.message()
     );
 }
 
@@ -132,6 +138,7 @@ fn test_error_function_call_as_int_value() {
         functions: vec![FnDef {
             name: "main".to_string(),
             return_type: "void".to_string(),
+            return_type_span: dummy_span(),
             body: vec![Stmt::new(
                 StmtKind::Let {
                     name: "x".to_string(),
@@ -146,6 +153,7 @@ fn test_error_function_call_as_int_value() {
                 },
                 dummy_span(),
             )],
+            span: dummy_span(),
         }],
     };
 
@@ -153,9 +161,9 @@ fn test_error_function_call_as_int_value() {
     let mut codegen = Codegen::new(&context, "test");
     let err = codegen.compile(&program).expect_err("Should fail");
     assert!(
-        err.message.contains("cannot be used as a value"),
+        err.message().contains("cannot be used as a value"),
         "Expected 'cannot be used as a value' in error: {}",
-        err.message
+        err.message()
     );
 }
 
@@ -166,10 +174,12 @@ fn test_error_int_literal_as_statement() {
         functions: vec![FnDef {
             name: "main".to_string(),
             return_type: "void".to_string(),
+            return_type_span: dummy_span(),
             body: vec![Stmt::new(
                 StmtKind::Expr(Expr::new(ExprKind::IntLiteral(42), dummy_span())),
                 dummy_span(),
             )],
+            span: dummy_span(),
         }],
     };
 
@@ -177,10 +187,10 @@ fn test_error_int_literal_as_statement() {
     let mut codegen = Codegen::new(&context, "test");
     let err = codegen.compile(&program).expect_err("Should fail");
     assert!(
-        err.message
+        err.message()
             .contains("Integer literal as a statement has no effect"),
         "Expected 'Integer literal as a statement has no effect' in error: {}",
-        err.message
+        err.message()
     );
 }
 
@@ -191,6 +201,7 @@ fn test_error_identifier_as_statement() {
         functions: vec![FnDef {
             name: "main".to_string(),
             return_type: "void".to_string(),
+            return_type_span: dummy_span(),
             body: vec![
                 Stmt::new(
                     StmtKind::Let {
@@ -208,6 +219,7 @@ fn test_error_identifier_as_statement() {
                     dummy_span(),
                 ),
             ],
+            span: dummy_span(),
         }],
     };
 
@@ -215,9 +227,9 @@ fn test_error_identifier_as_statement() {
     let mut codegen = Codegen::new(&context, "test");
     let err = codegen.compile(&program).expect_err("Should fail");
     assert!(
-        err.message.contains("used as a statement has no effect"),
+        err.message().contains("used as a statement has no effect"),
         "Expected 'used as a statement has no effect' in error: {}",
-        err.message
+        err.message()
     );
 }
 
@@ -228,6 +240,7 @@ fn test_error_string_literal_as_statement() {
         functions: vec![FnDef {
             name: "main".to_string(),
             return_type: "void".to_string(),
+            return_type_span: dummy_span(),
             body: vec![Stmt::new(
                 StmtKind::Expr(Expr::new(
                     ExprKind::StringLiteral("hello".to_string()),
@@ -235,6 +248,7 @@ fn test_error_string_literal_as_statement() {
                 )),
                 dummy_span(),
             )],
+            span: dummy_span(),
         }],
     };
 
@@ -242,10 +256,10 @@ fn test_error_string_literal_as_statement() {
     let mut codegen = Codegen::new(&context, "test");
     let err = codegen.compile(&program).expect_err("Should fail");
     assert!(
-        err.message
+        err.message()
             .contains("String literal as a statement has no effect"),
         "Expected 'String literal as a statement has no effect' in error: {}",
-        err.message
+        err.message()
     );
 }
 
@@ -258,6 +272,7 @@ fn test_error_i32_underflow_via_ast() {
         functions: vec![FnDef {
             name: "main".to_string(),
             return_type: "void".to_string(),
+            return_type_span: dummy_span(),
             body: vec![Stmt::new(
                 StmtKind::Let {
                     name: "x".to_string(),
@@ -266,6 +281,7 @@ fn test_error_i32_underflow_via_ast() {
                 },
                 dummy_span(),
             )],
+            span: dummy_span(),
         }],
     };
 
@@ -273,8 +289,8 @@ fn test_error_i32_underflow_via_ast() {
     let mut codegen = Codegen::new(&context, "test");
     let err = codegen.compile(&program).expect_err("Should fail");
     assert!(
-        err.message.contains("out of range for i32"),
+        err.message().contains("out of range for i32"),
         "Expected 'out of range for i32' in error: {}",
-        err.message
+        err.message()
     );
 }

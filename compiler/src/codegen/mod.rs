@@ -35,6 +35,7 @@
 //!     functions: vec![FnDef {
 //!         name: "main".to_string(),
 //!         return_type: "void".to_string(),
+//!         return_type_span: Span::new(0, 0, 1, 1),
 //!         body: vec![Stmt::new(
 //!             StmtKind::Expr(Expr::new(
 //!                 ExprKind::Call {
@@ -48,6 +49,7 @@
 //!             )),
 //!             Span::new(0, 0, 1, 1),
 //!         )],
+//!         span: Span::new(0, 0, 1, 1),
 //!     }],
 //! };
 //!
@@ -81,7 +83,7 @@ mod target;
 #[cfg(test)]
 mod tests;
 
-pub use error::CodegenError;
+pub use error::{CodegenError, CodegenErrorKind};
 
 use crate::ast::{FnDef, Program, Type};
 use binding::VarBinding;
@@ -173,12 +175,12 @@ impl<'ctx> Codegen<'ctx> {
             .find(|f| f.name == "main")
             .ok_or_else(|| {
                 if program.functions.is_empty() {
-                    CodegenError::without_span(
+                    CodegenError::missing_main(
                         "No main function found: program contains no function definitions",
                     )
                 } else {
                     let names: Vec<_> = program.functions.iter().map(|f| f.name.as_str()).collect();
-                    CodegenError::without_span(format!(
+                    CodegenError::missing_main(format!(
                         "No main function found. Defined functions: {:?}",
                         names
                     ))
@@ -187,10 +189,14 @@ impl<'ctx> Codegen<'ctx> {
 
         // Validate main function signature
         if main_fn.return_type != "void" {
-            return Err(CodegenError::without_span(format!(
-                "main function must return void, but found return type '{}'",
-                main_fn.return_type
-            )));
+            return Err(CodegenError::new(
+                CodegenErrorKind::InvalidMainSignature,
+                format!(
+                    "main function must return void, but found return type '{}'",
+                    main_fn.return_type
+                ),
+                main_fn.return_type_span,
+            ));
         }
 
         self.generate_main(main_fn)?;
@@ -221,10 +227,13 @@ impl<'ctx> Codegen<'ctx> {
 
         let zero = i32_type.const_int(0, false);
         self.builder.build_return(Some(&zero)).map_err(|e| {
-            CodegenError::without_span(format!(
-                "Internal error: failed to build return instruction. This is a compiler bug: {}",
-                e
-            ))
+            CodegenError::without_span(
+                CodegenErrorKind::InternalError,
+                format!(
+                    "Internal error: failed to build return instruction. This is a compiler bug: {}",
+                    e
+                ),
+            )
         })?;
 
         Ok(())

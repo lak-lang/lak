@@ -15,7 +15,9 @@ fn make_program(body: Vec<Stmt>) -> Program {
         functions: vec![FnDef {
             name: "main".to_string(),
             return_type: "void".to_string(),
+            return_type_span: dummy_span(),
             body,
+            span: dummy_span(),
         }],
     }
 }
@@ -135,9 +137,9 @@ fn test_error_no_main_function() {
         .compile(&program)
         .expect_err("Should fail without main function");
     assert!(
-        err.message.contains("No main function"),
+        err.message().contains("No main function"),
         "Expected 'No main function' in error: {}",
-        err.message
+        err.message()
     );
 }
 
@@ -150,7 +152,9 @@ fn test_error_main_wrong_return_type() {
         functions: vec![FnDef {
             name: "main".to_string(),
             return_type: "int".to_string(),
+            return_type_span: dummy_span(),
             body: vec![],
+            span: dummy_span(),
         }],
     };
 
@@ -158,9 +162,14 @@ fn test_error_main_wrong_return_type() {
         .compile(&program)
         .expect_err("Should fail for main with wrong return type");
     assert!(
-        err.message.contains("must return void"),
+        err.message().contains("must return void"),
         "Expected 'must return void' in error: {}",
-        err.message
+        err.message()
+    );
+    // Verify error has span pointing to main function
+    assert!(
+        err.span().is_some(),
+        "Expected error to have span pointing to main function"
     );
 }
 
@@ -178,9 +187,9 @@ fn test_error_unknown_function() {
         .compile(&program)
         .expect_err("Should fail for unknown function");
     assert!(
-        err.message.contains("Unknown function"),
+        err.message().contains("Unknown function"),
         "Expected 'Unknown function' in error: {}",
-        err.message
+        err.message()
     );
 }
 
@@ -198,9 +207,9 @@ fn test_error_println_no_args() {
         .compile(&program)
         .expect_err("Should fail for println with no args");
     assert!(
-        err.message.contains("exactly 1 argument"),
+        err.message().contains("exactly 1 argument"),
         "Expected 'exactly 1 argument' in error: {}",
-        err.message
+        err.message()
     );
 }
 
@@ -221,9 +230,9 @@ fn test_error_println_too_many_args() {
         .compile(&program)
         .expect_err("Should fail for println with too many args");
     assert!(
-        err.message.contains("exactly 1 argument"),
+        err.message().contains("exactly 1 argument"),
         "Expected 'exactly 1 argument' in error: {}",
-        err.message
+        err.message()
     );
 }
 
@@ -247,9 +256,9 @@ fn test_error_println_non_string() {
         .compile(&program)
         .expect_err("Should fail for println with non-string arg");
     assert!(
-        err.message.contains("string literal"),
+        err.message().contains("string literal"),
         "Expected 'string literal' in error: {}",
-        err.message
+        err.message()
     );
 }
 
@@ -312,12 +321,16 @@ fn test_main_function_not_first() {
             FnDef {
                 name: "helper".to_string(),
                 return_type: "void".to_string(),
+                return_type_span: dummy_span(),
                 body: vec![],
+                span: dummy_span(),
             },
             FnDef {
                 name: "main".to_string(),
                 return_type: "void".to_string(),
+                return_type_span: dummy_span(),
                 body: vec![],
+                span: dummy_span(),
             },
         ],
     };
@@ -339,12 +352,16 @@ fn test_error_no_main_with_other_functions() {
             FnDef {
                 name: "foo".to_string(),
                 return_type: "void".to_string(),
+                return_type_span: dummy_span(),
                 body: vec![],
+                span: dummy_span(),
             },
             FnDef {
                 name: "bar".to_string(),
                 return_type: "void".to_string(),
+                return_type_span: dummy_span(),
                 body: vec![],
+                span: dummy_span(),
             },
         ],
     };
@@ -353,9 +370,9 @@ fn test_error_no_main_with_other_functions() {
         .compile(&program)
         .expect_err("Should fail without main");
     assert!(
-        err.message.contains("foo") && err.message.contains("bar"),
+        err.message().contains("foo") && err.message().contains("bar"),
         "Error should list defined functions: {}",
-        err.message
+        err.message()
     );
 }
 
@@ -454,9 +471,9 @@ fn test_error_duplicate_variable() {
         .compile(&program)
         .expect_err("Should fail on duplicate variable");
     assert!(
-        err.message.contains("already defined"),
+        err.message().contains("already defined"),
         "Expected 'already defined' in error: {}",
-        err.message
+        err.message()
     );
 }
 
@@ -475,9 +492,9 @@ fn test_error_undefined_variable() {
         .compile(&program)
         .expect_err("Should fail on undefined variable");
     assert!(
-        err.message.contains("Undefined variable"),
+        err.message().contains("Undefined variable"),
         "Expected 'Undefined variable' in error: {}",
-        err.message
+        err.message()
     );
 }
 
@@ -495,19 +512,20 @@ fn test_error_type_mismatch() {
         .compile(&program)
         .expect_err("Should fail on type mismatch");
     assert!(
-        err.message.contains("Type mismatch"),
+        err.message().contains("Type mismatch"),
         "Expected 'Type mismatch' in error: {}",
-        err.message
+        err.message()
     );
 }
 
 #[test]
 fn test_codegen_error_with_span() {
     let span = Span::new(10, 20, 3, 5);
-    let err = CodegenError::new("test error", span);
-    assert!(err.span.is_some());
-    assert_eq!(err.span.unwrap().line, 3);
-    assert_eq!(err.span.unwrap().column, 5);
+    let err = CodegenError::new(CodegenErrorKind::UndefinedVariable, "test error", span);
+    assert!(err.span().is_some());
+    assert_eq!(err.span().unwrap().line, 3);
+    assert_eq!(err.span().unwrap().column, 5);
+    assert_eq!(err.kind(), CodegenErrorKind::UndefinedVariable);
     let display = format!("{}", err);
     assert!(display.contains("3:5"));
     assert!(display.contains("test error"));
@@ -515,8 +533,33 @@ fn test_codegen_error_with_span() {
 
 #[test]
 fn test_codegen_error_without_span() {
-    let err = CodegenError::without_span("test error");
-    assert!(err.span.is_none());
+    let err = CodegenError::without_span(CodegenErrorKind::TargetError, "test error");
+    assert!(err.span().is_none());
+    assert_eq!(err.kind(), CodegenErrorKind::TargetError);
     let display = format!("{}", err);
     assert_eq!(display, "test error");
+}
+
+#[test]
+fn test_codegen_error_missing_main() {
+    let err = CodegenError::missing_main("No main function");
+    assert!(err.span().is_none());
+    assert_eq!(err.kind(), CodegenErrorKind::MissingMainFunction);
+}
+
+#[test]
+fn test_codegen_error_kinds() {
+    // Verify all error kinds are distinct
+    assert_ne!(
+        CodegenErrorKind::MissingMainFunction,
+        CodegenErrorKind::InvalidMainSignature
+    );
+    assert_ne!(
+        CodegenErrorKind::UndefinedVariable,
+        CodegenErrorKind::DuplicateVariable
+    );
+    assert_ne!(
+        CodegenErrorKind::TypeMismatch,
+        CodegenErrorKind::IntegerOverflow
+    );
 }

@@ -5,7 +5,7 @@
 
 use super::Codegen;
 use super::binding::VarBinding;
-use super::error::CodegenError;
+use super::error::{CodegenError, CodegenErrorKind};
 use crate::ast::{Expr, Stmt, StmtKind, Type};
 use crate::token::Span;
 
@@ -51,13 +51,14 @@ impl<'ctx> Codegen<'ctx> {
     ) -> Result<(), CodegenError> {
         if self.variables.contains_key(name) {
             return Err(CodegenError::new(
+                CodegenErrorKind::DuplicateVariable,
                 format!("Variable '{}' is already defined in this scope", name),
                 span,
             ));
         }
 
         let binding = VarBinding::new(&self.builder, self.context, ty, name)
-            .map_err(|e| CodegenError::new(e, span))?;
+            .map_err(|e| CodegenError::new(CodegenErrorKind::InternalError, e, span))?;
 
         let init_value = self.generate_expr_value(init, ty)?;
 
@@ -65,6 +66,7 @@ impl<'ctx> Codegen<'ctx> {
             .build_store(binding.alloca(), init_value)
             .map_err(|e| {
                 CodegenError::new(
+                    CodegenErrorKind::InternalError,
                     format!(
                         "Internal error: failed to store initial value for '{}'. \
                          This is a compiler bug: {}",

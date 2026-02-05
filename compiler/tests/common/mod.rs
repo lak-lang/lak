@@ -43,7 +43,7 @@ pub fn compile_and_run(source: &str) -> Result<String, String> {
     let mut codegen = Codegen::new(&context, "integration_test");
     codegen
         .compile(&program)
-        .map_err(|e: CodegenError| e.message)?;
+        .map_err(|e: CodegenError| e.message().to_string())?;
 
     // Write object file
     let temp_dir = tempdir().map_err(|e| e.to_string())?;
@@ -116,6 +116,6 @@ pub fn compile_error(source: &str) -> Option<(CompileStage, String)> {
     let mut codegen = Codegen::new(&context, "test");
     match codegen.compile(&program) {
         Ok(()) => None,
-        Err(e) => Some((CompileStage::Codegen, e.message)),
+        Err(e) => Some((CompileStage::Codegen, e.message().to_string())),
     }
 }

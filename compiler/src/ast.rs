@@ -148,6 +148,18 @@ impl Stmt {
 /// Functions are the primary organizational unit in Lak. Every program
 /// must have a `main` function as its entry point.
 ///
+/// # Invariants
+///
+/// The following invariants should hold for a well-formed `FnDef`:
+/// - `name` should be a non-empty valid identifier
+/// - `return_type` should be a valid type name (currently only "void")
+/// - `return_type_span` should point to the actual return type token in source
+/// - `span` should encompass the function signature from `fn` to before `{`
+/// - `span.start <= span.end` (valid span range)
+///
+/// These invariants are enforced by the parser. Direct construction should
+/// only be done in tests using [`FnDef::for_testing`].
+///
 /// # Examples
 ///
 /// ```text
@@ -161,8 +173,37 @@ pub struct FnDef {
     pub name: String,
     /// The return type of the function. Currently only "void" is supported.
     pub return_type: String,
+    /// The source location of the return type token (e.g., `void` or `int`).
+    pub return_type_span: Span,
     /// The statements that make up the function body.
     pub body: Vec<Stmt>,
+    /// The source location of the function definition (from `fn` to `{`).
+    pub span: Span,
+}
+
+impl FnDef {
+    /// Creates a `FnDef` for testing purposes with dummy spans.
+    ///
+    /// This constructor is intended for unit tests where span information
+    /// is not relevant. For production code, `FnDef` should be constructed
+    /// by the parser which provides accurate span information.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - The function name
+    /// * `return_type` - The return type (e.g., "void")
+    /// * `body` - The function body statements
+    #[cfg(test)]
+    pub fn for_testing(name: &str, return_type: &str, body: Vec<Stmt>) -> Self {
+        let dummy = Span::new(0, 0, 1, 1);
+        FnDef {
+            name: name.to_string(),
+            return_type: return_type.to_string(),
+            return_type_span: dummy,
+            body,
+            span: dummy,
+        }
+    }
 }
 
 /// The root node of a Lak program's AST.
@@ -341,6 +382,7 @@ mod tests {
         let functions = vec![FnDef {
             name: "main".to_string(),
             return_type: "void".to_string(),
+            return_type_span: dummy_span(),
             body: vec![Stmt::new(
                 StmtKind::Expr(Expr::new(
                     ExprKind::Call {
@@ -354,6 +396,7 @@ mod tests {
                 )),
                 dummy_span(),
             )],
+            span: dummy_span(),
         }];
         let program = Program { functions };
         assert_eq!(program.functions.len(), 1);
@@ -365,7 +408,9 @@ mod tests {
         let fn_def = FnDef {
             name: "test".to_string(),
             return_type: "void".to_string(),
+            return_type_span: dummy_span(),
             body: vec![],
+            span: dummy_span(),
         };
         assert_eq!(fn_def.name, "test");
         assert_eq!(fn_def.return_type, "void");
@@ -377,6 +422,7 @@ mod tests {
         let fn_def = FnDef {
             name: "greet".to_string(),
             return_type: "void".to_string(),
+            return_type_span: dummy_span(),
             body: vec![
                 Stmt::new(
                     StmtKind::Expr(Expr::new(
@@ -405,6 +451,7 @@ mod tests {
                     dummy_span(),
                 ),
             ],
+            span: dummy_span(),
         };
         assert_eq!(fn_def.body.len(), 2);
     }
@@ -414,6 +461,7 @@ mod tests {
         let fn_def = FnDef {
             name: "test".to_string(),
             return_type: "void".to_string(),
+            return_type_span: dummy_span(),
             body: vec![Stmt::new(
                 StmtKind::Expr(Expr::new(
                     ExprKind::StringLiteral("x".to_string()),
@@ -421,6 +469,7 @@ mod tests {
                 )),
                 dummy_span(),
             )],
+            span: dummy_span(),
         };
         let cloned = fn_def.clone();
         assert_eq!(fn_def.name, cloned.name);
@@ -513,6 +562,7 @@ mod tests {
             functions: vec![FnDef {
                 name: "main".to_string(),
                 return_type: "void".to_string(),
+                return_type_span: dummy_span(),
                 body: vec![Stmt::new(
                     StmtKind::Expr(Expr::new(
                         ExprKind::StringLiteral("test".to_string()),
@@ -520,6 +570,7 @@ mod tests {
                     )),
                     dummy_span(),
                 )],
+                span: dummy_span(),
             }],
         };
         let debug_str = format!("{:?}", program);

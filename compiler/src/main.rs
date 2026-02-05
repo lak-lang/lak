@@ -29,7 +29,7 @@
 use ariadne::{Color, Label, Report, ReportKind, Source};
 use clap::{Parser, Subcommand};
 use inkwell::context::Context;
-use lak::codegen::{Codegen, CodegenError};
+use lak::codegen::{Codegen, CodegenError, CodegenErrorKind};
 use lak::lexer::{LexError, Lexer};
 use lak::parser::{ParseError, Parser as LakParser};
 use std::path::{Path, PathBuf};
@@ -116,8 +116,14 @@ enum CompileError {
 /// # Arguments
 ///
 /// * `filename` - The name of the source file (for display purposes)
-/// * `source` - The source code content
+/// * `source` - The source code content (must be the actual contents of `filename`)
 /// * `error` - The error to report
+///
+/// # Important
+///
+/// The `source` parameter **must** be the actual contents of `filename`.
+/// Passing mismatched values will produce confusing error messages that
+/// point to the wrong file or show incorrect source context.
 fn report_error(filename: &str, source: &str, error: CompileError) {
     match error {
         CompileError::Lex(e) => {
@@ -161,24 +167,62 @@ fn report_error(filename: &str, source: &str, error: CompileError) {
             }
         }
         CompileError::Codegen(e) => {
-            if let Some(span) = e.span {
+            if let Some(span) = e.span() {
                 if let Err(report_err) =
                     Report::build(ReportKind::Error, (filename, span.start..span.end))
-                        .with_message(&e.message)
+                        .with_message(e.message())
                         .with_label(
                             Label::new((filename, span.start..span.end))
-                                .with_message(&e.message)
+                                .with_message(e.message())
                                 .with_color(Color::Red),
                         )
                         .finish()
                         .eprint((filename, Source::from(source)))
                 {
                     // Fallback to basic error output if report printing fails
-                    eprintln!("Error: {} (at {}:{})", e.message, span.line, span.column);
+                    eprintln!("Error: {} (at {}:{})", e.message(), span.line, span.column);
                     eprintln!("(Failed to display detailed error report: {})", report_err);
                 }
             } else {
-                eprintln!("Error: {}", e.message);
+                // No span available - show error report pointing to end of file.
+                // We use byte offsets (not character count) because ariadne expects
+                // byte positions. This is correct for UTF-8 sources with multi-byte
+                // characters (emoji, CJK, etc.).
+                let end = source.len().saturating_sub(1);
+                // For empty files, use an empty range at position 0.
+                // For non-empty files, point to the last character to indicate
+                // "end of file" context.
+                let span_range = if source.is_empty() {
+                    0..0
+                } else {
+                    end..source.len()
+                };
+
+                // Customize label and help based on error kind
+                let is_missing_main = e.kind() == CodegenErrorKind::MissingMainFunction;
+                let label_msg: &str = if is_missing_main {
+                    "main function not found"
+                } else {
+                    e.message()
+                };
+
+                let mut report = Report::build(ReportKind::Error, (filename, span_range.clone()))
+                    .with_message(e.message())
+                    .with_label(
+                        Label::new((filename, span_range))
+                            .with_message(label_msg)
+                            .with_color(Color::Red),
+                    );
+
+                if is_missing_main {
+                    report = report.with_help("add a main function: fn main() -> void { ... }");
+                }
+
+                if let Err(report_err) = report.finish().eprint((filename, Source::from(source))) {
+                    // Fallback to basic error output if report printing fails
+                    eprintln!("Error in {}: {}", filename, e.message());
+                    eprintln!("(Failed to display detailed error report: {})", report_err);
+                }
             }
         }
     }

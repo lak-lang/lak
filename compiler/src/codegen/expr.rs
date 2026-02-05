@@ -4,7 +4,7 @@
 //! function calls, literals, and variable references.
 
 use super::Codegen;
-use super::error::CodegenError;
+use super::error::{CodegenError, CodegenErrorKind};
 use crate::ast::{Expr, ExprKind, Type};
 use inkwell::values::BasicValueEnum;
 
@@ -23,6 +23,7 @@ impl<'ctx> Codegen<'ctx> {
                     self.generate_println(args, expr.span)?;
                 } else {
                     return Err(CodegenError::new(
+                        CodegenErrorKind::UndefinedFunction,
                         format!("Unknown function: {}", callee),
                         expr.span,
                     ));
@@ -30,18 +31,21 @@ impl<'ctx> Codegen<'ctx> {
             }
             ExprKind::StringLiteral(_) => {
                 return Err(CodegenError::new(
+                    CodegenErrorKind::InvalidExpression,
                     "String literal as a statement has no effect. Did you mean to pass it to a function?",
                     expr.span,
                 ));
             }
             ExprKind::IntLiteral(_) => {
                 return Err(CodegenError::new(
+                    CodegenErrorKind::InvalidExpression,
                     "Integer literal as a statement has no effect. Did you mean to assign it to a variable?",
                     expr.span,
                 ));
             }
             ExprKind::Identifier(name) => {
                 return Err(CodegenError::new(
+                    CodegenErrorKind::InvalidExpression,
                     format!(
                         "Variable '{}' used as a statement has no effect. Did you mean to use it in an expression?",
                         name
@@ -83,6 +87,7 @@ impl<'ctx> Codegen<'ctx> {
                     Type::I32 => {
                         if *value < i32::MIN as i64 || *value > i32::MAX as i64 {
                             return Err(CodegenError::new(
+                                CodegenErrorKind::IntegerOverflow,
                                 format!(
                                     "Integer literal {} is out of range for i32 (valid range: {} to {})",
                                     value,
@@ -108,12 +113,17 @@ impl<'ctx> Codegen<'ctx> {
             }
             ExprKind::Identifier(name) => {
                 let binding = self.variables.get(name).ok_or_else(|| {
-                    CodegenError::new(format!("Undefined variable: '{}'", name), expr.span)
+                    CodegenError::new(
+                        CodegenErrorKind::UndefinedVariable,
+                        format!("Undefined variable: '{}'", name),
+                        expr.span,
+                    )
                 })?;
 
                 // Type check
                 if *binding.ty() != *expected_ty {
                     return Err(CodegenError::new(
+                        CodegenErrorKind::TypeMismatch,
                         format!(
                             "Type mismatch: variable '{}' has type '{}', expected '{}'",
                             name,
@@ -130,6 +140,7 @@ impl<'ctx> Codegen<'ctx> {
                     .build_load(llvm_type, binding.alloca(), &format!("{}_load", name))
                     .map_err(|e| {
                         CodegenError::new(
+                            CodegenErrorKind::InternalError,
                             format!(
                                 "Internal error: failed to load variable '{}'. This is a compiler bug: {}",
                                 name, e
@@ -141,10 +152,12 @@ impl<'ctx> Codegen<'ctx> {
                 Ok(loaded)
             }
             ExprKind::StringLiteral(_) => Err(CodegenError::new(
+                CodegenErrorKind::TypeMismatch,
                 "String literals cannot be used as integer values",
                 expr.span,
             )),
             ExprKind::Call { callee, .. } => Err(CodegenError::new(
+                CodegenErrorKind::TypeMismatch,
                 format!(
                     "Function call '{}' cannot be used as a value (functions returning values not yet supported)",
                     callee

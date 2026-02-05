@@ -4,7 +4,7 @@
 //! such as `println`.
 
 use super::Codegen;
-use super::error::CodegenError;
+use super::error::{CodegenError, CodegenErrorKind};
 use crate::ast::{Expr, ExprKind};
 use crate::token::Span;
 use inkwell::AddressSpace;
@@ -46,6 +46,7 @@ impl<'ctx> Codegen<'ctx> {
     ) -> Result<(), CodegenError> {
         if args.len() != 1 {
             return Err(CodegenError::new(
+                CodegenErrorKind::InvalidArgument,
                 "println expects exactly 1 argument",
                 span,
             ));
@@ -56,6 +57,7 @@ impl<'ctx> Codegen<'ctx> {
             ExprKind::StringLiteral(s) => s,
             _ => {
                 return Err(CodegenError::new(
+                    CodegenErrorKind::InvalidArgument,
                     "println argument must be a string literal",
                     arg.span,
                 ));
@@ -64,6 +66,7 @@ impl<'ctx> Codegen<'ctx> {
 
         let lak_println = self.module.get_function("lak_println").ok_or_else(|| {
             CodegenError::without_span(
+                CodegenErrorKind::InternalError,
                 "Internal error: lak_println function not found. This is a compiler bug.",
             )
         })?;
@@ -73,6 +76,7 @@ impl<'ctx> Codegen<'ctx> {
             .build_global_string_ptr(string_value, "str")
             .map_err(|e| {
                 CodegenError::new(
+                    CodegenErrorKind::InternalError,
                     format!(
                         "Internal error: failed to create string literal. This is a compiler bug: {}",
                         e
@@ -91,6 +95,7 @@ impl<'ctx> Codegen<'ctx> {
             )
             .map_err(|e| {
                 CodegenError::new(
+                    CodegenErrorKind::InternalError,
                     format!(
                         "Internal error: failed to generate println call. This is a compiler bug: {}",
                         e
