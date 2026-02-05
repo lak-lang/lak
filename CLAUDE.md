@@ -47,10 +47,8 @@ cargo clippy
 
 ```
 lak/
-├── compiler/          # Main compiler crate
-│   ├── src/           # Compiler source code
-│   └── tests/         # Integration and end-to-end tests
-├── runtime/           # Lak runtime library (staticlib)
+├── compiler/          # Main compiler crate (see compiler/CLAUDE.md)
+├── runtime/           # Lak runtime library (see runtime/CLAUDE.md)
 └── examples/          # Example .lak programs
 ```
 
@@ -61,49 +59,6 @@ The compiler follows a traditional pipeline:
 ```
 Source (.lak) → Lexer → Parser → Semantic Analyzer → Codegen → LLVM → Object File → Linker → Executable
 ```
-
-### Module Structure
-
-- `compiler/src/lib.rs` - Library crate exposing all modules for external use and testing
-- `compiler/src/main.rs` - CLI entry point using clap, orchestrates the compilation pipeline
-- `compiler/src/token.rs` - Token types (`TokenKind`) and source location tracking (`Span`)
-- `compiler/src/ast.rs` - AST node definitions (`Program`, `Stmt`, `Expr`)
-- `compiler/src/lexer/` - Lexical analysis module
-  - `mod.rs` - `Lexer` struct and `tokenize()` method
-  - `cursor.rs` - Position tracking and character navigation
-  - `error.rs` - `LexError` type
-  - `skip.rs` - Whitespace and comment handling
-  - `tokens.rs` - Token recognition and reading
-  - `tests.rs` - Unit tests
-- `compiler/src/parser/` - Recursive descent parser module
-  - `mod.rs` - `Parser` struct and `parse()` method
-  - `error.rs` - `ParseError` type
-  - `expr.rs` - Expression parsing
-  - `fn_def.rs` - Function definition parsing
-  - `helpers.rs` - Token navigation utilities
-  - `stmt.rs` - Statement parsing
-  - `types.rs` - Type annotation parsing
-  - `tests.rs` - Unit tests
-- `compiler/src/semantic/` - Semantic analysis module
-  - `mod.rs` - `SemanticAnalyzer` struct and `analyze()` method
-  - `error.rs` - `SemanticError` type
-  - `symbol.rs` - `SymbolTable` for function/variable tracking
-  - `tests.rs` - Unit tests
-- `compiler/src/codegen/` - LLVM IR generation module
-  - `mod.rs` - `Codegen` struct and `compile()` method
-  - `error.rs` - `CodegenError` type
-  - `binding.rs` - Variable binding management
-  - `builtins.rs` - Built-in function implementations (`println`)
-  - `expr.rs` - Expression code generation
-  - `stmt.rs` - Statement code generation
-  - `target.rs` - Target machine and object file output
-  - `tests.rs` - Unit tests
-- `compiler/tests/` - Integration and end-to-end tests
-  - `e2e_basic.rs`, `e2e_strings.rs`, `e2e_variables.rs` - End-to-end tests
-  - `pipeline.rs` - Compilation pipeline tests
-  - `errors_*.rs` - Error handling tests for each compiler phase
-  - `common/mod.rs` - Shared test utilities
-- `runtime/src/lib.rs` - Lak runtime library providing I/O functions (`lak_println`)
 
 ### Key Dependencies
 
