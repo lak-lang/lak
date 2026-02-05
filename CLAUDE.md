@@ -94,3 +94,10 @@ The compiler currently supports:
 
 - **lefthook** - Git hooks for pre-commit checks (cargo fmt --check, cargo clippy)
 - **mise** - Tool version management
+
+## Commit Message Convention
+
+Use the following prefixes based on the type of change:
+
+- **Affects application behavior**: `fix:`, `feat:`
+- **Does not affect application behavior**: `ci:`, `chore:`, `docs:`
