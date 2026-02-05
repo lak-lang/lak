@@ -4,47 +4,64 @@
 //! and line comments during tokenization.
 
 use super::Lexer;
+use crate::token::TokenKind;
 
 impl<'a> Lexer<'a> {
-    /// Skips whitespace and comments in a loop.
+    /// Skips consecutive whitespace characters except newlines.
     ///
-    /// This method handles the case where a comment might be followed by
-    /// whitespace, which might be followed by another comment, etc.
-    pub(super) fn skip_whitespace_and_comments(&mut self) {
-        loop {
-            self.skip_whitespace();
-            if !self.skip_comment() {
-                break;
-            }
+    /// Newlines are handled separately in tokenize() to potentially
+    /// emit Newline tokens based on the previous token.
+    pub(super) fn skip_whitespace(&mut self) {
+        while self
+            .current_char()
+            .is_some_and(|c| c.is_whitespace() && c != '\n')
+        {
+            self.advance();
         }
     }
 
-    /// Skips consecutive whitespace characters.
-    fn skip_whitespace(&mut self) {
-        while self.current_char().is_some_and(|c| c.is_whitespace()) {
-            self.advance();
-        }
+    /// Returns true if a Newline token should be emitted after the last token.
+    ///
+    /// Inspired by Go's automatic semicolon insertion rules, newlines
+    /// are significant (act as statement terminators) only after certain tokens:
+    /// - Identifiers
+    /// - Literals (string, integer)
+    /// - `)` (right parenthesis)
+    /// - `}` (right brace)
+    pub(super) fn should_emit_newline(&self) -> bool {
+        matches!(
+            &self.last_token_kind,
+            Some(TokenKind::Identifier(_))
+                | Some(TokenKind::IntLiteral(_))
+                | Some(TokenKind::StringLiteral(_))
+                | Some(TokenKind::RightParen)
+                | Some(TokenKind::RightBrace)
+        )
     }
 
     /// Skips a line comment if one is present at the current position.
     ///
     /// Line comments start with `//` and extend to the end of the line.
+    /// If a trailing newline is present, it is consumed.
     ///
     /// # Returns
     ///
-    /// `true` if a comment was skipped, `false` otherwise.
-    fn skip_comment(&mut self) -> bool {
+    /// - `None` if no comment was present
+    /// - `Some(true)` if a comment was skipped and ended with a newline
+    /// - `Some(false)` if a comment was skipped but ended at EOF (no newline)
+    pub(super) fn skip_comment(&mut self) -> Option<bool> {
         if self.input[self.pos..].starts_with("//") {
+            let mut consumed_newline = false;
             while let Some(c) = self.current_char() {
+                self.advance();
                 if c == '\n' {
-                    self.advance();
+                    consumed_newline = true;
                     break;
                 }
-                self.advance();
             }
-            true
+            Some(consumed_newline)
         } else {
-            false
+            None
         }
     }
 }

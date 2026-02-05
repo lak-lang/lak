@@ -371,21 +371,39 @@ fn test_comment_at_eof() {
 }
 
 #[test]
+fn test_identifier_then_comment_at_eof_no_newline() {
+    // No Newline token should be emitted because there's no actual newline in the input
+    let kinds = tokenize_kinds("foo // comment without newline");
+    assert_eq!(
+        kinds,
+        vec![TokenKind::Identifier("foo".to_string()), TokenKind::Eof]
+    );
+}
+
+#[test]
 fn test_comment_after_code() {
+    // Comment consumes the rest of the line, but the newline at the end
+    // still emits a Newline token (because the last real token was an identifier)
     let kinds = tokenize_kinds("println // comment\n");
     assert_eq!(
         kinds,
-        vec![TokenKind::Identifier("println".to_string()), TokenKind::Eof]
+        vec![
+            TokenKind::Identifier("println".to_string()),
+            TokenKind::Newline,
+            TokenKind::Eof
+        ]
     );
 }
 
 #[test]
 fn test_comment_between_tokens() {
+    // Newline after comment on line with identifier emits Newline
     let kinds = tokenize_kinds("a // c\nb");
     assert_eq!(
         kinds,
         vec![
             TokenKind::Identifier("a".to_string()),
+            TokenKind::Newline,
             TokenKind::Identifier("b".to_string()),
             TokenKind::Eof
         ]
@@ -459,6 +477,7 @@ fn test_multiple_args() {
 
 #[test]
 fn test_multiple_statements() {
+    // Newline after `)` emits Newline token
     let kinds = tokenize_kinds("foo()\nbar()");
     assert_eq!(
         kinds,
@@ -466,6 +485,7 @@ fn test_multiple_statements() {
             TokenKind::Identifier("foo".to_string()),
             TokenKind::LeftParen,
             TokenKind::RightParen,
+            TokenKind::Newline,
             TokenKind::Identifier("bar".to_string()),
             TokenKind::LeftParen,
             TokenKind::RightParen,
@@ -505,9 +525,13 @@ fn test_span_multiline() {
     assert_eq!(tokens[0].span.line, 1);
     assert_eq!(tokens[0].span.column, 1);
 
-    // Second token 'b' on line 2
-    assert_eq!(tokens[1].span.line, 2);
-    assert_eq!(tokens[1].span.column, 1);
+    // Second token is Newline on line 1
+    assert!(matches!(tokens[1].kind, TokenKind::Newline));
+    assert_eq!(tokens[1].span.line, 1);
+
+    // Third token 'b' on line 2
+    assert_eq!(tokens[2].span.line, 2);
+    assert_eq!(tokens[2].span.column, 1);
 }
 
 #[test]
@@ -680,11 +704,13 @@ fn test_error_escape_at_eof() {
 
 #[test]
 fn test_windows_line_endings() {
+    // Windows line endings: \r is skipped as whitespace, then \n emits Newline
     let kinds = tokenize_kinds("a\r\nb");
     assert_eq!(
         kinds,
         vec![
             TokenKind::Identifier("a".to_string()),
+            TokenKind::Newline,
             TokenKind::Identifier("b".to_string()),
             TokenKind::Eof
         ]
@@ -720,4 +746,188 @@ fn test_integer_literal_leading_zeros() {
 fn test_integer_literal_all_zeros() {
     let kinds = tokenize_kinds("000");
     assert_eq!(kinds, vec![TokenKind::IntLiteral(0), TokenKind::Eof]);
+}
+
+// ===================
+// Newline tokens
+// ===================
+
+#[test]
+fn test_newline_after_identifier() {
+    // Newline after identifier should emit Newline token
+    let kinds = tokenize_kinds("foo\nbar");
+    assert_eq!(
+        kinds,
+        vec![
+            TokenKind::Identifier("foo".to_string()),
+            TokenKind::Newline,
+            TokenKind::Identifier("bar".to_string()),
+            TokenKind::Eof
+        ]
+    );
+}
+
+#[test]
+fn test_newline_after_integer_literal() {
+    let kinds = tokenize_kinds("42\n123");
+    assert_eq!(
+        kinds,
+        vec![
+            TokenKind::IntLiteral(42),
+            TokenKind::Newline,
+            TokenKind::IntLiteral(123),
+            TokenKind::Eof
+        ]
+    );
+}
+
+#[test]
+fn test_newline_after_string_literal() {
+    let kinds = tokenize_kinds("\"hello\"\n\"world\"");
+    assert_eq!(
+        kinds,
+        vec![
+            TokenKind::StringLiteral("hello".to_string()),
+            TokenKind::Newline,
+            TokenKind::StringLiteral("world".to_string()),
+            TokenKind::Eof
+        ]
+    );
+}
+
+#[test]
+fn test_newline_after_right_paren() {
+    let kinds = tokenize_kinds("()\nfoo");
+    assert_eq!(
+        kinds,
+        vec![
+            TokenKind::LeftParen,
+            TokenKind::RightParen,
+            TokenKind::Newline,
+            TokenKind::Identifier("foo".to_string()),
+            TokenKind::Eof
+        ]
+    );
+}
+
+#[test]
+fn test_newline_after_right_brace() {
+    let kinds = tokenize_kinds("{}\nfoo");
+    assert_eq!(
+        kinds,
+        vec![
+            TokenKind::LeftBrace,
+            TokenKind::RightBrace,
+            TokenKind::Newline,
+            TokenKind::Identifier("foo".to_string()),
+            TokenKind::Eof
+        ]
+    );
+}
+
+#[test]
+fn test_no_newline_after_left_paren() {
+    // Newline after `(` should NOT emit Newline token
+    let kinds = tokenize_kinds("(\nfoo)");
+    assert_eq!(
+        kinds,
+        vec![
+            TokenKind::LeftParen,
+            TokenKind::Identifier("foo".to_string()),
+            TokenKind::RightParen,
+            TokenKind::Eof
+        ]
+    );
+}
+
+#[test]
+fn test_no_newline_after_left_brace() {
+    // Newline after `{` should NOT emit Newline token
+    let kinds = tokenize_kinds("{\nfoo}");
+    assert_eq!(
+        kinds,
+        vec![
+            TokenKind::LeftBrace,
+            TokenKind::Identifier("foo".to_string()),
+            TokenKind::RightBrace,
+            TokenKind::Eof
+        ]
+    );
+}
+
+#[test]
+fn test_no_newline_after_comma() {
+    // Newline after `,` should NOT emit Newline token
+    let kinds = tokenize_kinds("a,\nb");
+    assert_eq!(
+        kinds,
+        vec![
+            TokenKind::Identifier("a".to_string()),
+            TokenKind::Comma,
+            TokenKind::Identifier("b".to_string()),
+            TokenKind::Eof
+        ]
+    );
+}
+
+#[test]
+fn test_no_newline_after_arrow() {
+    // Newline after `->` should NOT emit Newline token
+    let kinds = tokenize_kinds("->\nvoid");
+    assert_eq!(
+        kinds,
+        vec![
+            TokenKind::Arrow,
+            TokenKind::Identifier("void".to_string()),
+            TokenKind::Eof
+        ]
+    );
+}
+
+#[test]
+fn test_no_newline_after_fn() {
+    // Newline after `fn` keyword should NOT emit Newline token
+    let kinds = tokenize_kinds("fn\nmain");
+    assert_eq!(
+        kinds,
+        vec![
+            TokenKind::Fn,
+            TokenKind::Identifier("main".to_string()),
+            TokenKind::Eof
+        ]
+    );
+}
+
+#[test]
+fn test_no_newline_after_let() {
+    // Newline after `let` keyword should NOT emit Newline token
+    let kinds = tokenize_kinds("let\nx");
+    assert_eq!(
+        kinds,
+        vec![
+            TokenKind::Let,
+            TokenKind::Identifier("x".to_string()),
+            TokenKind::Eof
+        ]
+    );
+}
+
+#[test]
+fn test_newline_in_let_statement() {
+    // Newline after variable value in let statement
+    let kinds = tokenize_kinds("let x: i32 = 42\nprintln");
+    assert_eq!(
+        kinds,
+        vec![
+            TokenKind::Let,
+            TokenKind::Identifier("x".to_string()),
+            TokenKind::Colon,
+            TokenKind::Identifier("i32".to_string()),
+            TokenKind::Equals,
+            TokenKind::IntLiteral(42),
+            TokenKind::Newline,
+            TokenKind::Identifier("println".to_string()),
+            TokenKind::Eof
+        ]
+    );
 }

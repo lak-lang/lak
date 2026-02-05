@@ -21,6 +21,8 @@
 //!   Values exceeding `i64::MAX` result in a lexer error.
 //! - **String literals**: Enclosed in double quotes, support escape sequences (`\n`, `\t`, `\r`, `\\`, `\"`)
 //! - **Punctuation**: `(`, `)`, `{`, `}`, `,`, `:`, `=`, `->`
+//! - **Newline**: Emitted after certain tokens (identifiers, literals, `)`, `}`) for statement termination,
+//!   inspired by Go's automatic semicolon insertion
 //! - **Comments**: Line comments starting with `//`
 //!
 //! # Examples
@@ -79,6 +81,9 @@ pub struct Lexer<'a> {
     pub(super) line: usize,
     /// Current column number (1-indexed).
     pub(super) column: usize,
+    /// The kind of the last emitted token.
+    /// Used to determine whether to emit a Newline token.
+    pub(super) last_token_kind: Option<TokenKind>,
 }
 
 impl<'a> Lexer<'a> {
@@ -100,6 +105,7 @@ impl<'a> Lexer<'a> {
             pos: 0,
             line: 1,
             column: 1,
+            last_token_kind: None,
         }
     }
 
@@ -126,7 +132,34 @@ impl<'a> Lexer<'a> {
         let mut tokens = Vec::new();
 
         loop {
-            self.skip_whitespace_and_comments();
+            // Skip non-newline whitespace first
+            self.skip_whitespace();
+
+            // Check for newline
+            if self.current_char() == Some('\n') {
+                if self.should_emit_newline() {
+                    let span = Span::new(self.pos, self.pos + 1, self.line, self.column);
+                    tokens.push(Token::new(TokenKind::Newline, span));
+                    self.last_token_kind = Some(TokenKind::Newline);
+                }
+                // Always consume the newline, whether we emit a token or not
+                self.advance();
+                continue;
+            }
+
+            // Check for and skip comments (which may consume a trailing newline)
+            if let Some(consumed_newline) = self.skip_comment() {
+                // Only emit a Newline token if the comment actually consumed a newline
+                // and the previous token requires a Newline for statement termination
+                if consumed_newline && self.should_emit_newline() {
+                    // Emit a Newline token for the newline consumed by the comment.
+                    // Since advance() already updated line/column, we use pos-1 and line-1.
+                    let span = Span::new(self.pos - 1, self.pos, self.line - 1, 1);
+                    tokens.push(Token::new(TokenKind::Newline, span));
+                    self.last_token_kind = Some(TokenKind::Newline);
+                }
+                continue;
+            }
 
             if self.is_eof() {
                 let span = Span::new(self.pos, self.pos, self.line, self.column);
@@ -135,6 +168,7 @@ impl<'a> Lexer<'a> {
             }
 
             let token = self.next_token()?;
+            self.last_token_kind = Some(token.kind.clone());
             tokens.push(token);
         }
 

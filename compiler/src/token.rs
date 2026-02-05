@@ -123,6 +123,12 @@ pub enum TokenKind {
     /// An integer literal (e.g., 42, 100).
     IntLiteral(i64),
 
+    /// A newline that acts as a statement terminator.
+    ///
+    /// Only emitted after certain tokens (identifiers, literals, `)`, `}`)
+    /// following the Go-style automatic semicolon insertion rules.
+    Newline,
+
     /// End of file marker.
     ///
     /// This is always the last token in a valid token stream.

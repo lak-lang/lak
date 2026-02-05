@@ -28,6 +28,7 @@ impl Parser {
                     self.parse_call(name, start_span)
                 } else {
                     // Check for syntax error: identifier followed by expression-start token
+                    // without an intervening Newline (which would indicate a new statement)
                     match self.current_kind() {
                         TokenKind::StringLiteral(_) => Err(ParseError {
                             message: format!(
@@ -53,10 +54,9 @@ impl Parser {
                                 span: self.current_span(),
                             })
                         }
-                        _ => {
-                            // Variable reference
-                            Ok(Expr::new(ExprKind::Identifier(name), start_span))
-                        }
+                        // Any other token (including Newline, Eof, operators, etc.)
+                        // means this is a valid variable reference
+                        _ => Ok(Expr::new(ExprKind::Identifier(name), start_span)),
                     }
                 }
             }
@@ -102,6 +102,7 @@ impl Parser {
         start_span: Span,
     ) -> Result<Expr, ParseError> {
         self.expect(&TokenKind::LeftParen)?;
+        self.skip_newlines(); // Skip newlines after opening paren
 
         let mut args = Vec::new();
 
@@ -109,15 +110,18 @@ impl Parser {
             loop {
                 let arg = self.parse_expr()?;
                 args.push(arg);
+                self.skip_newlines(); // Skip newlines after argument
 
                 if matches!(self.current_kind(), TokenKind::Comma) {
                     self.advance();
+                    self.skip_newlines(); // Skip newlines after comma
                 } else {
                     break;
                 }
             }
         }
 
+        self.skip_newlines(); // Skip newlines before closing paren
         let end_span = self.current_span();
         self.expect(&TokenKind::RightParen)?;
 

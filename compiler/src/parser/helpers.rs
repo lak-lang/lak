@@ -28,6 +28,7 @@ impl Parser {
             TokenKind::Colon => "':'".to_string(),
             TokenKind::Equals => "'='".to_string(),
             TokenKind::IntLiteral(n) => format!("integer '{}'", n),
+            TokenKind::Newline => "newline".to_string(),
         }
     }
 
@@ -64,6 +65,16 @@ impl Parser {
     pub(super) fn advance(&mut self) {
         if !self.is_eof() {
             self.pos += 1;
+        }
+    }
+
+    /// Skips all consecutive Newline tokens.
+    ///
+    /// This is used in contexts where newlines are not significant
+    /// (e.g., inside braces, after certain tokens).
+    pub(super) fn skip_newlines(&mut self) {
+        while matches!(self.current_kind(), TokenKind::Newline) && !self.is_eof() {
+            self.advance();
         }
     }
 
