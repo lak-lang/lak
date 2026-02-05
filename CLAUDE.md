@@ -17,6 +17,7 @@ cargo build --release
 
 # Run the compiler
 cargo run -- build <file.lak>
+cargo run -- build <file.lak> -o <output>  # specify output path
 
 # Run tests
 cargo test
