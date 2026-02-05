@@ -10,7 +10,7 @@ compiler/
 │   ├── main.rs      # CLI entry point (lak build, lak run)
 │   ├── lib.rs       # Library crate exposing all modules
 │   ├── token.rs     # Token and Span definitions
-│   ├── ast.rs       # AST node definitions
+│   ├── ast/         # AST node definitions (see ast/CLAUDE.md)
 │   ├── lexer/       # Lexical analysis (see lexer/CLAUDE.md)
 │   ├── parser/      # Parsing (see parser/CLAUDE.md)
 │   ├── semantic/    # Semantic analysis (see semantic/CLAUDE.md)
@@ -97,6 +97,6 @@ Sets `LAK_RUNTIME_PATH` environment variable at compile time, pointing to `libla
 ## Extension Guidelines
 
 1. New CLI commands: add variant to `Commands` enum in `main.rs`
-2. New AST nodes: add to `ast.rs`, update parser and codegen
+2. New AST nodes: add to appropriate file in `ast/`, update parser and codegen
 3. New token types: add to `token.rs`, update lexer
 4. Error handling: use appropriate error type with `Span`

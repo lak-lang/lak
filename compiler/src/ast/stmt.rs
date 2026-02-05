@@ -1,0 +1,51 @@
+//! Statement nodes for the Lak AST.
+
+use crate::token::Span;
+
+use super::expr::Expr;
+use super::types::Type;
+
+/// The kind of a statement in the Lak language.
+///
+/// This enum represents the different types of statements without
+/// source location information. Use [`Stmt`] for the full AST node
+/// with span information.
+#[derive(Debug, Clone)]
+pub enum StmtKind {
+    /// An expression statement.
+    ///
+    /// Evaluates the expression for its side effects. The result value
+    /// (if any) is discarded.
+    Expr(Expr),
+
+    /// A variable declaration with `let`.
+    ///
+    /// Declares a new variable with an explicit type annotation and
+    /// initializer expression.
+    Let {
+        /// The name of the variable being declared.
+        name: String,
+        /// The type annotation for the variable.
+        ty: Type,
+        /// The initializer expression.
+        init: Expr,
+    },
+}
+
+/// A statement in the Lak language with source location.
+///
+/// Statements are constructs within function bodies.
+#[derive(Debug, Clone)]
+pub struct Stmt {
+    /// The kind of statement.
+    pub kind: StmtKind,
+    /// The source location of this statement.
+    pub span: Span,
+}
+
+impl Stmt {
+    /// Creates a new statement with the given kind and span.
+    pub fn new(kind: StmtKind, span: Span) -> Self {
+        Stmt { kind, span }
+    }
+}
