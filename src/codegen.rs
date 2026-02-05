@@ -47,14 +47,14 @@
 //! * [LLVM Language Reference](https://llvm.org/docs/LangRef.html)
 
 use crate::ast::{Expr, Program, Stmt};
+use inkwell::AddressSpace;
+use inkwell::OptimizationLevel;
 use inkwell::context::Context;
 use inkwell::module::Linkage;
 use inkwell::targets::{
     CodeModel, FileType, InitializationConfig, RelocMode, Target, TargetMachine,
 };
 use inkwell::values::BasicMetadataValueEnum;
-use inkwell::AddressSpace;
-use inkwell::OptimizationLevel;
 use std::path::Path;
 
 /// LLVM code generator for Lak programs.
