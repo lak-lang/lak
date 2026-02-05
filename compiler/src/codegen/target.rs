@@ -75,7 +75,7 @@ impl<'ctx> Codegen<'ctx> {
                 cpu_str,
                 features_str,
                 OptimizationLevel::Default,
-                RelocMode::Default,
+                RelocMode::PIC,
                 CodeModel::Default,
             )
             .ok_or_else(|| {
