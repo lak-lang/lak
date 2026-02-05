@@ -1,0 +1,79 @@
+//! Variable binding management for code generation.
+//!
+//! This module defines [`VarBinding`], which represents a variable's stack
+//! allocation and type information during code generation.
+
+use crate::ast::Type;
+use inkwell::context::Context;
+use inkwell::values::PointerValue;
+
+/// A variable binding in the symbol table.
+///
+/// Stores the stack allocation pointer and declared type for a variable,
+/// enabling variable lookups and type checking during code generation.
+///
+/// # Invariants
+///
+/// The LLVM type of `alloca` must correspond to `ty`:
+/// - `Type::I32` → `alloca` points to an LLVM `i32`
+/// - `Type::I64` → `alloca` points to an LLVM `i64`
+///
+/// This invariant is enforced by creating bindings only through
+/// [`VarBinding::new`], which allocates the correct LLVM type.
+#[derive(Clone, Debug)]
+pub(super) struct VarBinding<'ctx> {
+    /// The stack allocation for this variable.
+    alloca: PointerValue<'ctx>,
+    /// The declared type of this variable.
+    ty: Type,
+}
+
+impl<'ctx> VarBinding<'ctx> {
+    /// Creates a new variable binding with a stack allocation.
+    ///
+    /// This constructor ensures the invariant that `alloca`'s LLVM type
+    /// matches the declared `ty`.
+    ///
+    /// # Arguments
+    ///
+    /// * `builder` - The LLVM IR builder
+    /// * `context` - The LLVM context
+    /// * `ty` - The Lak type for this variable
+    /// * `name` - The variable name (used for LLVM IR naming)
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(VarBinding)` - A new binding with a correctly-typed stack allocation.
+    /// * `Err(String)` - If LLVM fails to create the alloca instruction.
+    pub(super) fn new(
+        builder: &inkwell::builder::Builder<'ctx>,
+        context: &'ctx Context,
+        ty: &Type,
+        name: &str,
+    ) -> Result<Self, String> {
+        let llvm_type = match ty {
+            Type::I32 => context.i32_type(),
+            Type::I64 => context.i64_type(),
+        };
+        let alloca = builder.build_alloca(llvm_type, name).map_err(|e| {
+            format!(
+                "Internal error: failed to allocate variable '{}'. This is a compiler bug: {}",
+                name, e
+            )
+        })?;
+        Ok(VarBinding {
+            alloca,
+            ty: ty.clone(),
+        })
+    }
+
+    /// Returns the stack allocation pointer for this variable.
+    pub(super) fn alloca(&self) -> PointerValue<'ctx> {
+        self.alloca
+    }
+
+    /// Returns the declared type of this variable.
+    pub(super) fn ty(&self) -> &Type {
+        &self.ty
+    }
+}

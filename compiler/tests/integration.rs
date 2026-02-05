@@ -47,7 +47,9 @@ fn compile_and_run(source: &str) -> Result<String, String> {
     let object_path = temp_dir.path().join("test.o");
     let executable_path = temp_dir.path().join("test");
 
-    codegen.write_object_file(&object_path)?;
+    codegen
+        .write_object_file(&object_path)
+        .map_err(|e| e.to_string())?;
 
     // Link
     let object_str = object_path

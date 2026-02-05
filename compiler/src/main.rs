@@ -229,7 +229,12 @@ fn build(file: &str) -> Result<(), String> {
     let object_path = format!("{}.o", stem);
     let output_path = stem.to_string();
 
-    codegen.write_object_file(Path::new(&object_path))?;
+    codegen
+        .write_object_file(Path::new(&object_path))
+        .map_err(|e| {
+            report_error(file, &source, CompileError::Codegen(e));
+            "Compilation failed".to_string()
+        })?;
 
     let output = Command::new("cc")
         .args([&object_path, LAK_RUNTIME_PATH, "-o", &output_path])
