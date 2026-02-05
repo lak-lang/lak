@@ -7,6 +7,7 @@
 //!
 //! ```text
 //! lak build <file.lak>
+//! lak build <file.lak> -o <output>
 //! ```
 //!
 //! # Architecture
@@ -53,6 +54,11 @@ enum Commands {
     Build {
         /// The source file to compile (e.g., `hello.lak`).
         file: String,
+
+        /// Output path for the executable (e.g., `-o myprogram`).
+        /// If not specified, uses the input filename without extension.
+        #[arg(short = 'o', long = "output")]
+        output: Option<String>,
     },
 }
 
@@ -63,8 +69,8 @@ fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Build { file } => {
-            if let Err(e) = build(&file) {
+        Commands::Build { file, output } => {
+            if let Err(e) = build(&file, output.as_deref()) {
                 eprintln!("Error: {}", e);
                 std::process::exit(1);
             }
@@ -179,6 +185,7 @@ const LAK_RUNTIME_PATH: &str = env!("LAK_RUNTIME_PATH");
 /// # Arguments
 ///
 /// * `file` - Path to the Lak source file
+/// * `output` - Optional path for the output executable. If `None`, uses input file stem.
 ///
 /// # Returns
 ///
@@ -187,10 +194,11 @@ const LAK_RUNTIME_PATH: &str = env!("LAK_RUNTIME_PATH");
 ///
 /// # Output Files
 ///
-/// Given an input file `example.lak`, this function produces:
-/// - `example` - The final executable
+/// Given an input file `example.lak`:
+/// - Without `-o`: produces `example` executable
+/// - With `-o myapp`: produces `myapp` executable
 /// - `example.o` - Temporary object file (deleted after linking)
-fn build(file: &str) -> Result<(), String> {
+fn build(file: &str, output: Option<&str>) -> Result<(), String> {
     let source =
         std::fs::read_to_string(file).map_err(|e| format!("Failed to read file: {}", e))?;
 
@@ -227,7 +235,10 @@ fn build(file: &str) -> Result<(), String> {
         .ok_or_else(|| format!("Filename contains invalid UTF-8: {}", file))?;
 
     let object_path = format!("{}.o", stem);
-    let output_path = stem.to_string();
+    let output_path = match output {
+        Some(path) => path.to_string(),
+        None => stem.to_string(),
+    };
 
     codegen
         .write_object_file(Path::new(&object_path))
