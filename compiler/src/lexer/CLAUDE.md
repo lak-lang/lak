@@ -15,7 +15,26 @@ Converts source code text into a stream of `Token`s for the parser. Handles char
 | `cursor.rs` | Position tracking (`current_char`, `advance`, `is_eof`) |
 | `skip.rs` | Whitespace/comment skipping, newline emission logic |
 | `tokens.rs` | Token recognition (`next_token`, `read_*` methods) |
-| `tests.rs` | Unit tests |
+| `tests/` | Unit tests (see below) |
+
+## Test Structure
+
+Tests are organized by category in `tests/` directory:
+
+| File | Coverage |
+|------|----------|
+| `mod.rs` | Helper functions (`tokenize_kinds`, `tokenize_error`) |
+| `basic_tokens.rs` | Punctuation, braces, arrow |
+| `identifiers.rs` | Identifier parsing including Unicode |
+| `keywords.rs` | Keyword recognition (`fn`, `let`) |
+| `strings.rs` | String literals and escape sequences |
+| `integers.rs` | Integer literal parsing |
+| `comments.rs` | Comment handling |
+| `compound.rs` | Function calls, nested expressions |
+| `newlines.rs` | Newline token emission rules |
+| `spans.rs` | Position tracking verification |
+| `errors.rs` | Error cases |
+| `edge_cases.rs` | Corner cases, platform compatibility |
 
 ## Supported Tokens
 
