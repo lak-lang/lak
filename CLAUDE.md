@@ -43,6 +43,17 @@ cargo fmt
 cargo clippy
 ```
 
+## Project Structure
+
+```
+lak/
+├── compiler/          # Main compiler crate
+│   ├── src/           # Compiler source code
+│   └── tests/         # Integration and end-to-end tests
+├── runtime/           # Lak runtime library (staticlib)
+└── examples/          # Example .lak programs
+```
+
 ## Architecture
 
 The compiler follows a traditional pipeline:
@@ -94,6 +105,7 @@ Source (.lak) → Lexer → Parser → Codegen → LLVM → Object File → Link
 - **inkwell** - Safe Rust bindings to LLVM (using LLVM 21.1)
 - **ariadne** - Beautiful error reporting with source highlighting
 - **clap** - Command-line argument parsing
+- **tempfile** - Temporary file handling for compilation pipeline
 
 ### Current Language Features
 
@@ -117,3 +129,7 @@ The compiler currently supports:
 5. `Codegen::write_object_file()` outputs `.o` file
 6. System linker (`cc`) produces final executable
 
+### Development Tools
+
+- **lefthook** - Git hooks for pre-commit checks (cargo fmt --check, cargo clippy)
+- **mise** - Tool version management
