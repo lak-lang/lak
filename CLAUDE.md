@@ -18,6 +18,7 @@ cargo build --release
 # Run the compiler
 cargo run -- build <file.lak>
 cargo run -- build <file.lak> -o <output>  # specify output path
+cargo run -- run <file.lak>                # compile and run directly
 
 # Run tests
 cargo test
@@ -33,6 +34,7 @@ cargo test parser::tests
 cargo test --test e2e_basic
 cargo test --test e2e_strings
 cargo test --test e2e_variables
+cargo test --test e2e_run
 
 # Format code
 cargo fmt
