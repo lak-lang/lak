@@ -3,10 +3,11 @@
 //! These tests verify the full compilation pipeline from source code
 //! to executable output.
 
-use lak::ast::{Expr, FnDef, Program, Stmt};
-use lak::codegen::Codegen;
+use lak::ast::{Expr, ExprKind, FnDef, Program, Stmt, StmtKind, Type};
+use lak::codegen::{Codegen, CodegenError};
 use lak::lexer::Lexer;
 use lak::parser::Parser;
+use lak::token::Span;
 
 use inkwell::context::Context;
 use std::process::Command;
@@ -14,6 +15,11 @@ use tempfile::tempdir;
 
 /// Path to the Lak runtime library, set at compile time by build.rs.
 const LAK_RUNTIME_PATH: &str = env!("LAK_RUNTIME_PATH");
+
+/// Creates a dummy span for test AST construction.
+fn dummy_span() -> Span {
+    Span::new(0, 0, 1, 1)
+}
 
 /// Compiles a Lak program to an executable and runs it, returning stdout output.
 ///
@@ -32,7 +38,9 @@ fn compile_and_run(source: &str) -> Result<String, String> {
     // Codegen
     let context = Context::create();
     let mut codegen = Codegen::new(&context, "integration_test");
-    codegen.compile(&program)?;
+    codegen
+        .compile(&program)
+        .map_err(|e: CodegenError| e.message)?;
 
     // Write object file
     let temp_dir = tempdir().map_err(|e| e.to_string())?;
@@ -103,7 +111,7 @@ fn compile_error(source: &str) -> Option<(CompileStage, String)> {
     let mut codegen = Codegen::new(&context, "test");
     match codegen.compile(&program) {
         Ok(()) => None,
-        Err(e) => Some((CompileStage::Codegen, e)),
+        Err(e) => Some((CompileStage::Codegen, e.message)),
     }
 }
 
@@ -377,10 +385,19 @@ fn test_ast_to_codegen() {
         functions: vec![FnDef {
             name: "main".to_string(),
             return_type: "void".to_string(),
-            body: vec![Stmt::Expr(Expr::Call {
-                callee: "println".to_string(),
-                args: vec![Expr::StringLiteral("direct AST".to_string())],
-            })],
+            body: vec![Stmt::new(
+                StmtKind::Expr(Expr::new(
+                    ExprKind::Call {
+                        callee: "println".to_string(),
+                        args: vec![Expr::new(
+                            ExprKind::StringLiteral("direct AST".to_string()),
+                            dummy_span(),
+                        )],
+                    },
+                    dummy_span(),
+                )),
+                dummy_span(),
+            )],
         }],
     };
 
@@ -422,4 +439,655 @@ fn test_mixed_escapes() {
     )
     .unwrap();
     assert_eq!(output, "tab:\there\nnewline\n");
+}
+
+// ===================
+// Let statement tests
+// ===================
+
+#[test]
+fn test_let_statement_basic() {
+    // Variable definition only (no output)
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = 42
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "");
+}
+
+#[test]
+fn test_multiple_let_statements() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let a: i32 = 1
+    let b: i64 = 2
+    let c: i32 = 3
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "");
+}
+
+#[test]
+fn test_let_with_println() {
+    // println mixed with let statements
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    println("before")
+    let x: i32 = 42
+    println("after")
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "before\nafter\n");
+}
+
+#[test]
+fn test_let_with_variable_reference() {
+    // Variable reference to initialize another variable
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = 100
+    let y: i32 = x
+    println("done")
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "done\n");
+}
+
+#[test]
+fn test_let_i64_variable() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let big: i64 = 9223372036854775807
+    println("ok")
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "ok\n");
+}
+
+#[test]
+fn test_let_chain_references() {
+    // Chain of variable references: a -> b -> c
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let a: i32 = 1
+    let b: i32 = a
+    let c: i32 = b
+    println("chain complete")
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "chain complete\n");
+}
+
+#[test]
+fn test_compile_error_duplicate_variable() {
+    let result = compile_error(
+        r#"fn main() -> void {
+    let x: i32 = 1
+    let x: i32 = 2
+}"#,
+    );
+    let (stage, msg) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Codegen),
+        "Expected Codegen error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert!(
+        msg.contains("already defined"),
+        "Expected 'already defined' in error: {}",
+        msg
+    );
+}
+
+#[test]
+fn test_compile_error_undefined_variable() {
+    let result = compile_error(
+        r#"fn main() -> void {
+    let x: i32 = undefined_var
+}"#,
+    );
+    let (stage, msg) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Codegen),
+        "Expected Codegen error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert!(
+        msg.contains("Undefined variable"),
+        "Expected 'Undefined variable' in error: {}",
+        msg
+    );
+}
+
+#[test]
+fn test_compile_error_type_mismatch() {
+    let result = compile_error(
+        r#"fn main() -> void {
+    let x: i32 = 42
+    let y: i64 = x
+}"#,
+    );
+    let (stage, msg) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Codegen),
+        "Expected Codegen error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert!(
+        msg.contains("Type mismatch"),
+        "Expected 'Type mismatch' in error: {}",
+        msg
+    );
+}
+
+#[test]
+fn test_compile_error_unknown_type() {
+    let result = compile_error(
+        r#"fn main() -> void {
+    let x: unknown = 42
+}"#,
+    );
+    let (stage, msg) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Parse),
+        "Expected Parse error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert!(
+        msg.contains("Unknown type"),
+        "Expected 'Unknown type' in error: {}",
+        msg
+    );
+}
+
+#[test]
+fn test_ast_let_to_codegen() {
+    // Build AST with Let statement directly and compile
+    let program = Program {
+        functions: vec![FnDef {
+            name: "main".to_string(),
+            return_type: "void".to_string(),
+            body: vec![
+                Stmt::new(
+                    StmtKind::Let {
+                        name: "x".to_string(),
+                        ty: Type::I32,
+                        init: Expr::new(ExprKind::IntLiteral(42), dummy_span()),
+                    },
+                    dummy_span(),
+                ),
+                Stmt::new(
+                    StmtKind::Let {
+                        name: "y".to_string(),
+                        ty: Type::I32,
+                        init: Expr::new(ExprKind::Identifier("x".to_string()), dummy_span()),
+                    },
+                    dummy_span(),
+                ),
+            ],
+        }],
+    };
+
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "let_ast_test");
+    codegen
+        .compile(&program)
+        .expect("Direct AST Let compilation should succeed");
+}
+
+#[test]
+fn test_compile_error_i32_overflow() {
+    // i32::MAX + 1 = 2147483648 should overflow i32
+    let result = compile_error(
+        r#"fn main() -> void {
+    let x: i32 = 2147483648
+}"#,
+    );
+    let (stage, msg) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Codegen),
+        "Expected Codegen error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert!(
+        msg.contains("out of range for i32"),
+        "Expected 'out of range for i32' in error: {}",
+        msg
+    );
+}
+
+#[test]
+fn test_compile_error_i32_large_value_overflow() {
+    // Test that very large values (i64 max) are rejected for i32
+    // Note: Negative literals are not yet supported
+    let result = compile_error(
+        r#"fn main() -> void {
+    let x: i32 = 9223372036854775807
+}"#,
+    );
+    let (stage, msg) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Codegen),
+        "Expected Codegen error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert!(
+        msg.contains("out of range for i32"),
+        "Expected 'out of range for i32' in error: {}",
+        msg
+    );
+}
+
+#[test]
+fn test_i32_max_value_valid() {
+    // i32::MAX = 2147483647 should be valid for i32
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = 2147483647
+    println("ok")
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "ok\n");
+}
+
+// ===================
+// Additional error tests for complete coverage
+// ===================
+
+#[test]
+fn test_compile_error_i64_overflow() {
+    // i64::MAX + 1 should cause lexer error (overflow during parsing)
+    let result = compile_error(
+        r#"fn main() -> void {
+    let x: i64 = 9223372036854775808
+}"#,
+    );
+    let (stage, msg) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Lex),
+        "Expected Lex error for i64 overflow, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert!(
+        msg.contains("out of range for i64"),
+        "Expected 'out of range for i64' in error: {}",
+        msg
+    );
+}
+
+#[test]
+fn test_compile_error_duplicate_variable_different_type() {
+    // Duplicate variable with different type should still be rejected
+    let result = compile_error(
+        r#"fn main() -> void {
+    let x: i32 = 1
+    let x: i64 = 2
+}"#,
+    );
+    let (stage, msg) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Codegen),
+        "Expected Codegen error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert!(
+        msg.contains("already defined"),
+        "Expected 'already defined' in error: {}",
+        msg
+    );
+}
+
+#[test]
+fn test_compile_error_forward_reference() {
+    // Variable used before it's defined
+    let result = compile_error(
+        r#"fn main() -> void {
+    let x: i32 = y
+    let y: i32 = 1
+}"#,
+    );
+    let (stage, msg) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Codegen),
+        "Expected Codegen error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert!(
+        msg.contains("Undefined variable"),
+        "Expected 'Undefined variable' in error: {}",
+        msg
+    );
+}
+
+#[test]
+fn test_let_single_char_name() {
+    // Single character variable name
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let a: i32 = 1
+    println("ok")
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "ok\n");
+}
+
+#[test]
+fn test_let_underscore_prefix_name() {
+    // Variable name starting with underscore
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let _private: i32 = 42
+    println("ok")
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "ok\n");
+}
+
+#[test]
+fn test_error_string_literal_as_int_value() {
+    // String literal cannot be used as integer initializer
+    // (This requires direct AST construction since parser would reject it)
+    let program = Program {
+        functions: vec![FnDef {
+            name: "main".to_string(),
+            return_type: "void".to_string(),
+            body: vec![Stmt::new(
+                StmtKind::Let {
+                    name: "x".to_string(),
+                    ty: Type::I32,
+                    init: Expr::new(ExprKind::StringLiteral("hello".to_string()), dummy_span()),
+                },
+                dummy_span(),
+            )],
+        }],
+    };
+
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "test");
+    let err = codegen.compile(&program).expect_err("Should fail");
+    assert!(
+        err.message
+            .contains("String literals cannot be used as integer values"),
+        "Expected 'String literals cannot be used as integer values' in error: {}",
+        err.message
+    );
+}
+
+#[test]
+fn test_error_function_call_as_int_value() {
+    // Function call cannot be used as integer initializer (void functions)
+    // (This requires direct AST construction since parser would allow it syntactically)
+    let program = Program {
+        functions: vec![FnDef {
+            name: "main".to_string(),
+            return_type: "void".to_string(),
+            body: vec![Stmt::new(
+                StmtKind::Let {
+                    name: "x".to_string(),
+                    ty: Type::I32,
+                    init: Expr::new(
+                        ExprKind::Call {
+                            callee: "some_func".to_string(),
+                            args: vec![],
+                        },
+                        dummy_span(),
+                    ),
+                },
+                dummy_span(),
+            )],
+        }],
+    };
+
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "test");
+    let err = codegen.compile(&program).expect_err("Should fail");
+    assert!(
+        err.message.contains("cannot be used as a value"),
+        "Expected 'cannot be used as a value' in error: {}",
+        err.message
+    );
+}
+
+#[test]
+fn test_error_int_literal_as_statement() {
+    // Integer literal used as statement should error
+    let program = Program {
+        functions: vec![FnDef {
+            name: "main".to_string(),
+            return_type: "void".to_string(),
+            body: vec![Stmt::new(
+                StmtKind::Expr(Expr::new(ExprKind::IntLiteral(42), dummy_span())),
+                dummy_span(),
+            )],
+        }],
+    };
+
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "test");
+    let err = codegen.compile(&program).expect_err("Should fail");
+    assert!(
+        err.message
+            .contains("Integer literal as a statement has no effect"),
+        "Expected 'Integer literal as a statement has no effect' in error: {}",
+        err.message
+    );
+}
+
+#[test]
+fn test_error_identifier_as_statement() {
+    // Variable used as statement should error
+    let program = Program {
+        functions: vec![FnDef {
+            name: "main".to_string(),
+            return_type: "void".to_string(),
+            body: vec![
+                Stmt::new(
+                    StmtKind::Let {
+                        name: "x".to_string(),
+                        ty: Type::I32,
+                        init: Expr::new(ExprKind::IntLiteral(42), dummy_span()),
+                    },
+                    dummy_span(),
+                ),
+                Stmt::new(
+                    StmtKind::Expr(Expr::new(
+                        ExprKind::Identifier("x".to_string()),
+                        dummy_span(),
+                    )),
+                    dummy_span(),
+                ),
+            ],
+        }],
+    };
+
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "test");
+    let err = codegen.compile(&program).expect_err("Should fail");
+    assert!(
+        err.message.contains("used as a statement has no effect"),
+        "Expected 'used as a statement has no effect' in error: {}",
+        err.message
+    );
+}
+
+#[test]
+fn test_error_string_literal_as_statement() {
+    // String literal used as statement should error
+    let program = Program {
+        functions: vec![FnDef {
+            name: "main".to_string(),
+            return_type: "void".to_string(),
+            body: vec![Stmt::new(
+                StmtKind::Expr(Expr::new(
+                    ExprKind::StringLiteral("hello".to_string()),
+                    dummy_span(),
+                )),
+                dummy_span(),
+            )],
+        }],
+    };
+
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "test");
+    let err = codegen.compile(&program).expect_err("Should fail");
+    assert!(
+        err.message
+            .contains("String literal as a statement has no effect"),
+        "Expected 'String literal as a statement has no effect' in error: {}",
+        err.message
+    );
+}
+
+#[test]
+fn test_compile_error_variable_in_println() {
+    // Passing a variable to println should error (println only accepts string literals)
+    let result = compile_error(
+        r#"fn main() -> void {
+    let x: i32 = 42
+    println(x)
+}"#,
+    );
+    let (stage, msg) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Codegen),
+        "Expected Codegen error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert!(
+        msg.contains("string literal"),
+        "Expected 'string literal' in error: {}",
+        msg
+    );
+}
+
+#[test]
+fn test_negative_number_not_supported() {
+    // Negative literals like -42 are not supported; `-` is only valid in `->`
+    let result = compile_error(
+        r#"fn main() -> void {
+    let x: i32 = -42
+}"#,
+    );
+    let (stage, msg) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Lex),
+        "Expected Lex error for negative number, got {:?}: {}",
+        stage,
+        msg
+    );
+    // The lexer expects `->` after `-`, so we get an error about that
+    assert!(
+        msg.contains("Expected '>' after '-'"),
+        "Expected error about '->' arrow, got: {}",
+        msg
+    );
+}
+
+#[test]
+fn test_error_i32_underflow_via_ast() {
+    // Test that values less than i32::MIN are rejected for i32 type.
+    // This requires direct AST construction since negative literals aren't
+    // supported in source code yet.
+    let program = Program {
+        functions: vec![FnDef {
+            name: "main".to_string(),
+            return_type: "void".to_string(),
+            body: vec![Stmt::new(
+                StmtKind::Let {
+                    name: "x".to_string(),
+                    ty: Type::I32,
+                    init: Expr::new(ExprKind::IntLiteral(-2147483649), dummy_span()), // i32::MIN - 1
+                },
+                dummy_span(),
+            )],
+        }],
+    };
+
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "test");
+    let err = codegen.compile(&program).expect_err("Should fail");
+    assert!(
+        err.message.contains("out of range for i32"),
+        "Expected 'out of range for i32' in error: {}",
+        err.message
+    );
+}
+
+#[test]
+fn test_let_unicode_variable_name() {
+    // Unicode variable names should work
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let 変数: i32 = 42
+    let αβγ: i64 = 100
+    println("unicode vars ok")
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "unicode vars ok\n");
+}
+
+#[test]
+fn test_compile_error_println_int_literal() {
+    // Passing an integer literal directly to println should error
+    let result = compile_error(
+        r#"fn main() -> void {
+    println(42)
+}"#,
+    );
+    let (stage, msg) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Codegen),
+        "Expected Codegen error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert!(
+        msg.contains("string literal"),
+        "Expected 'string literal' in error: {}",
+        msg
+    );
+}
+
+#[test]
+fn test_compile_error_let_missing_variable_name() {
+    // `let : i32 = 42` - missing variable name should be a parse error
+    let result = compile_error(
+        r#"fn main() -> void {
+    let : i32 = 42
+}"#,
+    );
+    let (stage, msg) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Parse),
+        "Expected Parse error, got {:?}: {}",
+        stage,
+        msg
+    );
+    // Parser expects an identifier after 'let'
+    assert!(
+        msg.contains("Expected identifier") || msg.contains("expected identifier"),
+        "Expected 'identifier' in error: {}",
+        msg
+    );
 }

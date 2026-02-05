@@ -8,33 +8,68 @@
 //! The AST has a hierarchical structure:
 //! - [`Program`] - The root node containing all function definitions
 //! - [`FnDef`] - A function definition with name, return type, and body
-//! - [`Stmt`] - Individual statements (currently only expression statements)
-//! - [`Expr`] - Expressions (string literals and function calls)
+//! - [`Stmt`] - Individual statements (expression statements and let declarations)
+//! - [`Expr`] - Expressions (string literals, integer literals, identifiers, and function calls)
+//!
+//! Each AST node includes source location information ([`Span`]) for error reporting.
 //!
 //! # See Also
 //!
 //! * [`crate::parser`] - Produces the AST from tokens
 //! * [`crate::codegen`] - Generates LLVM IR from the AST
 
-/// An expression in the Lak language.
+use crate::token::Span;
+
+/// A type annotation in variable declarations.
 ///
-/// Expressions are the building blocks of Lak programs. They can be
-/// evaluated to produce values or trigger side effects (in the case
-/// of function calls).
+/// This enum represents the types that can be specified in Lak code.
+/// Currently supports basic integer types.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Type {
+    /// 32-bit signed integer type (`i32` in Lak source code).
+    I32,
+    /// 64-bit signed integer type (`i64` in Lak source code).
+    I64,
+}
+
+/// Displays the type as it would appear in Lak source code.
+///
+/// This is used for generating user-facing error messages.
+impl std::fmt::Display for Type {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Type::I32 => write!(f, "i32"),
+            Type::I64 => write!(f, "i64"),
+        }
+    }
+}
+
+/// The kind of an expression in the Lak language.
+///
+/// This enum represents the different types of expressions without
+/// source location information. Use [`Expr`] for the full AST node
+/// with span information.
 #[derive(Debug, Clone)]
-pub enum Expr {
+pub enum ExprKind {
     /// A string literal value.
     ///
     /// The contained `String` is the unescaped content of the literal
     /// (escape sequences have already been processed by the lexer).
     StringLiteral(String),
 
+    /// An integer literal value.
+    ///
+    /// The value is stored as i64 internally and converted to the
+    /// appropriate type during code generation.
+    IntLiteral(i64),
+
+    /// A variable reference.
+    ///
+    /// Refers to a variable by name. The variable must be declared before
+    /// use; this is verified during code generation, not parsing.
+    Identifier(String),
+
     /// A function call expression.
-    ///
-    /// # Fields
-    ///
-    /// * `callee` - The name of the function being called
-    /// * `args` - The list of argument expressions passed to the function
     Call {
         /// The name of the function being called.
         callee: String,
@@ -43,19 +78,69 @@ pub enum Expr {
     },
 }
 
-/// A statement in the Lak language.
+/// An expression in the Lak language with source location.
 ///
-/// Statements are constructs within function bodies.
-/// Currently, Lak only supports expression statements, but this enum
-/// provides a foundation for adding more statement types in the future
-/// (e.g., variable declarations, control flow).
+/// Expressions are the building blocks of Lak programs. They can be
+/// evaluated to produce values or trigger side effects (in the case
+/// of function calls).
 #[derive(Debug, Clone)]
-pub enum Stmt {
+pub struct Expr {
+    /// The kind of expression.
+    pub kind: ExprKind,
+    /// The source location of this expression.
+    pub span: Span,
+}
+
+impl Expr {
+    /// Creates a new expression with the given kind and span.
+    pub fn new(kind: ExprKind, span: Span) -> Self {
+        Expr { kind, span }
+    }
+}
+
+/// The kind of a statement in the Lak language.
+///
+/// This enum represents the different types of statements without
+/// source location information. Use [`Stmt`] for the full AST node
+/// with span information.
+#[derive(Debug, Clone)]
+pub enum StmtKind {
     /// An expression statement.
     ///
     /// Evaluates the expression for its side effects. The result value
     /// (if any) is discarded.
     Expr(Expr),
+
+    /// A variable declaration with `let`.
+    ///
+    /// Declares a new variable with an explicit type annotation and
+    /// initializer expression.
+    Let {
+        /// The name of the variable being declared.
+        name: String,
+        /// The type annotation for the variable.
+        ty: Type,
+        /// The initializer expression.
+        init: Expr,
+    },
+}
+
+/// A statement in the Lak language with source location.
+///
+/// Statements are constructs within function bodies.
+#[derive(Debug, Clone)]
+pub struct Stmt {
+    /// The kind of statement.
+    pub kind: StmtKind,
+    /// The source location of this statement.
+    pub span: Span,
+}
+
+impl Stmt {
+    /// Creates a new statement with the given kind and span.
+    pub fn new(kind: StmtKind, span: Span) -> Self {
+        Stmt { kind, span }
+    }
 }
 
 /// A function definition in the Lak language.
@@ -74,7 +159,7 @@ pub enum Stmt {
 pub struct FnDef {
     /// The name of the function.
     pub name: String,
-    /// The return type of the function (e.g., "void", "int").
+    /// The return type of the function. Currently only "void" is supported.
     pub return_type: String,
     /// The statements that make up the function body.
     pub body: Vec<Stmt>,
@@ -94,22 +179,6 @@ pub struct FnDef {
 /// fn main() -> void {
 ///     println("Hello, world!")
 /// }
-///
-/// // Corresponding AST:
-/// Program {
-///     functions: vec![
-///         FnDef {
-///             name: "main".to_string(),
-///             return_type: "void".to_string(),
-///             body: vec![
-///                 Stmt::Expr(Expr::Call {
-///                     callee: "println".to_string(),
-///                     args: vec![Expr::StringLiteral("Hello, world!".to_string())],
-///                 }),
-///             ],
-///         },
-///     ],
-/// }
 /// ```
 #[derive(Debug)]
 pub struct Program {
@@ -121,20 +190,27 @@ pub struct Program {
 mod tests {
     use super::*;
 
+    fn dummy_span() -> Span {
+        Span::new(0, 0, 1, 1)
+    }
+
     #[test]
     fn test_expr_string_literal() {
-        let expr = Expr::StringLiteral("hello".to_string());
-        assert!(matches!(expr, Expr::StringLiteral(s) if s == "hello"));
+        let expr = Expr::new(ExprKind::StringLiteral("hello".to_string()), dummy_span());
+        assert!(matches!(expr.kind, ExprKind::StringLiteral(ref s) if s == "hello"));
     }
 
     #[test]
     fn test_expr_call_no_args() {
-        let expr = Expr::Call {
-            callee: "func".to_string(),
-            args: vec![],
-        };
-        match expr {
-            Expr::Call { callee, args } => {
+        let expr = Expr::new(
+            ExprKind::Call {
+                callee: "func".to_string(),
+                args: vec![],
+            },
+            dummy_span(),
+        );
+        match expr.kind {
+            ExprKind::Call { callee, args } => {
                 assert_eq!(callee, "func");
                 assert!(args.is_empty());
             }
@@ -144,15 +220,18 @@ mod tests {
 
     #[test]
     fn test_expr_call_with_args() {
-        let expr = Expr::Call {
-            callee: "println".to_string(),
-            args: vec![
-                Expr::StringLiteral("a".to_string()),
-                Expr::StringLiteral("b".to_string()),
-            ],
-        };
-        match expr {
-            Expr::Call { callee, args } => {
+        let expr = Expr::new(
+            ExprKind::Call {
+                callee: "println".to_string(),
+                args: vec![
+                    Expr::new(ExprKind::StringLiteral("a".to_string()), dummy_span()),
+                    Expr::new(ExprKind::StringLiteral("b".to_string()), dummy_span()),
+                ],
+            },
+            dummy_span(),
+        );
+        match expr.kind {
+            ExprKind::Call { callee, args } => {
                 assert_eq!(callee, "println");
                 assert_eq!(args.len(), 2);
             }
@@ -162,19 +241,27 @@ mod tests {
 
     #[test]
     fn test_expr_call_nested() {
-        let inner = Expr::Call {
-            callee: "inner".to_string(),
-            args: vec![],
-        };
-        let outer = Expr::Call {
-            callee: "outer".to_string(),
-            args: vec![inner],
-        };
-        match outer {
-            Expr::Call { callee, args } => {
+        let inner = Expr::new(
+            ExprKind::Call {
+                callee: "inner".to_string(),
+                args: vec![],
+            },
+            dummy_span(),
+        );
+        let outer = Expr::new(
+            ExprKind::Call {
+                callee: "outer".to_string(),
+                args: vec![inner],
+            },
+            dummy_span(),
+        );
+        match outer.kind {
+            ExprKind::Call { callee, args } => {
                 assert_eq!(callee, "outer");
                 assert_eq!(args.len(), 1);
-                assert!(matches!(&args[0], Expr::Call { callee, .. } if callee == "inner"));
+                assert!(
+                    matches!(&args[0].kind, ExprKind::Call { callee, .. } if callee == "inner")
+                );
             }
             _ => panic!("Expected Call"),
         }
@@ -182,13 +269,65 @@ mod tests {
 
     #[test]
     fn test_stmt_expr() {
-        let expr = Expr::StringLiteral("test".to_string());
-        let stmt = Stmt::Expr(expr);
-        match stmt {
-            Stmt::Expr(e) => {
-                assert!(matches!(e, Expr::StringLiteral(s) if s == "test"));
+        let expr = Expr::new(ExprKind::StringLiteral("test".to_string()), dummy_span());
+        let stmt = Stmt::new(StmtKind::Expr(expr), dummy_span());
+        match stmt.kind {
+            StmtKind::Expr(e) => {
+                assert!(matches!(e.kind, ExprKind::StringLiteral(ref s) if s == "test"));
             }
+            _ => panic!("Expected Expr statement"),
         }
+    }
+
+    #[test]
+    fn test_stmt_let() {
+        let stmt = Stmt::new(
+            StmtKind::Let {
+                name: "x".to_string(),
+                ty: Type::I32,
+                init: Expr::new(ExprKind::IntLiteral(42), dummy_span()),
+            },
+            dummy_span(),
+        );
+        match stmt.kind {
+            StmtKind::Let { name, ty, init } => {
+                assert_eq!(name, "x");
+                assert_eq!(ty, Type::I32);
+                assert!(matches!(init.kind, ExprKind::IntLiteral(42)));
+            }
+            _ => panic!("Expected Let statement"),
+        }
+    }
+
+    #[test]
+    fn test_expr_int_literal() {
+        let expr = Expr::new(ExprKind::IntLiteral(100), dummy_span());
+        assert!(matches!(expr.kind, ExprKind::IntLiteral(100)));
+    }
+
+    #[test]
+    fn test_expr_identifier() {
+        let expr = Expr::new(ExprKind::Identifier("my_var".to_string()), dummy_span());
+        assert!(matches!(expr.kind, ExprKind::Identifier(ref s) if s == "my_var"));
+    }
+
+    #[test]
+    fn test_type_i32() {
+        let ty = Type::I32;
+        assert_eq!(ty, Type::I32);
+    }
+
+    #[test]
+    fn test_type_i64() {
+        let ty = Type::I64;
+        assert_eq!(ty, Type::I64);
+    }
+
+    #[test]
+    fn test_type_clone() {
+        let ty1 = Type::I32;
+        let ty2 = ty1.clone();
+        assert_eq!(ty1, ty2);
     }
 
     #[test]
@@ -202,10 +341,19 @@ mod tests {
         let functions = vec![FnDef {
             name: "main".to_string(),
             return_type: "void".to_string(),
-            body: vec![Stmt::Expr(Expr::Call {
-                callee: "println".to_string(),
-                args: vec![Expr::StringLiteral("hello".to_string())],
-            })],
+            body: vec![Stmt::new(
+                StmtKind::Expr(Expr::new(
+                    ExprKind::Call {
+                        callee: "println".to_string(),
+                        args: vec![Expr::new(
+                            ExprKind::StringLiteral("hello".to_string()),
+                            dummy_span(),
+                        )],
+                    },
+                    dummy_span(),
+                )),
+                dummy_span(),
+            )],
         }];
         let program = Program { functions };
         assert_eq!(program.functions.len(), 1);
@@ -230,14 +378,32 @@ mod tests {
             name: "greet".to_string(),
             return_type: "void".to_string(),
             body: vec![
-                Stmt::Expr(Expr::Call {
-                    callee: "println".to_string(),
-                    args: vec![Expr::StringLiteral("hello".to_string())],
-                }),
-                Stmt::Expr(Expr::Call {
-                    callee: "println".to_string(),
-                    args: vec![Expr::StringLiteral("world".to_string())],
-                }),
+                Stmt::new(
+                    StmtKind::Expr(Expr::new(
+                        ExprKind::Call {
+                            callee: "println".to_string(),
+                            args: vec![Expr::new(
+                                ExprKind::StringLiteral("hello".to_string()),
+                                dummy_span(),
+                            )],
+                        },
+                        dummy_span(),
+                    )),
+                    dummy_span(),
+                ),
+                Stmt::new(
+                    StmtKind::Expr(Expr::new(
+                        ExprKind::Call {
+                            callee: "println".to_string(),
+                            args: vec![Expr::new(
+                                ExprKind::StringLiteral("world".to_string()),
+                                dummy_span(),
+                            )],
+                        },
+                        dummy_span(),
+                    )),
+                    dummy_span(),
+                ),
             ],
         };
         assert_eq!(fn_def.body.len(), 2);
@@ -248,7 +414,13 @@ mod tests {
         let fn_def = FnDef {
             name: "test".to_string(),
             return_type: "void".to_string(),
-            body: vec![Stmt::Expr(Expr::StringLiteral("x".to_string()))],
+            body: vec![Stmt::new(
+                StmtKind::Expr(Expr::new(
+                    ExprKind::StringLiteral("x".to_string()),
+                    dummy_span(),
+                )),
+                dummy_span(),
+            )],
         };
         let cloned = fn_def.clone();
         assert_eq!(fn_def.name, cloned.name);
@@ -258,20 +430,26 @@ mod tests {
 
     #[test]
     fn test_expr_clone() {
-        let expr1 = Expr::Call {
-            callee: "test".to_string(),
-            args: vec![Expr::StringLiteral("arg".to_string())],
-        };
+        let expr1 = Expr::new(
+            ExprKind::Call {
+                callee: "test".to_string(),
+                args: vec![Expr::new(
+                    ExprKind::StringLiteral("arg".to_string()),
+                    dummy_span(),
+                )],
+            },
+            dummy_span(),
+        );
         let expr2 = expr1.clone();
 
         // Verify both have same structure
-        match (&expr1, &expr2) {
+        match (&expr1.kind, &expr2.kind) {
             (
-                Expr::Call {
+                ExprKind::Call {
                     callee: c1,
                     args: a1,
                 },
-                Expr::Call {
+                ExprKind::Call {
                     callee: c2,
                     args: a2,
                 },
@@ -285,20 +463,27 @@ mod tests {
 
     #[test]
     fn test_stmt_clone() {
-        let stmt1 = Stmt::Expr(Expr::StringLiteral("test".to_string()));
+        let stmt1 = Stmt::new(
+            StmtKind::Expr(Expr::new(
+                ExprKind::StringLiteral("test".to_string()),
+                dummy_span(),
+            )),
+            dummy_span(),
+        );
         let stmt2 = stmt1.clone();
 
-        match (&stmt1, &stmt2) {
-            (Stmt::Expr(e1), Stmt::Expr(e2)) => {
-                assert!(matches!(e1, Expr::StringLiteral(s) if s == "test"));
-                assert!(matches!(e2, Expr::StringLiteral(s) if s == "test"));
+        match (&stmt1.kind, &stmt2.kind) {
+            (StmtKind::Expr(e1), StmtKind::Expr(e2)) => {
+                assert!(matches!(e1.kind, ExprKind::StringLiteral(ref s) if s == "test"));
+                assert!(matches!(e2.kind, ExprKind::StringLiteral(ref s) if s == "test"));
             }
+            _ => panic!("Expected Expr statements"),
         }
     }
 
     #[test]
     fn test_expr_debug() {
-        let expr = Expr::StringLiteral("hello".to_string());
+        let expr = Expr::new(ExprKind::StringLiteral("hello".to_string()), dummy_span());
         let debug_str = format!("{:?}", expr);
         assert!(debug_str.contains("StringLiteral"));
         assert!(debug_str.contains("hello"));
@@ -306,10 +491,16 @@ mod tests {
 
     #[test]
     fn test_stmt_debug() {
-        let stmt = Stmt::Expr(Expr::Call {
-            callee: "func".to_string(),
-            args: vec![],
-        });
+        let stmt = Stmt::new(
+            StmtKind::Expr(Expr::new(
+                ExprKind::Call {
+                    callee: "func".to_string(),
+                    args: vec![],
+                },
+                dummy_span(),
+            )),
+            dummy_span(),
+        );
         let debug_str = format!("{:?}", stmt);
         assert!(debug_str.contains("Expr"));
         assert!(debug_str.contains("Call"));
@@ -322,11 +513,38 @@ mod tests {
             functions: vec![FnDef {
                 name: "main".to_string(),
                 return_type: "void".to_string(),
-                body: vec![Stmt::Expr(Expr::StringLiteral("test".to_string()))],
+                body: vec![Stmt::new(
+                    StmtKind::Expr(Expr::new(
+                        ExprKind::StringLiteral("test".to_string()),
+                        dummy_span(),
+                    )),
+                    dummy_span(),
+                )],
             }],
         };
         let debug_str = format!("{:?}", program);
         assert!(debug_str.contains("Program"));
         assert!(debug_str.contains("functions"));
+    }
+
+    #[test]
+    fn test_expr_span() {
+        let span = Span::new(10, 20, 2, 5);
+        let expr = Expr::new(ExprKind::IntLiteral(42), span);
+        assert_eq!(expr.span.start, 10);
+        assert_eq!(expr.span.end, 20);
+        assert_eq!(expr.span.line, 2);
+        assert_eq!(expr.span.column, 5);
+    }
+
+    #[test]
+    fn test_stmt_span() {
+        let span = Span::new(0, 15, 1, 1);
+        let stmt = Stmt::new(
+            StmtKind::Expr(Expr::new(ExprKind::IntLiteral(1), dummy_span())),
+            span,
+        );
+        assert_eq!(stmt.span.start, 0);
+        assert_eq!(stmt.span.end, 15);
     }
 }

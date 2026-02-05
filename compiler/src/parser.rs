@@ -16,9 +16,11 @@
 //! ```text
 //! program     → fn_def* EOF
 //! fn_def      → "fn" IDENTIFIER "(" ")" "->" IDENTIFIER "{" stmt* "}"
-//! stmt        → expr_stmt
+//! stmt        → let_stmt | expr_stmt
+//! let_stmt    → "let" IDENTIFIER ":" type "=" expr
+//! type        → "i32" | "i64"
 //! expr_stmt   → expr
-//! expr        → call | STRING
+//! expr        → call | IDENTIFIER | STRING | INT
 //! call        → IDENTIFIER "(" arguments? ")"
 //! arguments   → expr ("," expr)*
 //! ```
@@ -45,7 +47,7 @@
 //! * [`crate::ast`] - Defines the AST types produced by the parser
 //! * [`crate::codegen`] - Consumes the AST to generate LLVM IR
 
-use crate::ast::{Expr, FnDef, Program, Stmt};
+use crate::ast::{Expr, ExprKind, FnDef, Program, Stmt, StmtKind, Type};
 use crate::token::{Span, Token, TokenKind};
 
 /// A recursive descent parser for the Lak language.
@@ -206,6 +208,10 @@ impl Parser {
                 }
             }
             TokenKind::Eof => "end of file".to_string(),
+            TokenKind::Let => "'let' keyword".to_string(),
+            TokenKind::Colon => "':'".to_string(),
+            TokenKind::Equals => "'='".to_string(),
+            TokenKind::IntLiteral(n) => format!("integer '{}'", n),
         }
     }
 
@@ -273,39 +279,119 @@ impl Parser {
 
     /// Parses a single statement.
     ///
-    /// Currently only expression statements are supported.
+    /// # Grammar
+    ///
+    /// ```text
+    /// stmt → let_stmt | expr_stmt
+    /// ```
     fn parse_stmt(&mut self) -> Result<Stmt, ParseError> {
-        let expr = self.parse_expr()?;
-        Ok(Stmt::Expr(expr))
+        match self.current_kind() {
+            TokenKind::Let => self.parse_let_stmt(),
+            _ => {
+                let expr = self.parse_expr()?;
+                let span = expr.span;
+                Ok(Stmt::new(StmtKind::Expr(expr), span))
+            }
+        }
+    }
+
+    /// Parses a let statement.
+    ///
+    /// # Grammar
+    ///
+    /// ```text
+    /// let_stmt → "let" IDENTIFIER ":" type "=" expr
+    /// type → "i32" | "i64"
+    /// ```
+    fn parse_let_stmt(&mut self) -> Result<Stmt, ParseError> {
+        let start_span = self.current_span();
+
+        // Expect `let`
+        self.expect(&TokenKind::Let)?;
+
+        // Expect variable name
+        let name = self.expect_identifier()?;
+
+        // Expect `:` type annotation
+        self.expect(&TokenKind::Colon)?;
+        let ty = self.parse_type()?;
+
+        // Expect `=` initializer
+        self.expect(&TokenKind::Equals)?;
+        let init = self.parse_expr()?;
+
+        // Span covers from 'let' to end of initializer expression
+        let span = Span::new(
+            start_span.start,
+            init.span.end,
+            start_span.line,
+            start_span.column,
+        );
+
+        Ok(Stmt::new(StmtKind::Let { name, ty, init }, span))
+    }
+
+    /// Parses a type annotation.
+    ///
+    /// # Grammar
+    ///
+    /// ```text
+    /// type → "i32" | "i64"
+    /// ```
+    fn parse_type(&mut self) -> Result<Type, ParseError> {
+        let type_span = self.current_span();
+        let name = self.expect_identifier()?;
+        match name.as_str() {
+            "i32" => Ok(Type::I32),
+            "i64" => Ok(Type::I64),
+            _ => Err(ParseError {
+                message: format!("Unknown type: '{}'. Expected 'i32' or 'i64'", name),
+                span: type_span,
+            }),
+        }
     }
 
     /// Parses an expression.
     ///
-    /// Handles identifiers (which must be followed by `(` to form a call)
-    /// and string literals.
+    /// Handles identifiers (function calls or variable references),
+    /// string literals, and integer literals.
+    ///
+    /// # Grammar
+    ///
+    /// ```text
+    /// expr → call | IDENTIFIER | STRING | INT
+    /// call → IDENTIFIER "(" arguments? ")"
+    /// ```
     fn parse_expr(&mut self) -> Result<Expr, ParseError> {
         let token = self.current().clone();
+        let start_span = token.span;
 
         match &token.kind {
             TokenKind::Identifier(name) => {
                 let name = name.clone();
                 self.advance();
                 if matches!(self.current_kind(), TokenKind::LeftParen) {
-                    self.parse_call(name)
+                    self.parse_call(name, start_span)
                 } else {
-                    Err(ParseError {
-                        message: format!("Expected '(' after identifier '{}'", name),
-                        span: self.current_span(),
-                    })
+                    // Variable reference
+                    Ok(Expr::new(ExprKind::Identifier(name), start_span))
                 }
             }
             TokenKind::StringLiteral(value) => {
                 let value = value.clone();
                 self.advance();
-                Ok(Expr::StringLiteral(value))
+                Ok(Expr::new(ExprKind::StringLiteral(value), start_span))
+            }
+            TokenKind::IntLiteral(value) => {
+                let value = *value;
+                self.advance();
+                Ok(Expr::new(ExprKind::IntLiteral(value), start_span))
             }
             _ => Err(ParseError {
-                message: format!("Unexpected token: {:?}", token.kind),
+                message: format!(
+                    "Unexpected token: {}",
+                    Self::token_kind_display(&token.kind)
+                ),
                 span: token.span,
             }),
         }
@@ -319,6 +405,7 @@ impl Parser {
     /// # Arguments
     ///
     /// * `callee` - The name of the function being called
+    /// * `start_span` - The span of the callee identifier
     ///
     /// # Grammar
     ///
@@ -326,7 +413,7 @@ impl Parser {
     /// call → IDENTIFIER "(" arguments? ")"
     /// arguments → expr ("," expr)*
     /// ```
-    fn parse_call(&mut self, callee: String) -> Result<Expr, ParseError> {
+    fn parse_call(&mut self, callee: String, start_span: Span) -> Result<Expr, ParseError> {
         self.expect(&TokenKind::LeftParen)?;
 
         let mut args = Vec::new();
@@ -344,9 +431,18 @@ impl Parser {
             }
         }
 
+        let end_span = self.current_span();
         self.expect(&TokenKind::RightParen)?;
 
-        Ok(Expr::Call { callee, args })
+        // Span covers from callee to closing paren
+        let span = Span::new(
+            start_span.start,
+            end_span.end,
+            start_span.line,
+            start_span.column,
+        );
+
+        Ok(Expr::new(ExprKind::Call { callee, args }, span))
     }
 }
 
@@ -381,8 +477,9 @@ mod tests {
             .first()
             .unwrap_or_else(|| panic!("Function has no statements"));
 
-        match first_stmt {
-            Stmt::Expr(expr) => expr.clone(),
+        match &first_stmt.kind {
+            StmtKind::Expr(expr) => expr.clone(),
+            _ => panic!("Expected expression statement"),
         }
     }
 
@@ -452,8 +549,8 @@ mod tests {
     #[test]
     fn test_call_no_args() {
         let expr = parse_first_expr("func()");
-        match expr {
-            Expr::Call { callee, args } => {
+        match expr.kind {
+            ExprKind::Call { callee, args } => {
                 assert_eq!(callee, "func");
                 assert!(args.is_empty());
             }
@@ -464,11 +561,11 @@ mod tests {
     #[test]
     fn test_call_one_arg() {
         let expr = parse_first_expr(r#"println("hello")"#);
-        match expr {
-            Expr::Call { callee, args } => {
+        match expr.kind {
+            ExprKind::Call { callee, args } => {
                 assert_eq!(callee, "println");
                 assert_eq!(args.len(), 1);
-                assert!(matches!(&args[0], Expr::StringLiteral(s) if s == "hello"));
+                assert!(matches!(&args[0].kind, ExprKind::StringLiteral(s) if s == "hello"));
             }
             _ => panic!("Expected Call expression"),
         }
@@ -477,13 +574,13 @@ mod tests {
     #[test]
     fn test_call_multiple_args() {
         let expr = parse_first_expr(r#"f("a", "b", "c")"#);
-        match expr {
-            Expr::Call { callee, args } => {
+        match expr.kind {
+            ExprKind::Call { callee, args } => {
                 assert_eq!(callee, "f");
                 assert_eq!(args.len(), 3);
-                assert!(matches!(&args[0], Expr::StringLiteral(s) if s == "a"));
-                assert!(matches!(&args[1], Expr::StringLiteral(s) if s == "b"));
-                assert!(matches!(&args[2], Expr::StringLiteral(s) if s == "c"));
+                assert!(matches!(&args[0].kind, ExprKind::StringLiteral(s) if s == "a"));
+                assert!(matches!(&args[1].kind, ExprKind::StringLiteral(s) if s == "b"));
+                assert!(matches!(&args[2].kind, ExprKind::StringLiteral(s) if s == "c"));
             }
             _ => panic!("Expected Call expression"),
         }
@@ -496,12 +593,12 @@ mod tests {
     #[test]
     fn test_nested_call_single() {
         let expr = parse_first_expr("outer(inner())");
-        match expr {
-            Expr::Call { callee, args } => {
+        match expr.kind {
+            ExprKind::Call { callee, args } => {
                 assert_eq!(callee, "outer");
                 assert_eq!(args.len(), 1);
-                match &args[0] {
-                    Expr::Call {
+                match &args[0].kind {
+                    ExprKind::Call {
                         callee: inner_callee,
                         args: inner_args,
                     } => {
@@ -518,18 +615,20 @@ mod tests {
     #[test]
     fn test_nested_call_with_arg() {
         let expr = parse_first_expr(r#"outer(inner("x"))"#);
-        match expr {
-            Expr::Call { callee, args } => {
+        match expr.kind {
+            ExprKind::Call { callee, args } => {
                 assert_eq!(callee, "outer");
                 assert_eq!(args.len(), 1);
-                match &args[0] {
-                    Expr::Call {
+                match &args[0].kind {
+                    ExprKind::Call {
                         callee: inner_callee,
                         args: inner_args,
                     } => {
                         assert_eq!(inner_callee, "inner");
                         assert_eq!(inner_args.len(), 1);
-                        assert!(matches!(&inner_args[0], Expr::StringLiteral(s) if s == "x"));
+                        assert!(
+                            matches!(&inner_args[0].kind, ExprKind::StringLiteral(s) if s == "x")
+                        );
                     }
                     _ => panic!("Expected nested Call"),
                 }
@@ -541,19 +640,19 @@ mod tests {
     #[test]
     fn test_deeply_nested() {
         let expr = parse_first_expr("a(b(c(d())))");
-        match expr {
-            Expr::Call { callee, args } => {
+        match expr.kind {
+            ExprKind::Call { callee, args } => {
                 assert_eq!(callee, "a");
                 assert_eq!(args.len(), 1);
                 // Verify structure: a -> b -> c -> d
-                match &args[0] {
-                    Expr::Call { callee: b, args } => {
+                match &args[0].kind {
+                    ExprKind::Call { callee: b, args } => {
                         assert_eq!(b, "b");
-                        match &args[0] {
-                            Expr::Call { callee: c, args } => {
+                        match &args[0].kind {
+                            ExprKind::Call { callee: c, args } => {
                                 assert_eq!(c, "c");
-                                match &args[0] {
-                                    Expr::Call { callee: d, args } => {
+                                match &args[0].kind {
+                                    ExprKind::Call { callee: d, args } => {
                                         assert_eq!(d, "d");
                                         assert!(args.is_empty());
                                     }
@@ -573,13 +672,13 @@ mod tests {
     #[test]
     fn test_nested_multiple_args() {
         let expr = parse_first_expr(r#"f(g(), h(), "x")"#);
-        match expr {
-            Expr::Call { callee, args } => {
+        match expr.kind {
+            ExprKind::Call { callee, args } => {
                 assert_eq!(callee, "f");
                 assert_eq!(args.len(), 3);
-                assert!(matches!(&args[0], Expr::Call { callee, .. } if callee == "g"));
-                assert!(matches!(&args[1], Expr::Call { callee, .. } if callee == "h"));
-                assert!(matches!(&args[2], Expr::StringLiteral(s) if s == "x"));
+                assert!(matches!(&args[0].kind, ExprKind::Call { callee, .. } if callee == "g"));
+                assert!(matches!(&args[1].kind, ExprKind::Call { callee, .. } if callee == "h"));
+                assert!(matches!(&args[2].kind, ExprKind::StringLiteral(s) if s == "x"));
             }
             _ => panic!("Expected Call expression"),
         }
@@ -594,13 +693,19 @@ mod tests {
         let program = parse("fn main() -> void { f() g() }").unwrap();
         assert_eq!(program.functions[0].body.len(), 2);
 
-        match &program.functions[0].body[0] {
-            Stmt::Expr(Expr::Call { callee, .. }) => assert_eq!(callee, "f"),
-            _ => panic!("Expected f call"),
+        match &program.functions[0].body[0].kind {
+            StmtKind::Expr(expr) => match &expr.kind {
+                ExprKind::Call { callee, .. } => assert_eq!(callee, "f"),
+                _ => panic!("Expected f call"),
+            },
+            _ => panic!("Expected Expr statement"),
         }
-        match &program.functions[0].body[1] {
-            Stmt::Expr(Expr::Call { callee, .. }) => assert_eq!(callee, "g"),
-            _ => panic!("Expected g call"),
+        match &program.functions[0].body[1].kind {
+            StmtKind::Expr(expr) => match &expr.kind {
+                ExprKind::Call { callee, .. } => assert_eq!(callee, "g"),
+                _ => panic!("Expected g call"),
+            },
+            _ => panic!("Expected Expr statement"),
         }
     }
 
@@ -617,9 +722,9 @@ mod tests {
     #[test]
     fn test_string_literal_as_arg() {
         let expr = parse_first_expr(r#"f("str")"#);
-        match expr {
-            Expr::Call { args, .. } => {
-                assert!(matches!(&args[0], Expr::StringLiteral(s) if s == "str"));
+        match expr.kind {
+            ExprKind::Call { args, .. } => {
+                assert!(matches!(&args[0].kind, ExprKind::StringLiteral(s) if s == "str"));
             }
             _ => panic!("Expected Call"),
         }
@@ -628,9 +733,9 @@ mod tests {
     #[test]
     fn test_call_as_arg() {
         let expr = parse_first_expr("f(g())");
-        match expr {
-            Expr::Call { args, .. } => {
-                assert!(matches!(&args[0], Expr::Call { callee, .. } if callee == "g"));
+        match expr.kind {
+            ExprKind::Call { args, .. } => {
+                assert!(matches!(&args[0].kind, ExprKind::Call { callee, .. } if callee == "g"));
             }
             _ => panic!("Expected Call"),
         }
@@ -745,8 +850,8 @@ mod tests {
     #[test]
     fn test_whitespace_in_call() {
         let expr = parse_first_expr("func  (  )");
-        match expr {
-            Expr::Call { callee, args } => {
+        match expr.kind {
+            ExprKind::Call { callee, args } => {
                 assert_eq!(callee, "func");
                 assert!(args.is_empty());
             }
@@ -757,8 +862,8 @@ mod tests {
     #[test]
     fn test_newlines_in_call() {
         let expr = parse_first_expr("func(\n\"a\"\n)");
-        match expr {
-            Expr::Call { callee, args } => {
+        match expr.kind {
+            ExprKind::Call { callee, args } => {
                 assert_eq!(callee, "func");
                 assert_eq!(args.len(), 1);
             }
@@ -815,5 +920,201 @@ mod tests {
         // Although not a valid type, parser should accept any identifier
         let program = parse("fn main() -> 型 {}").unwrap();
         assert_eq!(program.functions[0].return_type, "型");
+    }
+
+    // ===================
+    // Let statement parsing
+    // ===================
+
+    #[test]
+    fn test_let_stmt_i32() {
+        let program = parse("fn main() -> void { let x: i32 = 42 }").unwrap();
+        assert_eq!(program.functions[0].body.len(), 1);
+        match &program.functions[0].body[0].kind {
+            StmtKind::Let { name, ty, init } => {
+                assert_eq!(name, "x");
+                assert_eq!(*ty, Type::I32);
+                assert!(matches!(init.kind, ExprKind::IntLiteral(42)));
+            }
+            _ => panic!("Expected Let statement"),
+        }
+    }
+
+    #[test]
+    fn test_let_stmt_i64() {
+        let program = parse("fn main() -> void { let y: i64 = 100 }").unwrap();
+        match &program.functions[0].body[0].kind {
+            StmtKind::Let { name, ty, .. } => {
+                assert_eq!(name, "y");
+                assert_eq!(*ty, Type::I64);
+            }
+            _ => panic!("Expected Let statement"),
+        }
+    }
+
+    #[test]
+    fn test_let_with_variable_reference() {
+        let program = parse("fn main() -> void { let x: i32 = 1 let y: i32 = x }").unwrap();
+        assert_eq!(program.functions[0].body.len(), 2);
+        match &program.functions[0].body[1].kind {
+            StmtKind::Let { name, init, .. } => {
+                assert_eq!(name, "y");
+                assert!(matches!(&init.kind, ExprKind::Identifier(s) if s == "x"));
+            }
+            _ => panic!("Expected Let statement"),
+        }
+    }
+
+    #[test]
+    fn test_let_mixed_with_println() {
+        let program = parse(
+            r#"fn main() -> void {
+                let x: i32 = 42
+                println("hello")
+                let y: i64 = 100
+            }"#,
+        )
+        .unwrap();
+        assert_eq!(program.functions[0].body.len(), 3);
+        assert!(matches!(
+            &program.functions[0].body[0].kind,
+            StmtKind::Let { .. }
+        ));
+        assert!(matches!(
+            &program.functions[0].body[1].kind,
+            StmtKind::Expr(_)
+        ));
+        assert!(matches!(
+            &program.functions[0].body[2].kind,
+            StmtKind::Let { .. }
+        ));
+    }
+
+    #[test]
+    fn test_error_let_missing_colon() {
+        let err = parse_error("fn main() -> void { let x i32 = 42 }");
+        assert!(
+            err.message.contains("':'"),
+            "Expected error about ':', got: {}",
+            err.message
+        );
+    }
+
+    #[test]
+    fn test_error_let_missing_type() {
+        let err = parse_error("fn main() -> void { let x: = 42 }");
+        assert!(
+            err.message.contains("identifier"),
+            "Expected error about identifier, got: {}",
+            err.message
+        );
+    }
+
+    #[test]
+    fn test_error_let_unknown_type() {
+        let err = parse_error("fn main() -> void { let x: unknown = 42 }");
+        assert!(
+            err.message.contains("Unknown type"),
+            "Expected error about unknown type, got: {}",
+            err.message
+        );
+    }
+
+    #[test]
+    fn test_error_let_missing_equals() {
+        let err = parse_error("fn main() -> void { let x: i32 42 }");
+        assert!(
+            err.message.contains("'='"),
+            "Expected error about '=', got: {}",
+            err.message
+        );
+    }
+
+    #[test]
+    fn test_error_let_missing_initializer() {
+        let err = parse_error("fn main() -> void { let x: i32 = }");
+        assert!(
+            err.message.contains("Unexpected token"),
+            "Expected error about unexpected token, got: {}",
+            err.message
+        );
+    }
+
+    // ===================
+    // Integer literal parsing
+    // ===================
+
+    #[test]
+    fn test_int_literal_as_initializer() {
+        // Tests that integer literals are correctly parsed as let statement initializers
+        let program = parse("fn main() -> void { let x: i32 = 42 }").unwrap();
+        match &program.functions[0].body[0].kind {
+            StmtKind::Let { init, .. } => {
+                assert!(matches!(init.kind, ExprKind::IntLiteral(42)));
+            }
+            _ => panic!("Expected Let statement"),
+        }
+    }
+
+    #[test]
+    fn test_int_literal_zero() {
+        let program = parse("fn main() -> void { let x: i32 = 0 }").unwrap();
+        match &program.functions[0].body[0].kind {
+            StmtKind::Let { init, .. } => {
+                assert!(matches!(init.kind, ExprKind::IntLiteral(0)));
+            }
+            _ => panic!("Expected Let statement"),
+        }
+    }
+
+    #[test]
+    fn test_int_literal_large() {
+        let program = parse("fn main() -> void { let x: i64 = 9223372036854775807 }").unwrap();
+        match &program.functions[0].body[0].kind {
+            StmtKind::Let { init, .. } => {
+                assert!(matches!(
+                    init.kind,
+                    ExprKind::IntLiteral(9223372036854775807)
+                ));
+            }
+            _ => panic!("Expected Let statement"),
+        }
+    }
+
+    // ===================
+    // Variable reference parsing
+    // ===================
+
+    #[test]
+    fn test_variable_reference_in_init() {
+        let program = parse("fn main() -> void { let a: i32 = 1 let b: i32 = a }").unwrap();
+        match &program.functions[0].body[1].kind {
+            StmtKind::Let { init, .. } => {
+                assert!(matches!(&init.kind, ExprKind::Identifier(s) if s == "a"));
+            }
+            _ => panic!("Expected Let statement"),
+        }
+    }
+
+    // ===================
+    // Span tracking tests
+    // ===================
+
+    #[test]
+    fn test_expr_span_tracking() {
+        let expr = parse_first_expr("x");
+        // Identifier 'x' should have a valid span
+        assert!(expr.span.start <= expr.span.end);
+        assert!(expr.span.line >= 1);
+        assert!(expr.span.column >= 1);
+    }
+
+    #[test]
+    fn test_let_stmt_span_tracking() {
+        let program = parse("fn main() -> void { let x: i32 = 42 }").unwrap();
+        let stmt = &program.functions[0].body[0];
+        // Let statement should have a valid span
+        assert!(stmt.span.start < stmt.span.end);
+        assert!(stmt.span.line >= 1);
     }
 }

@@ -13,9 +13,14 @@
 //!
 //! # Supported Tokens
 //!
+//! - **Keywords**: `fn`, `let`
 //! - **Identifiers**: Start with a Unicode alphabetic character or underscore, contain Unicode alphanumerics and underscores
+//! - **Integer literals**: Sequences of ASCII digits (e.g., `42`, `0`, `9223372036854775807`).
+//!   Stored as `i64` values. Negative literals (e.g., `-42`) are not directly supported;
+//!   the minus sign is only recognized as part of the `->` arrow syntax.
+//!   Values exceeding `i64::MAX` result in a lexer error.
 //! - **String literals**: Enclosed in double quotes, support escape sequences (`\n`, `\t`, `\r`, `\\`, `\"`)
-//! - **Punctuation**: `(`, `)`, `,`
+//! - **Punctuation**: `(`, `)`, `{`, `}`, `,`, `:`, `=`, `->`
 //! - **Comments**: Line comments starting with `//`
 //!
 //! # Examples
@@ -261,6 +266,16 @@ impl<'a> Lexer<'a> {
                 let span = Span::new(start_pos, self.pos, start_line, start_column);
                 Ok(Token::new(TokenKind::Comma, span))
             }
+            ':' => {
+                self.advance();
+                let span = Span::new(start_pos, self.pos, start_line, start_column);
+                Ok(Token::new(TokenKind::Colon, span))
+            }
+            '=' => {
+                self.advance();
+                let span = Span::new(start_pos, self.pos, start_line, start_column);
+                Ok(Token::new(TokenKind::Equals, span))
+            }
             '-' => {
                 self.advance();
                 if self.current_char() == Some('>') {
@@ -275,6 +290,7 @@ impl<'a> Lexer<'a> {
                 }
             }
             '"' => self.read_string(start_pos, start_line, start_column),
+            _ if c.is_ascii_digit() => self.read_number(start_pos, start_line, start_column),
             _ if c.is_alphabetic() || c == '_' => {
                 Ok(self.read_identifier(start_pos, start_line, start_column))
             }
@@ -423,10 +439,58 @@ impl<'a> Lexer<'a> {
         // Check for keywords
         let kind = match value.as_str() {
             "fn" => TokenKind::Fn,
+            "let" => TokenKind::Let,
             _ => TokenKind::Identifier(value),
         };
 
         Token::new(kind, span)
+    }
+
+    /// Reads an integer literal from the input.
+    ///
+    /// Integer literals consist of one or more ASCII digits.
+    ///
+    /// # Arguments
+    ///
+    /// * `start_pos` - The byte position of the first digit
+    /// * `start_line` - The line number of the first digit
+    /// * `start_column` - The column number of the first digit
+    ///
+    /// # Returns
+    ///
+    /// A [`Token`] with kind [`TokenKind::IntLiteral`].
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`LexError`] if the integer is too large to fit in an i64.
+    fn read_number(
+        &mut self,
+        start_pos: usize,
+        start_line: usize,
+        start_column: usize,
+    ) -> Result<Token, LexError> {
+        while let Some(c) = self.current_char() {
+            if c.is_ascii_digit() {
+                self.advance();
+            } else {
+                break;
+            }
+        }
+
+        let value_str = &self.input[start_pos..self.pos];
+        let span = Span::new(start_pos, self.pos, start_line, start_column);
+
+        let value: i64 = value_str
+            .parse()
+            .map_err(|e: std::num::ParseIntError| LexError {
+                message: format!(
+                    "Integer literal '{}' is out of range for i64: {}",
+                    value_str, e
+                ),
+                span,
+            })?;
+
+        Ok(Token::new(TokenKind::IntLiteral(value), span))
     }
 }
 
@@ -630,6 +694,34 @@ mod tests {
             kinds,
             vec![TokenKind::Identifier("fn_test".to_string()), TokenKind::Eof]
         );
+    }
+
+    #[test]
+    fn test_keyword_let() {
+        let kinds = tokenize_kinds("let");
+        assert_eq!(kinds, vec![TokenKind::Let, TokenKind::Eof]);
+    }
+
+    #[test]
+    fn test_let_not_prefix() {
+        // "letter" should be an identifier, not let + identifier
+        let kinds = tokenize_kinds("letter");
+        assert_eq!(
+            kinds,
+            vec![TokenKind::Identifier("letter".to_string()), TokenKind::Eof]
+        );
+    }
+
+    #[test]
+    fn test_colon() {
+        let kinds = tokenize_kinds(":");
+        assert_eq!(kinds, vec![TokenKind::Colon, TokenKind::Eof]);
+    }
+
+    #[test]
+    fn test_equals() {
+        let kinds = tokenize_kinds("=");
+        assert_eq!(kinds, vec![TokenKind::Equals, TokenKind::Eof]);
     }
 
     #[test]
@@ -992,10 +1084,46 @@ mod tests {
         assert!(err.message.contains("Unexpected character"));
     }
 
+    // ===================
+    // Integer literals
+    // ===================
+
     #[test]
-    fn test_error_unexpected_char_number() {
-        let err = tokenize_error("123");
-        assert!(err.message.contains("Unexpected character"));
+    fn test_integer_literal_simple() {
+        let kinds = tokenize_kinds("123");
+        assert_eq!(kinds, vec![TokenKind::IntLiteral(123), TokenKind::Eof]);
+    }
+
+    #[test]
+    fn test_integer_literal_zero() {
+        let kinds = tokenize_kinds("0");
+        assert_eq!(kinds, vec![TokenKind::IntLiteral(0), TokenKind::Eof]);
+    }
+
+    #[test]
+    fn test_integer_literal_large() {
+        let kinds = tokenize_kinds("9223372036854775807");
+        assert_eq!(
+            kinds,
+            vec![TokenKind::IntLiteral(9223372036854775807), TokenKind::Eof]
+        );
+    }
+
+    #[test]
+    fn test_let_statement_tokens() {
+        let kinds = tokenize_kinds("let x: i32 = 42");
+        assert_eq!(
+            kinds,
+            vec![
+                TokenKind::Let,
+                TokenKind::Identifier("x".to_string()),
+                TokenKind::Colon,
+                TokenKind::Identifier("i32".to_string()),
+                TokenKind::Equals,
+                TokenKind::IntLiteral(42),
+                TokenKind::Eof,
+            ]
+        );
     }
 
     #[test]
@@ -1073,5 +1201,18 @@ mod tests {
             kinds,
             vec![TokenKind::StringLiteral("\"\"".to_string()), TokenKind::Eof]
         );
+    }
+
+    #[test]
+    fn test_integer_literal_leading_zeros() {
+        // Leading zeros are treated as decimal (not octal)
+        let kinds = tokenize_kinds("007");
+        assert_eq!(kinds, vec![TokenKind::IntLiteral(7), TokenKind::Eof]);
+    }
+
+    #[test]
+    fn test_integer_literal_all_zeros() {
+        let kinds = tokenize_kinds("000");
+        assert_eq!(kinds, vec![TokenKind::IntLiteral(0), TokenKind::Eof]);
     }
 }

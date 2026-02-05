@@ -93,6 +93,9 @@ pub enum TokenKind {
     /// The `fn` keyword for function definitions.
     Fn,
 
+    /// The `let` keyword for variable declarations.
+    Let,
+
     /// A left parenthesis `(`.
     LeftParen,
 
@@ -110,6 +113,15 @@ pub enum TokenKind {
 
     /// A comma `,`.
     Comma,
+
+    /// A colon `:` for type annotation.
+    Colon,
+
+    /// An equals sign `=` for variable initialization in let statements.
+    Equals,
+
+    /// An integer literal (e.g., 42, 100).
+    IntLiteral(i64),
 
     /// End of file marker.
     ///
@@ -221,6 +233,27 @@ mod tests {
     #[test]
     fn test_token_kind_fn() {
         assert!(matches!(TokenKind::Fn, TokenKind::Fn));
+    }
+
+    #[test]
+    fn test_token_kind_let() {
+        assert!(matches!(TokenKind::Let, TokenKind::Let));
+    }
+
+    #[test]
+    fn test_token_kind_colon() {
+        assert!(matches!(TokenKind::Colon, TokenKind::Colon));
+    }
+
+    #[test]
+    fn test_token_kind_equals() {
+        assert!(matches!(TokenKind::Equals, TokenKind::Equals));
+    }
+
+    #[test]
+    fn test_token_kind_int_literal() {
+        let kind = TokenKind::IntLiteral(42);
+        assert!(matches!(kind, TokenKind::IntLiteral(42)));
     }
 
     #[test]

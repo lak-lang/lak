@@ -27,7 +27,7 @@
 use ariadne::{Color, Label, Report, ReportKind, Source};
 use clap::{Parser, Subcommand};
 use inkwell::context::Context;
-use lak::codegen::Codegen;
+use lak::codegen::{Codegen, CodegenError};
 use lak::lexer::{LexError, Lexer};
 use lak::parser::{ParseError, Parser as LakParser};
 use std::path::Path;
@@ -82,7 +82,7 @@ enum CompileError {
     /// An error during parsing.
     Parse(ParseError),
     /// An error during code generation.
-    Codegen(String),
+    Codegen(CodegenError),
 }
 
 /// Reports a compilation error with source location highlighting.
@@ -98,31 +98,65 @@ enum CompileError {
 fn report_error(filename: &str, source: &str, error: CompileError) {
     match error {
         CompileError::Lex(e) => {
-            Report::build(ReportKind::Error, (filename, e.span.start..e.span.end))
-                .with_message(&e.message)
-                .with_label(
-                    Label::new((filename, e.span.start..e.span.end))
-                        .with_message(&e.message)
-                        .with_color(Color::Red),
-                )
-                .finish()
-                .eprint((filename, Source::from(source)))
-                .ok();
+            if let Err(report_err) =
+                Report::build(ReportKind::Error, (filename, e.span.start..e.span.end))
+                    .with_message(&e.message)
+                    .with_label(
+                        Label::new((filename, e.span.start..e.span.end))
+                            .with_message(&e.message)
+                            .with_color(Color::Red),
+                    )
+                    .finish()
+                    .eprint((filename, Source::from(source)))
+            {
+                // Fallback to basic error output if report printing fails
+                eprintln!(
+                    "Error: {} (at {}:{})",
+                    e.message, e.span.line, e.span.column
+                );
+                eprintln!("(Failed to display detailed error report: {})", report_err);
+            }
         }
         CompileError::Parse(e) => {
-            Report::build(ReportKind::Error, (filename, e.span.start..e.span.end))
-                .with_message(&e.message)
-                .with_label(
-                    Label::new((filename, e.span.start..e.span.end))
-                        .with_message(&e.message)
-                        .with_color(Color::Red),
-                )
-                .finish()
-                .eprint((filename, Source::from(source)))
-                .ok();
+            if let Err(report_err) =
+                Report::build(ReportKind::Error, (filename, e.span.start..e.span.end))
+                    .with_message(&e.message)
+                    .with_label(
+                        Label::new((filename, e.span.start..e.span.end))
+                            .with_message(&e.message)
+                            .with_color(Color::Red),
+                    )
+                    .finish()
+                    .eprint((filename, Source::from(source)))
+            {
+                // Fallback to basic error output if report printing fails
+                eprintln!(
+                    "Error: {} (at {}:{})",
+                    e.message, e.span.line, e.span.column
+                );
+                eprintln!("(Failed to display detailed error report: {})", report_err);
+            }
         }
-        CompileError::Codegen(msg) => {
-            eprintln!("Error: {}", msg);
+        CompileError::Codegen(e) => {
+            if let Some(span) = e.span {
+                if let Err(report_err) =
+                    Report::build(ReportKind::Error, (filename, span.start..span.end))
+                        .with_message(&e.message)
+                        .with_label(
+                            Label::new((filename, span.start..span.end))
+                                .with_message(&e.message)
+                                .with_color(Color::Red),
+                        )
+                        .finish()
+                        .eprint((filename, Source::from(source)))
+                {
+                    // Fallback to basic error output if report printing fails
+                    eprintln!("Error: {} (at {}:{})", e.message, span.line, span.column);
+                    eprintln!("(Failed to display detailed error report: {})", report_err);
+                }
+            } else {
+                eprintln!("Error: {}", e.message);
+            }
         }
     }
 }
@@ -180,10 +214,10 @@ fn build(file: &str) -> Result<(), String> {
 
     let context = Context::create();
     let mut codegen = Codegen::new(&context, "lak_module");
-    if let Err(e) = codegen.compile(&program) {
+    codegen.compile(&program).map_err(|e| {
         report_error(file, &source, CompileError::Codegen(e));
-        return Err("Compilation failed".to_string());
-    }
+        "Compilation failed".to_string()
+    })?;
 
     let source_path = Path::new(file);
     let stem = source_path
