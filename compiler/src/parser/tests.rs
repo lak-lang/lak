@@ -742,3 +742,51 @@ fn test_let_stmt_span_tracking() {
     assert!(stmt.span.start < stmt.span.end);
     assert!(stmt.span.line >= 1);
 }
+
+// ===================
+// Trailing newline handling
+// ===================
+
+#[test]
+fn test_parse_with_trailing_newline() {
+    // Files typically end with a trailing newline
+    let source = "fn main() -> void { println(\"hello\") }\n";
+    let program = parse(source).unwrap();
+    assert_eq!(program.functions.len(), 1);
+    assert_eq!(program.functions[0].name, "main");
+}
+
+#[test]
+fn test_parse_with_multiple_trailing_newlines() {
+    // Multiple trailing newlines should also work
+    let source = "fn main() -> void {}\n\n\n";
+    let program = parse(source).unwrap();
+    assert_eq!(program.functions.len(), 1);
+}
+
+#[test]
+fn test_parse_multiple_functions_with_trailing_newlines() {
+    // Multiple functions with newlines between and after
+    let source = "fn foo() -> void {}\n\nfn bar() -> void {}\n";
+    let program = parse(source).unwrap();
+    assert_eq!(program.functions.len(), 2);
+    assert_eq!(program.functions[0].name, "foo");
+    assert_eq!(program.functions[1].name, "bar");
+}
+
+#[test]
+fn test_parse_only_newlines() {
+    // File containing only newlines should produce empty program
+    let source = "\n\n\n";
+    let program = parse(source).unwrap();
+    assert!(program.functions.is_empty());
+}
+
+#[test]
+fn test_parse_with_leading_newlines() {
+    // Leading newlines before first function
+    let source = "\n\nfn main() -> void {}";
+    let program = parse(source).unwrap();
+    assert_eq!(program.functions.len(), 1);
+    assert_eq!(program.functions[0].name, "main");
+}

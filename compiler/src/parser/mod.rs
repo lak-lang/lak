@@ -119,6 +119,10 @@ impl Parser {
         let mut functions = Vec::new();
 
         while !self.is_eof() {
+            self.skip_newlines();
+            if self.is_eof() {
+                break;
+            }
             let fn_def = self.parse_fn_def()?;
             functions.push(fn_def);
         }
