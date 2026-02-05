@@ -66,7 +66,7 @@ pub enum ExprKind {
     /// A variable reference.
     ///
     /// Refers to a variable by name. The variable must be declared before
-    /// use; this is verified during code generation, not parsing.
+    /// use; this is verified during semantic analysis, not parsing.
     Identifier(String),
 
     /// A function call expression.

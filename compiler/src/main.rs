@@ -17,8 +17,9 @@
 //!
 //! 1. **Lexing** ([`lexer`]) - Converts source text into tokens
 //! 2. **Parsing** ([`parser`]) - Builds an AST from tokens
-//! 3. **Code Generation** ([`codegen`]) - Generates LLVM IR from the AST
-//! 4. **Linking** - Uses the system linker to produce an executable
+//! 3. **Semantic Analysis** ([`semantic`]) - Validates the AST for correctness
+//! 4. **Code Generation** ([`codegen`]) - Generates LLVM IR from the AST
+//! 5. **Linking** - Uses the system linker to produce an executable
 //!
 //! # Error Reporting
 //!
@@ -29,9 +30,10 @@
 use ariadne::{Color, Label, Report, ReportKind, Source};
 use clap::{Parser, Subcommand};
 use inkwell::context::Context;
-use lak::codegen::{Codegen, CodegenError, CodegenErrorKind};
+use lak::codegen::{Codegen, CodegenError};
 use lak::lexer::{LexError, Lexer};
 use lak::parser::{ParseError, Parser as LakParser};
+use lak::semantic::{SemanticAnalyzer, SemanticError, SemanticErrorKind};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus};
 use tempfile::TempDir;
@@ -97,13 +99,15 @@ fn main() {
 
 /// A compilation error from any phase of the compiler.
 ///
-/// This enum unifies errors from lexing, parsing, and code generation
-/// to simplify error handling in the build pipeline.
+/// This enum unifies errors from lexing, parsing, semantic analysis,
+/// and code generation to simplify error handling in the build pipeline.
 enum CompileError {
     /// An error during lexical analysis.
     Lex(LexError),
     /// An error during parsing.
     Parse(ParseError),
+    /// An error during semantic analysis.
+    Semantic(SemanticError),
     /// An error during code generation.
     Codegen(CodegenError),
 }
@@ -166,7 +170,7 @@ fn report_error(filename: &str, source: &str, error: CompileError) {
                 eprintln!("(Failed to display detailed error report: {})", report_err);
             }
         }
-        CompileError::Codegen(e) => {
+        CompileError::Semantic(e) => {
             if let Some(span) = e.span() {
                 if let Err(report_err) =
                     Report::build(ReportKind::Error, (filename, span.start..span.end))
@@ -185,13 +189,7 @@ fn report_error(filename: &str, source: &str, error: CompileError) {
                 }
             } else {
                 // No span available - show error report pointing to end of file.
-                // We use byte offsets (not character count) because ariadne expects
-                // byte positions. This is correct for UTF-8 sources with multi-byte
-                // characters (emoji, CJK, etc.).
                 let end = source.len().saturating_sub(1);
-                // For empty files, use an empty range at position 0.
-                // For non-empty files, point to the last character to indicate
-                // "end of file" context.
                 let span_range = if source.is_empty() {
                     0..0
                 } else {
@@ -199,7 +197,7 @@ fn report_error(filename: &str, source: &str, error: CompileError) {
                 };
 
                 // Customize label and help based on error kind
-                let is_missing_main = e.kind() == CodegenErrorKind::MissingMainFunction;
+                let is_missing_main = e.kind() == SemanticErrorKind::MissingMainFunction;
                 let label_msg: &str = if is_missing_main {
                     "main function not found"
                 } else {
@@ -223,6 +221,30 @@ fn report_error(filename: &str, source: &str, error: CompileError) {
                     eprintln!("Error in {}: {}", filename, e.message());
                     eprintln!("(Failed to display detailed error report: {})", report_err);
                 }
+            }
+        }
+        CompileError::Codegen(e) => {
+            // Codegen errors are infrastructure errors (InternalError, TargetError)
+            // that typically don't have source locations
+            if let Some(span) = e.span() {
+                if let Err(report_err) =
+                    Report::build(ReportKind::Error, (filename, span.start..span.end))
+                        .with_message(e.message())
+                        .with_label(
+                            Label::new((filename, span.start..span.end))
+                                .with_message(e.message())
+                                .with_color(Color::Red),
+                        )
+                        .finish()
+                        .eprint((filename, Source::from(source)))
+                {
+                    // Fallback to basic error output if report printing fails
+                    eprintln!("Error: {} (at {}:{})", e.message(), span.line, span.column);
+                    eprintln!("(Failed to display detailed error report: {})", report_err);
+                }
+            } else {
+                // Infrastructure errors without source location
+                eprintln!("Error in {}: {}", filename, e.message());
             }
         }
     }
@@ -306,6 +328,13 @@ fn compile_to_executable(
             return Err("Compilation failed".to_string());
         }
     };
+
+    // Semantic analysis
+    let mut analyzer = SemanticAnalyzer::new();
+    if let Err(e) = analyzer.analyze(&program) {
+        report_error(file, source, CompileError::Semantic(e));
+        return Err("Compilation failed".to_string());
+    }
 
     let context = Context::create();
     let mut codegen = Codegen::new(&context, "lak_module");

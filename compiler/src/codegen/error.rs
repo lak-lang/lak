@@ -10,38 +10,18 @@ use crate::token::Span;
 /// This enum allows error handling code to match on error types structurally
 /// rather than relying on string matching, which is fragile.
 ///
+/// # Note
+///
+/// Most semantic errors (undefined variables, type mismatches, etc.) are now
+/// detected during semantic analysis. This enum only contains errors that can
+/// occur during LLVM IR generation or object file output.
+///
 /// # Error Categories
 ///
-/// Error kinds fall into three categories based on their typical span behavior:
-///
-/// - **User errors** (typically have span): [`UndefinedVariable`](Self::UndefinedVariable),
-///   [`DuplicateVariable`](Self::DuplicateVariable), [`UndefinedFunction`](Self::UndefinedFunction),
-///   [`TypeMismatch`](Self::TypeMismatch), [`IntegerOverflow`](Self::IntegerOverflow),
-///   [`InvalidArgument`](Self::InvalidArgument), [`InvalidExpression`](Self::InvalidExpression),
-///   [`InvalidMainSignature`](Self::InvalidMainSignature)
-/// - **Structural errors** (no span): [`MissingMainFunction`](Self::MissingMainFunction)
 /// - **Infrastructure errors** (typically no span): [`InternalError`](Self::InternalError),
 ///   [`TargetError`](Self::TargetError)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CodegenErrorKind {
-    /// No main function was found in the program.
-    MissingMainFunction,
-    /// The main function has an invalid signature (e.g., wrong return type).
-    InvalidMainSignature,
-    /// A variable was referenced but not defined.
-    UndefinedVariable,
-    /// A variable was defined multiple times in the same scope.
-    DuplicateVariable,
-    /// A function was called but not defined.
-    UndefinedFunction,
-    /// Type mismatch between expected and actual types.
-    TypeMismatch,
-    /// Integer value is out of range for the target type.
-    IntegerOverflow,
-    /// Invalid function arguments (wrong count or type).
-    InvalidArgument,
-    /// Expression used in an invalid context (e.g., literal as statement).
-    InvalidExpression,
     /// Internal compiler error (should not happen in normal use).
     InternalError,
     /// LLVM target or code generation infrastructure error.
@@ -57,10 +37,9 @@ pub enum CodegenErrorKind {
 ///
 /// Use the appropriate constructor based on your error type:
 ///
-/// - [`new()`](Self::new) - For user errors with a specific source location
+/// - [`new()`](Self::new) - For errors with a specific source location
 /// - [`without_span()`](Self::without_span) - For errors without a source location
-///   (infrastructure errors, structural errors)
-/// - [`missing_main()`](Self::missing_main) - Convenience for missing main function errors
+///   (infrastructure errors)
 #[derive(Debug)]
 pub struct CodegenError {
     /// A human-readable description of the error.
@@ -74,16 +53,16 @@ pub struct CodegenError {
 impl CodegenError {
     /// Creates a new error with a source location.
     ///
-    /// Use this for user errors that can be traced to a specific location in
-    /// the source code (e.g., undefined variable, type mismatch).
+    /// Use this for internal errors that can be traced to a specific location in
+    /// the source code (e.g., LLVM instruction build failures).
     ///
     /// # Examples
     ///
     /// ```ignore
     /// CodegenError::new(
-    ///     CodegenErrorKind::UndefinedVariable,
-    ///     format!("undefined variable: {}", name),
-    ///     expr.span,
+    ///     CodegenErrorKind::InternalError,
+    ///     format!("Internal error: failed to build instruction: {}", e),
+    ///     stmt.span,
     /// )
     /// ```
     pub fn new(kind: CodegenErrorKind, message: impl Into<String>, span: Span) -> Self {
@@ -112,25 +91,6 @@ impl CodegenError {
             message: message.into(),
             span: None,
             kind,
-        }
-    }
-
-    /// Creates a "missing main function" error.
-    ///
-    /// This is a convenience constructor for the common case of reporting
-    /// that no main function was found. These errors never have a span
-    /// because there's no specific location to point to.
-    ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// CodegenError::missing_main("No main function found in program")
-    /// ```
-    pub fn missing_main(message: impl Into<String>) -> Self {
-        CodegenError {
-            message: message.into(),
-            span: None,
-            kind: CodegenErrorKind::MissingMainFunction,
         }
     }
 

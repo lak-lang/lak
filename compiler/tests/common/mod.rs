@@ -10,6 +10,7 @@
 use lak::codegen::{Codegen, CodegenError};
 use lak::lexer::Lexer;
 use lak::parser::Parser;
+use lak::semantic::SemanticAnalyzer;
 use lak::token::Span;
 
 use inkwell::context::Context;
@@ -94,10 +95,11 @@ pub fn compile_and_run(source: &str) -> Result<String, String> {
 pub enum CompileStage {
     Lex,
     Parse,
+    Semantic,
     Codegen,
 }
 
-/// Attempts to lex, parse, and compile a program.
+/// Attempts to lex, parse, analyze, and compile a program.
 /// Returns the stage and error message if any stage fails.
 pub fn compile_error(source: &str) -> Option<(CompileStage, String)> {
     let mut lexer = Lexer::new(source);
@@ -111,6 +113,11 @@ pub fn compile_error(source: &str) -> Option<(CompileStage, String)> {
         Ok(p) => p,
         Err(e) => return Some((CompileStage::Parse, e.to_string())),
     };
+
+    let mut analyzer = SemanticAnalyzer::new();
+    if let Err(e) = analyzer.analyze(&program) {
+        return Some((CompileStage::Semantic, e.message().to_string()));
+    }
 
     let context = Context::create();
     let mut codegen = Codegen::new(&context, "test");

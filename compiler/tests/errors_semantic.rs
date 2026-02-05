@@ -1,7 +1,7 @@
-//! Code generation error tests for the Lak compiler.
+//! Semantic analysis error tests for the Lak compiler.
 //!
 //! These tests verify that semantic errors are properly detected
-//! and reported during code generation.
+//! and reported during semantic analysis.
 
 mod common;
 
@@ -12,8 +12,8 @@ fn test_compile_error_unknown_function() {
     let result = compile_error(r#"fn main() -> void { unknown_func("test") }"#);
     let (stage, msg) = result.expect("Expected compilation to fail");
     assert!(
-        matches!(stage, CompileStage::Codegen),
-        "Expected Codegen error, got {:?}: {}",
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
         stage,
         msg
     );
@@ -29,8 +29,8 @@ fn test_compile_error_missing_main() {
     let result = compile_error("");
     let (stage, msg) = result.expect("Expected compilation to fail");
     assert!(
-        matches!(stage, CompileStage::Codegen),
-        "Expected Codegen error, got {:?}: {}",
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
         stage,
         msg
     );
@@ -46,8 +46,8 @@ fn test_compile_error_missing_main_with_other_functions() {
     let result = compile_error("fn hoge() -> void {}");
     let (stage, msg) = result.expect("Expected compilation to fail");
     assert!(
-        matches!(stage, CompileStage::Codegen),
-        "Expected Codegen error, got {:?}: {}",
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
         stage,
         msg
     );
@@ -68,8 +68,8 @@ fn test_compile_error_main_wrong_return_type() {
     let result = compile_error("fn main() -> int {}");
     let (stage, msg) = result.expect("Expected compilation to fail");
     assert!(
-        matches!(stage, CompileStage::Codegen),
-        "Expected Codegen error, got {:?}: {}",
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
         stage,
         msg
     );
@@ -90,8 +90,8 @@ fn test_compile_error_duplicate_variable() {
     );
     let (stage, msg) = result.expect("Expected compilation to fail");
     assert!(
-        matches!(stage, CompileStage::Codegen),
-        "Expected Codegen error, got {:?}: {}",
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
         stage,
         msg
     );
@@ -111,8 +111,8 @@ fn test_compile_error_undefined_variable() {
     );
     let (stage, msg) = result.expect("Expected compilation to fail");
     assert!(
-        matches!(stage, CompileStage::Codegen),
-        "Expected Codegen error, got {:?}: {}",
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
         stage,
         msg
     );
@@ -133,8 +133,8 @@ fn test_compile_error_type_mismatch() {
     );
     let (stage, msg) = result.expect("Expected compilation to fail");
     assert!(
-        matches!(stage, CompileStage::Codegen),
-        "Expected Codegen error, got {:?}: {}",
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
         stage,
         msg
     );
@@ -155,8 +155,8 @@ fn test_compile_error_i32_overflow() {
     );
     let (stage, msg) = result.expect("Expected compilation to fail");
     assert!(
-        matches!(stage, CompileStage::Codegen),
-        "Expected Codegen error, got {:?}: {}",
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
         stage,
         msg
     );
@@ -178,8 +178,8 @@ fn test_compile_error_i32_large_value_overflow() {
     );
     let (stage, msg) = result.expect("Expected compilation to fail");
     assert!(
-        matches!(stage, CompileStage::Codegen),
-        "Expected Codegen error, got {:?}: {}",
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
         stage,
         msg
     );
@@ -201,8 +201,8 @@ fn test_compile_error_duplicate_variable_different_type() {
     );
     let (stage, msg) = result.expect("Expected compilation to fail");
     assert!(
-        matches!(stage, CompileStage::Codegen),
-        "Expected Codegen error, got {:?}: {}",
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
         stage,
         msg
     );
@@ -224,8 +224,8 @@ fn test_compile_error_forward_reference() {
     );
     let (stage, msg) = result.expect("Expected compilation to fail");
     assert!(
-        matches!(stage, CompileStage::Codegen),
-        "Expected Codegen error, got {:?}: {}",
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
         stage,
         msg
     );
@@ -247,8 +247,8 @@ fn test_compile_error_variable_in_println() {
     );
     let (stage, msg) = result.expect("Expected compilation to fail");
     assert!(
-        matches!(stage, CompileStage::Codegen),
-        "Expected Codegen error, got {:?}: {}",
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
         stage,
         msg
     );
@@ -269,14 +269,35 @@ fn test_compile_error_println_int_literal() {
     );
     let (stage, msg) = result.expect("Expected compilation to fail");
     assert!(
-        matches!(stage, CompileStage::Codegen),
-        "Expected Codegen error, got {:?}: {}",
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
         stage,
         msg
     );
     assert!(
         msg.contains("string literal"),
         "Expected 'string literal' in error: {}",
+        msg
+    );
+}
+
+#[test]
+fn test_compile_error_duplicate_function() {
+    // Duplicate function definition (issues/1.md)
+    let result = compile_error(
+        r#"fn main() -> void {}
+fn main() -> void {}"#,
+    );
+    let (stage, msg) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert!(
+        msg.contains("already defined"),
+        "Expected 'already defined' in error: {}",
         msg
     );
 }

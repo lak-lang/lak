@@ -155,49 +155,31 @@ impl<'ctx> Codegen<'ctx> {
     ///
     /// # Arguments
     ///
-    /// * `program` - The parsed Lak program to compile
+    /// * `program` - A semantically validated Lak program to compile
     ///
     /// # Errors
     ///
-    /// Returns an error if:
-    /// - No `main` function is found
-    /// - The `main` function has an invalid signature
-    /// - An unknown function is called
-    /// - A built-in function is called with incorrect arguments
-    /// - LLVM IR generation fails
+    /// Returns an error if LLVM IR generation fails (internal errors).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the program has no `main` function. This should never happen
+    /// because semantic analysis guarantees the presence and validity of `main`.
     pub fn compile(&mut self, program: &Program) -> Result<(), CodegenError> {
         self.declare_lak_println();
 
-        // Find the main function
+        // Find the main function (guaranteed to exist by semantic analysis)
         let main_fn = program
             .functions
             .iter()
             .find(|f| f.name == "main")
             .ok_or_else(|| {
-                if program.functions.is_empty() {
-                    CodegenError::missing_main(
-                        "No main function found: program contains no function definitions",
-                    )
-                } else {
-                    let names: Vec<_> = program.functions.iter().map(|f| f.name.as_str()).collect();
-                    CodegenError::missing_main(format!(
-                        "No main function found. Defined functions: {:?}",
-                        names
-                    ))
-                }
+                CodegenError::without_span(
+                    CodegenErrorKind::InternalError,
+                    "Internal error: no main function found in codegen. \
+                 Semantic analysis should have caught this. This is a compiler bug.",
+                )
             })?;
-
-        // Validate main function signature
-        if main_fn.return_type != "void" {
-            return Err(CodegenError::new(
-                CodegenErrorKind::InvalidMainSignature,
-                format!(
-                    "main function must return void, but found return type '{}'",
-                    main_fn.return_type
-                ),
-                main_fn.return_type_span,
-            ));
-        }
 
         self.generate_main(main_fn)?;
         Ok(())

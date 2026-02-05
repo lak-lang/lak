@@ -36,12 +36,12 @@ impl<'ctx> Codegen<'ctx> {
     ///
     /// # Errors
     ///
-    /// Returns an error if:
-    /// - The variable is already defined in the current scope
-    /// - The initializer expression references an undefined variable
-    /// - The initializer variable has a type different from the declared type
-    /// - An integer literal is out of range for the declared type (e.g., i32)
-    /// - LLVM fails to create allocation or store instructions
+    /// Returns an error if LLVM fails to create allocation or store instructions.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the variable is already defined. This should never happen
+    /// because semantic analysis guarantees no duplicate variables.
     pub(super) fn generate_let(
         &mut self,
         name: &str,
@@ -49,13 +49,12 @@ impl<'ctx> Codegen<'ctx> {
         init: &Expr,
         span: Span,
     ) -> Result<(), CodegenError> {
-        if self.variables.contains_key(name) {
-            return Err(CodegenError::new(
-                CodegenErrorKind::DuplicateVariable,
-                format!("Variable '{}' is already defined in this scope", name),
-                span,
-            ));
-        }
+        // Semantic analysis guarantees no duplicate variables
+        debug_assert!(
+            !self.variables.contains_key(name),
+            "Duplicate variable '{}' should have been caught by semantic analysis",
+            name
+        );
 
         let binding = VarBinding::new(&self.builder, self.context, ty, name)
             .map_err(|e| CodegenError::new(CodegenErrorKind::InternalError, e, span))?;

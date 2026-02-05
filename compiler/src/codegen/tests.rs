@@ -127,142 +127,6 @@ fn test_compile_println_with_escape_sequences() {
 }
 
 #[test]
-fn test_error_no_main_function() {
-    let context = Context::create();
-    let mut codegen = Codegen::new(&context, "test");
-
-    let program = Program { functions: vec![] };
-
-    let err = codegen
-        .compile(&program)
-        .expect_err("Should fail without main function");
-    assert!(
-        err.message().contains("No main function"),
-        "Expected 'No main function' in error: {}",
-        err.message()
-    );
-}
-
-#[test]
-fn test_error_main_wrong_return_type() {
-    let context = Context::create();
-    let mut codegen = Codegen::new(&context, "test");
-
-    let program = Program {
-        functions: vec![FnDef {
-            name: "main".to_string(),
-            return_type: "int".to_string(),
-            return_type_span: dummy_span(),
-            body: vec![],
-            span: dummy_span(),
-        }],
-    };
-
-    let err = codegen
-        .compile(&program)
-        .expect_err("Should fail for main with wrong return type");
-    assert!(
-        err.message().contains("must return void"),
-        "Expected 'must return void' in error: {}",
-        err.message()
-    );
-    // Verify error has span pointing to main function
-    assert!(
-        err.span().is_some(),
-        "Expected error to have span pointing to main function"
-    );
-}
-
-#[test]
-fn test_error_unknown_function() {
-    let context = Context::create();
-    let mut codegen = Codegen::new(&context, "test");
-
-    let program = make_program(vec![expr_stmt(ExprKind::Call {
-        callee: "unknown_function".to_string(),
-        args: vec![],
-    })]);
-
-    let err = codegen
-        .compile(&program)
-        .expect_err("Should fail for unknown function");
-    assert!(
-        err.message().contains("Unknown function"),
-        "Expected 'Unknown function' in error: {}",
-        err.message()
-    );
-}
-
-#[test]
-fn test_error_println_no_args() {
-    let context = Context::create();
-    let mut codegen = Codegen::new(&context, "test");
-
-    let program = make_program(vec![expr_stmt(ExprKind::Call {
-        callee: "println".to_string(),
-        args: vec![],
-    })]);
-
-    let err = codegen
-        .compile(&program)
-        .expect_err("Should fail for println with no args");
-    assert!(
-        err.message().contains("exactly 1 argument"),
-        "Expected 'exactly 1 argument' in error: {}",
-        err.message()
-    );
-}
-
-#[test]
-fn test_error_println_too_many_args() {
-    let context = Context::create();
-    let mut codegen = Codegen::new(&context, "test");
-
-    let program = make_program(vec![expr_stmt(ExprKind::Call {
-        callee: "println".to_string(),
-        args: vec![
-            Expr::new(ExprKind::StringLiteral("a".to_string()), dummy_span()),
-            Expr::new(ExprKind::StringLiteral("b".to_string()), dummy_span()),
-        ],
-    })]);
-
-    let err = codegen
-        .compile(&program)
-        .expect_err("Should fail for println with too many args");
-    assert!(
-        err.message().contains("exactly 1 argument"),
-        "Expected 'exactly 1 argument' in error: {}",
-        err.message()
-    );
-}
-
-#[test]
-fn test_error_println_non_string() {
-    let context = Context::create();
-    let mut codegen = Codegen::new(&context, "test");
-
-    let program = make_program(vec![expr_stmt(ExprKind::Call {
-        callee: "println".to_string(),
-        args: vec![Expr::new(
-            ExprKind::Call {
-                callee: "other".to_string(),
-                args: vec![],
-            },
-            dummy_span(),
-        )],
-    })]);
-
-    let err = codegen
-        .compile(&program)
-        .expect_err("Should fail for println with non-string arg");
-    assert!(
-        err.message().contains("string literal"),
-        "Expected 'string literal' in error: {}",
-        err.message()
-    );
-}
-
-#[test]
 fn test_write_object_file() {
     let context = Context::create();
     let mut codegen = Codegen::new(&context, "test");
@@ -339,41 +203,6 @@ fn test_main_function_not_first() {
         .compile(&program)
         .expect("Should find main even if not first");
     assert!(codegen.module.get_function("main").is_some());
-}
-
-#[test]
-fn test_error_no_main_with_other_functions() {
-    // Verify error message includes defined function names
-    let context = Context::create();
-    let mut codegen = Codegen::new(&context, "test");
-
-    let program = Program {
-        functions: vec![
-            FnDef {
-                name: "foo".to_string(),
-                return_type: "void".to_string(),
-                return_type_span: dummy_span(),
-                body: vec![],
-                span: dummy_span(),
-            },
-            FnDef {
-                name: "bar".to_string(),
-                return_type: "void".to_string(),
-                return_type_span: dummy_span(),
-                body: vec![],
-                span: dummy_span(),
-            },
-        ],
-    };
-
-    let err = codegen
-        .compile(&program)
-        .expect_err("Should fail without main");
-    assert!(
-        err.message().contains("foo") && err.message().contains("bar"),
-        "Error should list defined functions: {}",
-        err.message()
-    );
 }
 
 // ===================
@@ -457,75 +286,18 @@ fn test_compile_let_mixed_with_println() {
         .expect("Mixed let and println should compile");
 }
 
-#[test]
-fn test_error_duplicate_variable() {
-    let context = Context::create();
-    let mut codegen = Codegen::new(&context, "test");
-
-    let program = make_program(vec![
-        let_stmt("x", Type::I32, ExprKind::IntLiteral(1)),
-        let_stmt("x", Type::I32, ExprKind::IntLiteral(2)),
-    ]);
-
-    let err = codegen
-        .compile(&program)
-        .expect_err("Should fail on duplicate variable");
-    assert!(
-        err.message().contains("already defined"),
-        "Expected 'already defined' in error: {}",
-        err.message()
-    );
-}
-
-#[test]
-fn test_error_undefined_variable() {
-    let context = Context::create();
-    let mut codegen = Codegen::new(&context, "test");
-
-    let program = make_program(vec![let_stmt(
-        "x",
-        Type::I32,
-        ExprKind::Identifier("undefined_var".to_string()),
-    )]);
-
-    let err = codegen
-        .compile(&program)
-        .expect_err("Should fail on undefined variable");
-    assert!(
-        err.message().contains("Undefined variable"),
-        "Expected 'Undefined variable' in error: {}",
-        err.message()
-    );
-}
-
-#[test]
-fn test_error_type_mismatch() {
-    let context = Context::create();
-    let mut codegen = Codegen::new(&context, "test");
-
-    let program = make_program(vec![
-        let_stmt("x", Type::I32, ExprKind::IntLiteral(42)),
-        let_stmt("y", Type::I64, ExprKind::Identifier("x".to_string())),
-    ]);
-
-    let err = codegen
-        .compile(&program)
-        .expect_err("Should fail on type mismatch");
-    assert!(
-        err.message().contains("Type mismatch"),
-        "Expected 'Type mismatch' in error: {}",
-        err.message()
-    );
-}
+// ===================
+// CodegenError tests
+// ===================
 
 #[test]
 fn test_codegen_error_with_span() {
     let span = Span::new(10, 20, 3, 5);
-    let err = CodegenError::new(CodegenErrorKind::UndefinedVariable, "test error", span);
+    let err = CodegenError::new(CodegenErrorKind::InternalError, "test error", span);
     assert!(err.span().is_some());
     assert_eq!(err.span().unwrap().line, 3);
     assert_eq!(err.span().unwrap().column, 5);
-    assert_eq!(err.kind(), CodegenErrorKind::UndefinedVariable);
+    assert_eq!(err.kind(), CodegenErrorKind::InternalError);
     let display = format!("{}", err);
     assert!(display.contains("3:5"));
     assert!(display.contains("test error"));
@@ -541,25 +313,10 @@ fn test_codegen_error_without_span() {
 }
 
 #[test]
-fn test_codegen_error_missing_main() {
-    let err = CodegenError::missing_main("No main function");
-    assert!(err.span().is_none());
-    assert_eq!(err.kind(), CodegenErrorKind::MissingMainFunction);
-}
-
-#[test]
 fn test_codegen_error_kinds() {
-    // Verify all error kinds are distinct
+    // Verify error kinds are distinct
     assert_ne!(
-        CodegenErrorKind::MissingMainFunction,
-        CodegenErrorKind::InvalidMainSignature
-    );
-    assert_ne!(
-        CodegenErrorKind::UndefinedVariable,
-        CodegenErrorKind::DuplicateVariable
-    );
-    assert_ne!(
-        CodegenErrorKind::TypeMismatch,
-        CodegenErrorKind::IntegerOverflow
+        CodegenErrorKind::InternalError,
+        CodegenErrorKind::TargetError
     );
 }

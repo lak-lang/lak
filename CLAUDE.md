@@ -59,7 +59,7 @@ lak/
 The compiler follows a traditional pipeline:
 
 ```
-Source (.lak) → Lexer → Parser → Codegen → LLVM → Object File → Linker → Executable
+Source (.lak) → Lexer → Parser → Semantic Analyzer → Codegen → LLVM → Object File → Linker → Executable
 ```
 
 ### Module Structure
@@ -83,6 +83,11 @@ Source (.lak) → Lexer → Parser → Codegen → LLVM → Object File → Link
   - `helpers.rs` - Token navigation utilities
   - `stmt.rs` - Statement parsing
   - `types.rs` - Type annotation parsing
+  - `tests.rs` - Unit tests
+- `compiler/src/semantic/` - Semantic analysis module
+  - `mod.rs` - `SemanticAnalyzer` struct and `analyze()` method
+  - `error.rs` - `SemanticError` type
+  - `symbol.rs` - `SymbolTable` for function/variable tracking
   - `tests.rs` - Unit tests
 - `compiler/src/codegen/` - LLVM IR generation module
   - `mod.rs` - `Codegen` struct and `compile()` method
@@ -125,9 +130,10 @@ The compiler currently supports:
 1. `build()` in main.rs reads source file
 2. `Lexer::tokenize()` produces `Vec<Token>`
 3. `Parser::parse()` produces `Program` (AST)
-4. `Codegen::compile()` generates LLVM IR
-5. `Codegen::write_object_file()` outputs `.o` file
-6. System linker (`cc`) produces final executable
+4. `SemanticAnalyzer::analyze()` validates the AST
+5. `Codegen::compile()` generates LLVM IR
+6. `Codegen::write_object_file()` outputs `.o` file
+7. System linker (`cc`) produces final executable
 
 ### Development Tools
 

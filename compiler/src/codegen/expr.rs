@@ -13,45 +13,26 @@ impl<'ctx> Codegen<'ctx> {
     ///
     /// # Behavior
     ///
-    /// - For function calls: generates the call IR and returns `Ok(())`
-    /// - For literals and identifiers: returns an error since these have no
-    ///   side effects when used as statements
+    /// For function calls: generates the call IR and returns `Ok(())`
+    ///
+    /// # Panics
+    ///
+    /// Panics for non-call expressions (literals, identifiers). Semantic analysis
+    /// guarantees that only valid expression statements reach codegen.
     pub(super) fn generate_expr(&mut self, expr: &Expr) -> Result<(), CodegenError> {
         match &expr.kind {
             ExprKind::Call { callee, args } => {
-                if callee == "println" {
-                    self.generate_println(args, expr.span)?;
-                } else {
-                    return Err(CodegenError::new(
-                        CodegenErrorKind::UndefinedFunction,
-                        format!("Unknown function: {}", callee),
-                        expr.span,
-                    ));
-                }
+                // Semantic analysis guarantees only valid function calls
+                debug_assert!(
+                    callee == "println",
+                    "Unknown function '{}' should have been caught by semantic analysis",
+                    callee
+                );
+                self.generate_println(args, expr.span)?;
             }
-            ExprKind::StringLiteral(_) => {
-                return Err(CodegenError::new(
-                    CodegenErrorKind::InvalidExpression,
-                    "String literal as a statement has no effect. Did you mean to pass it to a function?",
-                    expr.span,
-                ));
-            }
-            ExprKind::IntLiteral(_) => {
-                return Err(CodegenError::new(
-                    CodegenErrorKind::InvalidExpression,
-                    "Integer literal as a statement has no effect. Did you mean to assign it to a variable?",
-                    expr.span,
-                ));
-            }
-            ExprKind::Identifier(name) => {
-                return Err(CodegenError::new(
-                    CodegenErrorKind::InvalidExpression,
-                    format!(
-                        "Variable '{}' used as a statement has no effect. Did you mean to use it in an expression?",
-                        name
-                    ),
-                    expr.span,
-                ));
+            ExprKind::StringLiteral(_) | ExprKind::IntLiteral(_) | ExprKind::Identifier(_) => {
+                // Semantic analysis should reject these as statements
+                panic!("Invalid expression statement should have been caught by semantic analysis");
             }
         }
         Ok(())
@@ -65,16 +46,17 @@ impl<'ctx> Codegen<'ctx> {
     /// # Arguments
     ///
     /// * `expr` - The expression to evaluate
-    /// * `expected_ty` - The expected type of the result
+    /// * `expected_ty` - The expected type of the result (validated by semantic analysis)
     ///
     /// # Errors
     ///
-    /// Returns an error if:
-    /// - A referenced variable is undefined
-    /// - A variable's type does not match the expected type
-    /// - An integer literal is out of range for the expected type
-    /// - A string literal is used (strings cannot be converted to integer types)
-    /// - A function call is used (functions returning values not yet supported)
+    /// Returns an error if LLVM operations fail (internal errors).
+    ///
+    /// # Panics
+    ///
+    /// Panics if semantic validation was bypassed (undefined variable, type mismatch,
+    /// string literal as integer, function call as value). Semantic analysis guarantees
+    /// these conditions cannot occur.
     pub(super) fn generate_expr_value(
         &self,
         expr: &Expr,
@@ -82,28 +64,7 @@ impl<'ctx> Codegen<'ctx> {
     ) -> Result<BasicValueEnum<'ctx>, CodegenError> {
         match &expr.kind {
             ExprKind::IntLiteral(value) => {
-                // Validate that the value fits in the expected type
-                match expected_ty {
-                    Type::I32 => {
-                        if *value < i32::MIN as i64 || *value > i32::MAX as i64 {
-                            return Err(CodegenError::new(
-                                CodegenErrorKind::IntegerOverflow,
-                                format!(
-                                    "Integer literal {} is out of range for i32 (valid range: {} to {})",
-                                    value,
-                                    i32::MIN,
-                                    i32::MAX
-                                ),
-                                expr.span,
-                            ));
-                        }
-                    }
-                    Type::I64 => {
-                        // Invariant: The lexer parses integer literals into i64, so any
-                        // value that made it past lexing is guaranteed to be within i64 range.
-                    }
-                }
-
+                // Semantic analysis guarantees the value fits in the expected type
                 let llvm_type = self.get_llvm_type(expected_ty);
                 // Cast to u64 for the LLVM API. For const_int, LLVM takes the bottom N bits
                 // where N is the type's bit width. The sign_extend parameter controls whether
@@ -112,27 +73,23 @@ impl<'ctx> Codegen<'ctx> {
                 Ok(llvm_value.into())
             }
             ExprKind::Identifier(name) => {
+                // Semantic analysis guarantees the variable exists and has the correct type
                 let binding = self.variables.get(name).ok_or_else(|| {
                     CodegenError::new(
-                        CodegenErrorKind::UndefinedVariable,
-                        format!("Undefined variable: '{}'", name),
+                        CodegenErrorKind::InternalError,
+                        format!(
+                            "Internal error: undefined variable '{}' in codegen. \
+                             Semantic analysis should have caught this. This is a compiler bug.",
+                            name
+                        ),
                         expr.span,
                     )
                 })?;
 
-                // Type check
-                if *binding.ty() != *expected_ty {
-                    return Err(CodegenError::new(
-                        CodegenErrorKind::TypeMismatch,
-                        format!(
-                            "Type mismatch: variable '{}' has type '{}', expected '{}'",
-                            name,
-                            binding.ty(),
-                            expected_ty
-                        ),
-                        expr.span,
-                    ));
-                }
+                debug_assert!(
+                    *binding.ty() == *expected_ty,
+                    "Type mismatch should have been caught by semantic analysis"
+                );
 
                 let llvm_type = self.get_llvm_type(binding.ty());
                 let loaded = self
@@ -151,19 +108,17 @@ impl<'ctx> Codegen<'ctx> {
 
                 Ok(loaded)
             }
-            ExprKind::StringLiteral(_) => Err(CodegenError::new(
-                CodegenErrorKind::TypeMismatch,
-                "String literals cannot be used as integer values",
-                expr.span,
-            )),
-            ExprKind::Call { callee, .. } => Err(CodegenError::new(
-                CodegenErrorKind::TypeMismatch,
-                format!(
-                    "Function call '{}' cannot be used as a value (functions returning values not yet supported)",
+            ExprKind::StringLiteral(_) => {
+                panic!(
+                    "String literal as integer value should have been caught by semantic analysis"
+                );
+            }
+            ExprKind::Call { callee, .. } => {
+                panic!(
+                    "Function call '{}' as value should have been caught by semantic analysis",
                     callee
-                ),
-                expr.span,
-            )),
+                );
+            }
         }
     }
 }

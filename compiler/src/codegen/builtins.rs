@@ -31,36 +31,33 @@ impl<'ctx> Codegen<'ctx> {
     ///
     /// # Arguments
     ///
-    /// * `args` - The arguments passed to `println` (must be exactly one string literal)
+    /// * `args` - The arguments passed to `println` (validated by semantic analysis)
     /// * `span` - The source location of the println call
     ///
     /// # Errors
     ///
-    /// Returns an error if:
-    /// - The number of arguments is not exactly 1
-    /// - The argument is not a string literal
+    /// Returns an error if LLVM operations fail (internal errors).
+    ///
+    /// # Panics
+    ///
+    /// Panics if semantic validation was bypassed (wrong argument count or type).
+    /// Semantic analysis guarantees println receives exactly one string literal.
     pub(super) fn generate_println(
         &mut self,
         args: &[Expr],
         span: Span,
     ) -> Result<(), CodegenError> {
-        if args.len() != 1 {
-            return Err(CodegenError::new(
-                CodegenErrorKind::InvalidArgument,
-                "println expects exactly 1 argument",
-                span,
-            ));
-        }
+        // Semantic analysis guarantees exactly one argument
+        debug_assert!(
+            args.len() == 1,
+            "println argument count should have been validated by semantic analysis"
+        );
 
         let arg = &args[0];
         let string_value = match &arg.kind {
             ExprKind::StringLiteral(s) => s,
             _ => {
-                return Err(CodegenError::new(
-                    CodegenErrorKind::InvalidArgument,
-                    "println argument must be a string literal",
-                    arg.span,
-                ));
+                panic!("println argument type should have been validated by semantic analysis");
             }
         };
 

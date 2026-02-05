@@ -11,6 +11,7 @@ use lak::ast::{Expr, ExprKind, FnDef, Program, Stmt, StmtKind, Type};
 use lak::codegen::Codegen;
 use lak::lexer::Lexer;
 use lak::parser::Parser;
+use lak::semantic::SemanticAnalyzer;
 
 use inkwell::context::Context;
 
@@ -54,6 +55,12 @@ fn test_ast_to_codegen() {
         }],
     };
 
+    // Semantic analysis
+    let mut analyzer = SemanticAnalyzer::new();
+    analyzer
+        .analyze(&program)
+        .expect("Semantic analysis should pass");
+
     let context = Context::create();
     let mut codegen = Codegen::new(&context, "direct_ast_test");
     codegen
@@ -91,6 +98,12 @@ fn test_ast_let_to_codegen() {
         }],
     };
 
+    // Semantic analysis
+    let mut analyzer = SemanticAnalyzer::new();
+    analyzer
+        .analyze(&program)
+        .expect("Semantic analysis should pass");
+
     let context = Context::create();
     let mut codegen = Codegen::new(&context, "let_ast_test");
     codegen
@@ -101,7 +114,7 @@ fn test_ast_let_to_codegen() {
 #[test]
 fn test_error_string_literal_as_int_value() {
     // String literal cannot be used as integer initializer
-    // (This requires direct AST construction since parser would reject it)
+    // Detected by semantic analysis
     let program = Program {
         functions: vec![FnDef {
             name: "main".to_string(),
@@ -119,9 +132,8 @@ fn test_error_string_literal_as_int_value() {
         }],
     };
 
-    let context = Context::create();
-    let mut codegen = Codegen::new(&context, "test");
-    let err = codegen.compile(&program).expect_err("Should fail");
+    let mut analyzer = SemanticAnalyzer::new();
+    let err = analyzer.analyze(&program).expect_err("Should fail");
     assert!(
         err.message()
             .contains("String literals cannot be used as integer values"),
@@ -133,7 +145,7 @@ fn test_error_string_literal_as_int_value() {
 #[test]
 fn test_error_function_call_as_int_value() {
     // Function call cannot be used as integer initializer (void functions)
-    // (This requires direct AST construction since parser would allow it syntactically)
+    // Detected by semantic analysis
     let program = Program {
         functions: vec![FnDef {
             name: "main".to_string(),
@@ -157,9 +169,8 @@ fn test_error_function_call_as_int_value() {
         }],
     };
 
-    let context = Context::create();
-    let mut codegen = Codegen::new(&context, "test");
-    let err = codegen.compile(&program).expect_err("Should fail");
+    let mut analyzer = SemanticAnalyzer::new();
+    let err = analyzer.analyze(&program).expect_err("Should fail");
     assert!(
         err.message().contains("cannot be used as a value"),
         "Expected 'cannot be used as a value' in error: {}",
@@ -170,6 +181,7 @@ fn test_error_function_call_as_int_value() {
 #[test]
 fn test_error_int_literal_as_statement() {
     // Integer literal used as statement should error
+    // Detected by semantic analysis
     let program = Program {
         functions: vec![FnDef {
             name: "main".to_string(),
@@ -183,9 +195,8 @@ fn test_error_int_literal_as_statement() {
         }],
     };
 
-    let context = Context::create();
-    let mut codegen = Codegen::new(&context, "test");
-    let err = codegen.compile(&program).expect_err("Should fail");
+    let mut analyzer = SemanticAnalyzer::new();
+    let err = analyzer.analyze(&program).expect_err("Should fail");
     assert!(
         err.message()
             .contains("Integer literal as a statement has no effect"),
@@ -197,6 +208,7 @@ fn test_error_int_literal_as_statement() {
 #[test]
 fn test_error_identifier_as_statement() {
     // Variable used as statement should error
+    // Detected by semantic analysis
     let program = Program {
         functions: vec![FnDef {
             name: "main".to_string(),
@@ -223,9 +235,8 @@ fn test_error_identifier_as_statement() {
         }],
     };
 
-    let context = Context::create();
-    let mut codegen = Codegen::new(&context, "test");
-    let err = codegen.compile(&program).expect_err("Should fail");
+    let mut analyzer = SemanticAnalyzer::new();
+    let err = analyzer.analyze(&program).expect_err("Should fail");
     assert!(
         err.message().contains("used as a statement has no effect"),
         "Expected 'used as a statement has no effect' in error: {}",
@@ -236,6 +247,7 @@ fn test_error_identifier_as_statement() {
 #[test]
 fn test_error_string_literal_as_statement() {
     // String literal used as statement should error
+    // Detected by semantic analysis
     let program = Program {
         functions: vec![FnDef {
             name: "main".to_string(),
@@ -252,9 +264,8 @@ fn test_error_string_literal_as_statement() {
         }],
     };
 
-    let context = Context::create();
-    let mut codegen = Codegen::new(&context, "test");
-    let err = codegen.compile(&program).expect_err("Should fail");
+    let mut analyzer = SemanticAnalyzer::new();
+    let err = analyzer.analyze(&program).expect_err("Should fail");
     assert!(
         err.message()
             .contains("String literal as a statement has no effect"),
@@ -268,6 +279,7 @@ fn test_error_i32_underflow_via_ast() {
     // Test that values less than i32::MIN are rejected for i32 type.
     // This requires direct AST construction since negative literals aren't
     // supported in source code yet.
+    // Detected by semantic analysis
     let program = Program {
         functions: vec![FnDef {
             name: "main".to_string(),
@@ -285,9 +297,8 @@ fn test_error_i32_underflow_via_ast() {
         }],
     };
 
-    let context = Context::create();
-    let mut codegen = Codegen::new(&context, "test");
-    let err = codegen.compile(&program).expect_err("Should fail");
+    let mut analyzer = SemanticAnalyzer::new();
+    let err = analyzer.analyze(&program).expect_err("Should fail");
     assert!(
         err.message().contains("out of range for i32"),
         "Expected 'out of range for i32' in error: {}",
