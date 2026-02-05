@@ -4,6 +4,9 @@ defaults:
 
 hooks:
   post_create:
+    - type: copy
+      from: .claude
+      to: .claude
     - type: command
       command: mise trust
     - type: command
