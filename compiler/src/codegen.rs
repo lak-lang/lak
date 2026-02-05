@@ -16,7 +16,7 @@
 //! # Architecture
 //!
 //! The generated code follows the C calling convention and links against
-//! the C standard library for I/O operations (using `printf`).
+//! the Lak runtime library for I/O operations (using `lak_println`).
 //!
 //! # Examples
 //!
@@ -106,7 +106,7 @@ impl<'ctx> Codegen<'ctx> {
     /// Compiles a Lak program to LLVM IR.
     ///
     /// This method generates the complete LLVM IR for the program, including:
-    /// - External function declarations (e.g., `printf`)
+    /// - External function declarations (e.g., `lak_println`)
     /// - The `main` function with the program's statements
     ///
     /// After calling this method, use [`write_object_file`](Self::write_object_file)
@@ -123,22 +123,22 @@ impl<'ctx> Codegen<'ctx> {
     /// - A built-in function is called with incorrect arguments
     /// - LLVM IR generation fails
     pub fn compile(&mut self, program: &Program) -> Result<(), String> {
-        self.declare_printf();
+        self.declare_lak_println();
         self.generate_main(program)?;
         Ok(())
     }
 
-    /// Declares the C `printf` function for use in generated code.
+    /// Declares the Lak runtime `lak_println` function for use in generated code.
     ///
     /// This creates an external function declaration with the signature:
-    /// `int printf(const char* format, ...)`
-    fn declare_printf(&self) {
-        let i32_type = self.context.i32_type();
+    /// `void lak_println(const char* s)`
+    fn declare_lak_println(&self) {
+        let void_type = self.context.void_type();
         let i8_ptr_type = self.context.ptr_type(AddressSpace::default());
 
-        let printf_type = i32_type.fn_type(&[i8_ptr_type.into()], true);
+        let println_type = void_type.fn_type(&[i8_ptr_type.into()], false);
         self.module
-            .add_function("printf", printf_type, Some(Linkage::External));
+            .add_function("lak_println", println_type, Some(Linkage::External));
     }
 
     /// Generates the `main` function containing all program statements.
@@ -196,8 +196,7 @@ impl<'ctx> Codegen<'ctx> {
 
     /// Generates LLVM IR for a `println` call.
     ///
-    /// Implements `println(string)` by calling the C `printf` function
-    /// with a format string that appends a newline.
+    /// Implements `println(string)` by calling the Lak runtime `lak_println` function.
     ///
     /// # Arguments
     ///
@@ -219,15 +218,10 @@ impl<'ctx> Codegen<'ctx> {
             _ => return Err("println argument must be a string literal".to_string()),
         };
 
-        let printf = self
+        let lak_println = self
             .module
-            .get_function("printf")
-            .ok_or("Internal error: printf function not found. This is a compiler bug.")?;
-
-        let format_str = self
-            .builder
-            .build_global_string_ptr("%s\n", "fmt")
-            .map_err(|e| format!("Failed to create format string: {:?}", e))?;
+            .get_function("lak_println")
+            .ok_or("Internal error: lak_println function not found. This is a compiler bug.")?;
 
         let str_value = self
             .builder
@@ -236,14 +230,13 @@ impl<'ctx> Codegen<'ctx> {
 
         self.builder
             .build_call(
-                printf,
-                &[
-                    BasicMetadataValueEnum::PointerValue(format_str.as_pointer_value()),
-                    BasicMetadataValueEnum::PointerValue(str_value.as_pointer_value()),
-                ],
-                "printf_call",
+                lak_println,
+                &[BasicMetadataValueEnum::PointerValue(
+                    str_value.as_pointer_value(),
+                )],
+                "",
             )
-            .map_err(|e| format!("Failed to generate printf call: {:?}", e))?;
+            .map_err(|e| format!("Failed to generate lak_println call: {:?}", e))?;
 
         Ok(())
     }
@@ -348,7 +341,7 @@ mod tests {
             .compile(&program)
             .expect("println program should compile");
 
-        assert!(codegen.module.get_function("printf").is_some());
+        assert!(codegen.module.get_function("lak_println").is_some());
     }
 
     #[test]

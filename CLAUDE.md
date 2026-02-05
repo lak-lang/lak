@@ -24,6 +24,13 @@ cargo test
 # Run a single test
 cargo test <test_name>
 
+# Run tests for a specific module
+cargo test lexer::tests
+cargo test parser::tests
+
+# Run integration tests only
+cargo test --test integration
+
 # Format code
 cargo fmt
 
@@ -41,12 +48,15 @@ Source (.lak) → Lexer → Parser → Codegen → LLVM → Object File → Link
 
 ### Module Structure
 
-- `src/main.rs` - CLI entry point using clap, orchestrates the compilation pipeline
-- `src/token.rs` - Token types (`TokenKind`) and source location tracking (`Span`)
-- `src/lexer.rs` - Lexical analysis, produces token stream from source text
-- `src/parser.rs` - Recursive descent parser, builds AST from tokens
-- `src/ast.rs` - AST node definitions (`Program`, `Stmt`, `Expr`)
-- `src/codegen.rs` - LLVM IR generation using inkwell, outputs native object files
+- `compiler/src/lib.rs` - Library crate exposing all modules for external use and testing
+- `compiler/src/main.rs` - CLI entry point using clap, orchestrates the compilation pipeline
+- `compiler/src/token.rs` - Token types (`TokenKind`) and source location tracking (`Span`)
+- `compiler/src/lexer.rs` - Lexical analysis, produces token stream from source text
+- `compiler/src/parser.rs` - Recursive descent parser, builds AST from tokens
+- `compiler/src/ast.rs` - AST node definitions (`Program`, `Stmt`, `Expr`)
+- `compiler/src/codegen.rs` - LLVM IR generation using inkwell, outputs native object files
+- `compiler/tests/integration.rs` - End-to-end integration tests (compile and run)
+- `runtime/src/lib.rs` - Lak runtime library providing I/O functions (`lak_println`)
 
 ### Key Dependencies
 
@@ -57,7 +67,7 @@ Source (.lak) → Lexer → Parser → Codegen → LLVM → Object File → Link
 ### Current Language Features
 
 The compiler currently supports a minimal subset:
-- `println("string")` - Print with newline (calls C `printf`)
+- `println("string")` - Print with newline (calls Lak runtime `lak_println`)
 - String literals with escape sequences (`\n`, `\t`, `\r`, `\\`, `\"`)
 - Line comments (`//`)
 

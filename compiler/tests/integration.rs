@@ -12,6 +12,9 @@ use inkwell::context::Context;
 use std::process::Command;
 use tempfile::tempdir;
 
+/// Path to the Lak runtime library, set at compile time by build.rs.
+const LAK_RUNTIME_PATH: &str = env!("LAK_RUNTIME_PATH");
+
 /// Compiles a Lak program to an executable and runs it, returning stdout output.
 ///
 /// This function performs the complete compilation pipeline:
@@ -47,7 +50,7 @@ fn compile_and_run(source: &str) -> Result<String, String> {
         .ok_or_else(|| format!("Executable path {:?} is not valid UTF-8", executable_path))?;
 
     let link_output = Command::new("cc")
-        .args([object_str, "-o", exec_str])
+        .args([object_str, LAK_RUNTIME_PATH, "-o", exec_str])
         .output()
         .map_err(|e| format!("Failed to run linker: {}", e))?;
 

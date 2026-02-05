@@ -127,6 +127,9 @@ fn report_error(filename: &str, source: &str, error: CompileError) {
     }
 }
 
+/// Path to the Lak runtime library, set at compile time by build.rs.
+const LAK_RUNTIME_PATH: &str = env!("LAK_RUNTIME_PATH");
+
 /// Builds a Lak source file into a native executable.
 ///
 /// This function orchestrates the entire compilation pipeline:
@@ -136,7 +139,7 @@ fn report_error(filename: &str, source: &str, error: CompileError) {
 /// 3. Parse tokens into an AST
 /// 4. Generate LLVM IR
 /// 5. Write to an object file
-/// 6. Link with the system linker (`cc`)
+/// 6. Link with the system linker (`cc`) and Lak runtime
 /// 7. Clean up temporary files
 ///
 /// # Arguments
@@ -195,7 +198,7 @@ fn build(file: &str) -> Result<(), String> {
     codegen.write_object_file(Path::new(&object_path))?;
 
     let output = Command::new("cc")
-        .args([&object_path, "-o", &output_path])
+        .args([&object_path, LAK_RUNTIME_PATH, "-o", &output_path])
         .output()
         .map_err(|e| format!("Failed to run linker: {}", e))?;
 
