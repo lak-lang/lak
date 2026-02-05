@@ -77,7 +77,7 @@ fn test_main_function_with_body() {
 
 #[test]
 fn test_multiple_functions() {
-    let program = parse("fn foo() -> void {} fn bar() -> void {}").unwrap();
+    let program = parse("fn foo() -> void {}\nfn bar() -> void {}").unwrap();
     assert_eq!(program.functions.len(), 2);
     assert_eq!(program.functions[0].name, "foo");
     assert_eq!(program.functions[1].name, "bar");
@@ -240,8 +240,8 @@ fn test_nested_multiple_args() {
 // ===================
 
 #[test]
-fn test_multiple_statements_in_body() {
-    let program = parse("fn main() -> void { f() g() }").unwrap();
+fn test_multiple_statements_in_body_with_newline() {
+    let program = parse("fn main() -> void { f()\ng() }").unwrap();
     assert_eq!(program.functions[0].body.len(), 2);
 
     match &program.functions[0].body[0].kind {
@@ -258,6 +258,92 @@ fn test_multiple_statements_in_body() {
         },
         _ => panic!("Expected Expr statement"),
     }
+}
+
+#[test]
+fn test_error_multiple_statements_same_line() {
+    let err = parse_error("fn main() -> void { f() g() }");
+    assert!(
+        err.message.contains("newline"),
+        "Expected error about newline, got: {}",
+        err.message
+    );
+}
+
+#[test]
+fn test_error_multiple_functions_same_line() {
+    let err = parse_error("fn foo() -> void {}fn bar() -> void {}");
+    assert!(
+        err.message.contains("newline"),
+        "Expected error about newline, got: {}",
+        err.message
+    );
+}
+
+#[test]
+fn test_error_multiple_functions_same_line_with_space() {
+    // Space between functions but still on same line
+    let err = parse_error("fn foo() -> void {} fn bar() -> void {}");
+    assert!(
+        err.message.contains("newline"),
+        "Expected error about newline, got: {}",
+        err.message
+    );
+}
+
+#[test]
+fn test_error_let_statements_same_line() {
+    let err = parse_error("fn main() -> void { let x: i32 = 1 let y: i32 = 2 }");
+    assert!(
+        err.message.contains("newline"),
+        "Expected error about newline, got: {}",
+        err.message
+    );
+}
+
+#[test]
+fn test_error_let_then_expr_same_line() {
+    let err = parse_error("fn main() -> void { let x: i32 = 1 f() }");
+    assert!(
+        err.message.contains("newline"),
+        "Expected error about newline, got: {}",
+        err.message
+    );
+}
+
+#[test]
+fn test_error_expr_then_let_same_line() {
+    let err = parse_error("fn main() -> void { f() let x: i32 = 1 }");
+    assert!(
+        err.message.contains("newline"),
+        "Expected error about newline, got: {}",
+        err.message
+    );
+}
+
+#[test]
+fn test_error_same_line_reports_correct_token() {
+    // Verify the error message includes what token was found
+    let err = parse_error("fn main() -> void { f() g() }");
+    assert!(
+        err.message.contains("identifier 'g'"),
+        "Expected error to mention the found token, got: {}",
+        err.message
+    );
+}
+
+#[test]
+fn test_error_same_line_span_points_to_offending_token() {
+    // Verify the error span points to the second statement
+    let err = parse_error("fn main() -> void { f() g() }");
+    // "fn main() -> void { f() g() }"
+    //  ^--- column 1
+    //                          ^--- column 25 (where 'g' starts)
+    assert_eq!(
+        err.span.column, 25,
+        "Expected error at column 25 (the 'g'), got column {}",
+        err.span.column
+    );
 }
 
 #[test]
@@ -591,7 +677,7 @@ fn test_let_stmt_i64() {
 
 #[test]
 fn test_let_with_variable_reference() {
-    let program = parse("fn main() -> void { let x: i32 = 1 let y: i32 = x }").unwrap();
+    let program = parse("fn main() -> void { let x: i32 = 1\nlet y: i32 = x }").unwrap();
     assert_eq!(program.functions[0].body.len(), 2);
     match &program.functions[0].body[1].kind {
         StmtKind::Let { name, init, .. } => {
@@ -712,7 +798,7 @@ fn test_int_literal_large() {
 
 #[test]
 fn test_variable_reference_in_init() {
-    let program = parse("fn main() -> void { let a: i32 = 1 let b: i32 = a }").unwrap();
+    let program = parse("fn main() -> void { let a: i32 = 1\nlet b: i32 = a }").unwrap();
     match &program.functions[0].body[1].kind {
         StmtKind::Let { init, .. } => {
             assert!(matches!(&init.kind, ExprKind::Identifier(s) if s == "a"));

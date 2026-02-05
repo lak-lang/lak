@@ -78,6 +78,36 @@ impl Parser {
         }
     }
 
+    /// Expects a statement terminator (newline or end of block).
+    ///
+    /// After a statement or definition, one of the following must appear:
+    /// - `Newline` - consumed, then all following newlines are skipped
+    /// - `RightBrace` - not consumed (signals end of block)
+    /// - `Eof` - not consumed (signals end of file)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if none of the above tokens is found.
+    /// This prevents multiple statements on the same line without separation.
+    pub(super) fn expect_statement_terminator(&mut self) -> Result<(), ParseError> {
+        if matches!(self.current_kind(), TokenKind::RightBrace | TokenKind::Eof) {
+            return Ok(());
+        }
+
+        if !matches!(self.current_kind(), TokenKind::Newline) {
+            return Err(ParseError {
+                message: format!(
+                    "Expected newline after statement, found {}",
+                    Self::token_kind_display(self.current_kind())
+                ),
+                span: self.current_span(),
+            });
+        }
+
+        self.skip_newlines();
+        Ok(())
+    }
+
     /// Expects the current token to match `expected` and advances.
     ///
     /// # Arguments

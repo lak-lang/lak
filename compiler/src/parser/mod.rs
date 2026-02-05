@@ -125,6 +125,7 @@ impl Parser {
             }
             let fn_def = self.parse_fn_def()?;
             functions.push(fn_def);
+            self.expect_statement_terminator()?;
         }
 
         Ok(Program { functions })
