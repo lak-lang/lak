@@ -301,3 +301,111 @@ fn main() -> void {}"#,
         msg
     );
 }
+
+#[test]
+fn test_compile_error_function_call_with_args() {
+    // Calling a parameterless function with arguments should error
+    let result = compile_error(
+        r#"
+fn helper() -> void {
+    println("test")
+}
+
+fn main() -> void {
+    helper(42)
+}
+"#,
+    );
+    let (stage, msg) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert!(
+        msg.contains("expects 0 arguments"),
+        "Expected 'expects 0 arguments' in error: {}",
+        msg
+    );
+}
+
+#[test]
+fn test_compile_error_function_call_with_multiple_args() {
+    // Calling a parameterless function with multiple arguments
+    let result = compile_error(
+        r#"
+fn helper() -> void {
+    println("test")
+}
+
+fn main() -> void {
+    helper("a", "b", "c")
+}
+"#,
+    );
+    let (stage, msg) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert!(
+        msg.contains("expects 0 arguments") && msg.contains("3"),
+        "Expected 'expects 0 arguments...3' in error: {}",
+        msg
+    );
+}
+
+#[test]
+fn test_compile_error_call_main_directly() {
+    // Calling main function directly should be an error
+    let result = compile_error(
+        r#"
+fn helper() -> void {
+    main()
+}
+
+fn main() -> void {
+    println("test")
+}
+"#,
+    );
+    let (stage, msg) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert!(
+        msg.contains("Cannot call 'main'"),
+        "Expected 'Cannot call main' in error: {}",
+        msg
+    );
+}
+
+#[test]
+fn test_compile_error_call_main_from_main() {
+    // Calling main from main itself should also be an error
+    let result = compile_error(
+        r#"
+fn main() -> void {
+    main()
+}
+"#,
+    );
+    let (stage, msg) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert!(
+        msg.contains("Cannot call 'main'"),
+        "Expected 'Cannot call main' in error: {}",
+        msg
+    );
+}

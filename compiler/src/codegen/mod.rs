@@ -146,9 +146,11 @@ impl<'ctx> Codegen<'ctx> {
 
     /// Compiles a Lak program to LLVM IR.
     ///
-    /// This method generates the complete LLVM IR for the program, including:
-    /// - External function declarations (e.g., `lak_println`)
-    /// - The `main` function as the program entry point
+    /// This method generates the complete LLVM IR for the program using a two-pass
+    /// approach to allow functions to call each other regardless of definition order:
+    ///
+    /// 1. **Pass 1**: Declare all functions (create LLVM function signatures)
+    /// 2. **Pass 2**: Generate function bodies
     ///
     /// After calling this method, use [`write_object_file`](Self::write_object_file)
     /// to output the compiled code.
@@ -160,28 +162,89 @@ impl<'ctx> Codegen<'ctx> {
     /// # Errors
     ///
     /// Returns an error if LLVM IR generation fails (internal errors).
-    ///
-    /// # Panics
-    ///
-    /// Panics if the program has no `main` function. This should never happen
-    /// because semantic analysis guarantees the presence and validity of `main`.
     pub fn compile(&mut self, program: &Program) -> Result<(), CodegenError> {
+        // Declare built-in functions
         self.declare_lak_println();
 
-        // Find the main function (guaranteed to exist by semantic analysis)
-        let main_fn = program
-            .functions
-            .iter()
-            .find(|f| f.name == "main")
-            .ok_or_else(|| {
-                CodegenError::without_span(
-                    CodegenErrorKind::InternalError,
-                    "Internal error: no main function found in codegen. \
-                 Semantic analysis should have caught this. This is a compiler bug.",
-                )
-            })?;
+        // Pass 1: Declare all user-defined functions (except main, which has a special signature)
+        for function in &program.functions {
+            if function.name != "main" {
+                self.declare_user_function(function)?;
+            }
+        }
 
-        self.generate_main(main_fn)?;
+        // Pass 2: Generate function bodies
+        for function in &program.functions {
+            if function.name == "main" {
+                self.generate_main(function)?;
+            } else {
+                self.generate_user_function(function)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Declares a user-defined function (creates LLVM function signature only).
+    ///
+    /// This method is called in Pass 1 to create function declarations before
+    /// any function bodies are generated. This allows forward references.
+    ///
+    /// # Arguments
+    ///
+    /// * `fn_def` - The function definition from the AST
+    fn declare_user_function(&mut self, fn_def: &FnDef) -> Result<(), CodegenError> {
+        // Currently only void functions with no parameters are supported
+        let void_type = self.context.void_type();
+        let fn_type = void_type.fn_type(&[], false);
+
+        self.module.add_function(&fn_def.name, fn_type, None);
+        Ok(())
+    }
+
+    /// Generates the body of a user-defined function.
+    ///
+    /// Creates the function body with an entry block, generates all statements,
+    /// and adds a void return at the end.
+    ///
+    /// # Arguments
+    ///
+    /// * `fn_def` - The function definition from the AST
+    fn generate_user_function(&mut self, fn_def: &FnDef) -> Result<(), CodegenError> {
+        // Clear variable table for this function's scope
+        self.variables.clear();
+
+        // Get the function declaration created in Pass 1
+        let function = self.module.get_function(&fn_def.name).ok_or_else(|| {
+            CodegenError::without_span(
+                CodegenErrorKind::InternalError,
+                format!(
+                    "Internal error: function '{}' not found in module. This is a compiler bug.",
+                    fn_def.name
+                ),
+            )
+        })?;
+
+        // Create entry block
+        let entry = self.context.append_basic_block(function, "entry");
+        self.builder.position_at_end(entry);
+
+        // Generate statements
+        for stmt in &fn_def.body {
+            self.generate_stmt(stmt)?;
+        }
+
+        // Add void return
+        self.builder.build_return(None).map_err(|e| {
+            CodegenError::without_span(
+                CodegenErrorKind::InternalError,
+                format!(
+                    "Internal error: failed to build return for function '{}'. This is a compiler bug: {}",
+                    fn_def.name, e
+                ),
+            )
+        })?;
+
         Ok(())
     }
 

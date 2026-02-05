@@ -36,12 +36,8 @@ impl<'ctx> Codegen<'ctx> {
     ///
     /// # Errors
     ///
-    /// Returns an error if LLVM fails to create allocation or store instructions.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the variable is already defined. This should never happen
-    /// because semantic analysis guarantees no duplicate variables.
+    /// Returns an internal error if the variable is already defined. This should
+    /// never happen because semantic analysis guarantees no duplicate variables.
     pub(super) fn generate_let(
         &mut self,
         name: &str,
@@ -50,11 +46,17 @@ impl<'ctx> Codegen<'ctx> {
         span: Span,
     ) -> Result<(), CodegenError> {
         // Semantic analysis guarantees no duplicate variables
-        debug_assert!(
-            !self.variables.contains_key(name),
-            "Duplicate variable '{}' should have been caught by semantic analysis",
-            name
-        );
+        if self.variables.contains_key(name) {
+            return Err(CodegenError::new(
+                CodegenErrorKind::InternalError,
+                format!(
+                    "Internal error: duplicate variable '{}' in codegen. \
+                     Semantic analysis should have caught this. This is a compiler bug.",
+                    name
+                ),
+                span,
+            ));
+        }
 
         let binding = VarBinding::new(&self.builder, self.context, ty, name)
             .map_err(|e| CodegenError::new(CodegenErrorKind::InternalError, e, span))?;

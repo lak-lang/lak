@@ -36,28 +36,37 @@ impl<'ctx> Codegen<'ctx> {
     ///
     /// # Errors
     ///
-    /// Returns an error if LLVM operations fail (internal errors).
-    ///
-    /// # Panics
-    ///
-    /// Panics if semantic validation was bypassed (wrong argument count or type).
-    /// Semantic analysis guarantees println receives exactly one string literal.
+    /// Returns an internal error if semantic validation was bypassed (wrong argument
+    /// count or type). Semantic analysis guarantees println receives exactly one
+    /// string literal.
     pub(super) fn generate_println(
         &mut self,
         args: &[Expr],
         span: Span,
     ) -> Result<(), CodegenError> {
         // Semantic analysis guarantees exactly one argument
-        debug_assert!(
-            args.len() == 1,
-            "println argument count should have been validated by semantic analysis"
-        );
+        if args.len() != 1 {
+            return Err(CodegenError::new(
+                CodegenErrorKind::InternalError,
+                format!(
+                    "Internal error: println expects 1 argument, but got {} in codegen. \
+                     Semantic analysis should have caught this. This is a compiler bug.",
+                    args.len()
+                ),
+                span,
+            ));
+        }
 
         let arg = &args[0];
         let string_value = match &arg.kind {
             ExprKind::StringLiteral(s) => s,
             _ => {
-                panic!("println argument type should have been validated by semantic analysis");
+                return Err(CodegenError::new(
+                    CodegenErrorKind::InternalError,
+                    "Internal error: println argument is not a string literal in codegen. \
+                     Semantic analysis should have caught this. This is a compiler bug.",
+                    arg.span,
+                ));
             }
         };
 

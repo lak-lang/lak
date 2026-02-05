@@ -229,13 +229,47 @@ impl SemanticAnalyzer {
         }
 
         // Check if function is defined
-        self.symbols.lookup_function(callee).ok_or_else(|| {
+        let func_info = self.symbols.lookup_function(callee).ok_or_else(|| {
             SemanticError::new(
                 SemanticErrorKind::UndefinedFunction,
                 format!("Unknown function: {}", callee),
                 span,
             )
         })?;
+
+        // Disallow calling main function directly
+        if callee == "main" {
+            return Err(SemanticError::new(
+                SemanticErrorKind::InvalidArgument,
+                "Cannot call 'main' function directly",
+                span,
+            ));
+        }
+
+        // Check argument count (currently only parameterless functions are supported)
+        if !args.is_empty() {
+            return Err(SemanticError::new(
+                SemanticErrorKind::InvalidArgument,
+                format!(
+                    "Function '{}' expects 0 arguments, but got {}",
+                    callee,
+                    args.len()
+                ),
+                span,
+            ));
+        }
+
+        // Check that the function returns void (only void functions can be called as statements)
+        if func_info.return_type != "void" {
+            return Err(SemanticError::new(
+                SemanticErrorKind::TypeMismatch,
+                format!(
+                    "Function '{}' returns '{}', but only void functions can be called as statements",
+                    callee, func_info.return_type
+                ),
+                span,
+            ));
+        }
 
         Ok(())
     }

@@ -94,6 +94,14 @@ Sets `LAK_RUNTIME_PATH` environment variable at compile time, pointing to `libla
 | `pipeline.rs` | Full pipeline tests |
 | `common/mod.rs` | Shared test utilities |
 
+## Coding Guidelines
+
+### Error Handling
+
+- **Avoid `panic!`**: Return `Result` with appropriate error types instead. Even for "impossible" states that semantic analysis should prevent, return an `InternalError` with a helpful message rather than panicking.
+- **Avoid `debug_assert!` for invariant checks**: Use runtime checks that return errors. `debug_assert!` is compiled out in release builds, which can hide bugs.
+- **Exception**: `panic!` is acceptable in tests.
+
 ## Extension Guidelines
 
 1. New CLI commands: add variant to `Commands` enum in `main.rs`
