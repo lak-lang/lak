@@ -27,7 +27,7 @@
 //! colorful error messages that show the exact location of problems
 //! in the source code.
 
-use ariadne::{Color, Label, Report, ReportKind, Source};
+use ariadne::{Color, Config, IndexType, Label, Report, ReportKind, Source};
 use clap::{Parser, Subcommand};
 use inkwell::context::Context;
 use lak::codegen::{Codegen, CodegenError};
@@ -133,6 +133,7 @@ fn report_error(filename: &str, source: &str, error: CompileError) {
         CompileError::Lex(e) => {
             if let Err(report_err) =
                 Report::build(ReportKind::Error, (filename, e.span.start..e.span.end))
+                    .with_config(Config::default().with_index_type(IndexType::Byte))
                     .with_message(&e.message)
                     .with_label(
                         Label::new((filename, e.span.start..e.span.end))
@@ -153,6 +154,7 @@ fn report_error(filename: &str, source: &str, error: CompileError) {
         CompileError::Parse(e) => {
             if let Err(report_err) =
                 Report::build(ReportKind::Error, (filename, e.span.start..e.span.end))
+                    .with_config(Config::default().with_index_type(IndexType::Byte))
                     .with_message(&e.message)
                     .with_label(
                         Label::new((filename, e.span.start..e.span.end))
@@ -174,6 +176,7 @@ fn report_error(filename: &str, source: &str, error: CompileError) {
             if let Some(span) = e.span() {
                 if let Err(report_err) =
                     Report::build(ReportKind::Error, (filename, span.start..span.end))
+                        .with_config(Config::default().with_index_type(IndexType::Byte))
                         .with_message(e.message())
                         .with_label(
                             Label::new((filename, span.start..span.end))
@@ -205,6 +208,7 @@ fn report_error(filename: &str, source: &str, error: CompileError) {
                 };
 
                 let mut report = Report::build(ReportKind::Error, (filename, span_range.clone()))
+                    .with_config(Config::default().with_index_type(IndexType::Byte))
                     .with_message(e.message())
                     .with_label(
                         Label::new((filename, span_range))
@@ -229,6 +233,7 @@ fn report_error(filename: &str, source: &str, error: CompileError) {
             if let Some(span) = e.span() {
                 if let Err(report_err) =
                     Report::build(ReportKind::Error, (filename, span.start..span.end))
+                        .with_config(Config::default().with_index_type(IndexType::Byte))
                         .with_message(e.message())
                         .with_label(
                             Label::new((filename, span.start..span.end))
