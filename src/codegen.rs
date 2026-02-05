@@ -1,3 +1,51 @@
+//! LLVM code generation for the Lak programming language.
+//!
+//! This module provides the [`Codegen`] struct which transforms a Lak AST
+//! into LLVM IR and compiles it to native object code.
+//!
+//! # Overview
+//!
+//! The code generator uses [Inkwell](https://github.com/TheDan64/inkwell),
+//! a safe Rust wrapper around the LLVM C API. It performs the following tasks:
+//!
+//! - Creates an LLVM module and builder
+//! - Generates a `main` function as the program entry point
+//! - Compiles function calls (currently only `println`)
+//! - Writes the output to a native object file
+//!
+//! # Architecture
+//!
+//! The generated code follows the C calling convention and links against
+//! the C standard library for I/O operations (using `printf`).
+//!
+//! # Examples
+//!
+//! ```no_run
+//! use inkwell::context::Context;
+//! use lak::codegen::Codegen;
+//! use lak::ast::{Program, Stmt, Expr};
+//! use std::path::Path;
+//!
+//! let context = Context::create();
+//! let mut codegen = Codegen::new(&context, "example");
+//!
+//! let program = Program {
+//!     stmts: vec![Stmt::Expr(Expr::Call {
+//!         callee: "println".to_string(),
+//!         args: vec![Expr::StringLiteral("Hello!".to_string())],
+//!     })],
+//! };
+//!
+//! codegen.compile(&program).unwrap();
+//! codegen.write_object_file(Path::new("output.o")).unwrap();
+//! ```
+//!
+//! # See Also
+//!
+//! * [`crate::ast`] - The AST types consumed by this module
+//! * [Inkwell documentation](https://thedan64.github.io/inkwell/)
+//! * [LLVM Language Reference](https://llvm.org/docs/LangRef.html)
+
 use crate::ast::{Expr, Program, Stmt};
 use inkwell::context::Context;
 use inkwell::module::Linkage;
@@ -9,13 +57,41 @@ use inkwell::AddressSpace;
 use inkwell::OptimizationLevel;
 use std::path::Path;
 
+/// LLVM code generator for Lak programs.
+///
+/// `Codegen` holds the LLVM context, module, and builder required for
+/// generating LLVM IR. It provides methods to compile a Lak [`Program`]
+/// and write the output to an object file.
+///
+/// # Lifetime
+///
+/// The `'ctx` lifetime parameter ties this struct to an LLVM [`Context`].
+/// The context must outlive the code generator.
+///
+/// # Thread Safety
+///
+/// LLVM contexts are not thread-safe. Each thread should have its own
+/// context and code generator.
 pub struct Codegen<'ctx> {
+    /// Reference to the LLVM context.
     context: &'ctx Context,
+    /// The LLVM module being built.
     module: inkwell::module::Module<'ctx>,
+    /// The IR builder for creating instructions.
     builder: inkwell::builder::Builder<'ctx>,
 }
 
 impl<'ctx> Codegen<'ctx> {
+    /// Creates a new code generator with the given LLVM context and module name.
+    ///
+    /// # Arguments
+    ///
+    /// * `context` - The LLVM context to use for creating IR
+    /// * `module_name` - A name for the LLVM module (used in debug output)
+    ///
+    /// # Returns
+    ///
+    /// A new `Codegen` instance ready to compile programs.
     pub fn new(context: &'ctx Context, module_name: &str) -> Self {
         let module = context.create_module(module_name);
         let builder = context.create_builder();
@@ -27,12 +103,35 @@ impl<'ctx> Codegen<'ctx> {
         }
     }
 
+    /// Compiles a Lak program to LLVM IR.
+    ///
+    /// This method generates the complete LLVM IR for the program, including:
+    /// - External function declarations (e.g., `printf`)
+    /// - The `main` function with the program's statements
+    ///
+    /// After calling this method, use [`write_object_file`](Self::write_object_file)
+    /// to output the compiled code.
+    ///
+    /// # Arguments
+    ///
+    /// * `program` - The parsed Lak program to compile
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - An unknown function is called
+    /// - A built-in function is called with incorrect arguments
+    /// - LLVM IR generation fails
     pub fn compile(&mut self, program: &Program) -> Result<(), String> {
         self.declare_printf();
         self.generate_main(program)?;
         Ok(())
     }
 
+    /// Declares the C `printf` function for use in generated code.
+    ///
+    /// This creates an external function declaration with the signature:
+    /// `int printf(const char* format, ...)`
     fn declare_printf(&self) {
         let i32_type = self.context.i32_type();
         let i8_ptr_type = self.context.ptr_type(AddressSpace::default());
@@ -42,6 +141,10 @@ impl<'ctx> Codegen<'ctx> {
             .add_function("printf", printf_type, Some(Linkage::External));
     }
 
+    /// Generates the `main` function containing all program statements.
+    ///
+    /// Creates a function with the signature `int main()` that executes
+    /// all statements in the program and returns 0 on success.
     fn generate_main(&mut self, program: &Program) -> Result<(), String> {
         let i32_type = self.context.i32_type();
         let main_type = i32_type.fn_type(&[], false);
@@ -62,6 +165,7 @@ impl<'ctx> Codegen<'ctx> {
         Ok(())
     }
 
+    /// Generates LLVM IR for a single statement.
     fn generate_stmt(&mut self, stmt: &Stmt) -> Result<(), String> {
         match stmt {
             Stmt::Expr(expr) => {
@@ -71,6 +175,11 @@ impl<'ctx> Codegen<'ctx> {
         }
     }
 
+    /// Generates LLVM IR for an expression.
+    ///
+    /// Currently handles:
+    /// - Function calls (dispatches to built-in handlers)
+    /// - String literals (no-op when used standalone)
     fn generate_expr(&mut self, expr: &Expr) -> Result<(), String> {
         match expr {
             Expr::Call { callee, args } => {
@@ -85,6 +194,20 @@ impl<'ctx> Codegen<'ctx> {
         Ok(())
     }
 
+    /// Generates LLVM IR for a `println` call.
+    ///
+    /// Implements `println(string)` by calling the C `printf` function
+    /// with a format string that appends a newline.
+    ///
+    /// # Arguments
+    ///
+    /// * `args` - The arguments passed to `println` (must be exactly one string literal)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The number of arguments is not exactly 1
+    /// - The argument is not a string literal
     fn generate_println(&mut self, args: &[Expr]) -> Result<(), String> {
         if args.len() != 1 {
             return Err("println expects exactly 1 argument".to_string());
@@ -125,6 +248,29 @@ impl<'ctx> Codegen<'ctx> {
         Ok(())
     }
 
+    /// Writes the compiled module to a native object file.
+    ///
+    /// This method initializes the native target (if not already done),
+    /// creates a target machine for the host platform, and writes the
+    /// compiled LLVM IR to an object file that can be linked.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The path where the object file should be written
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Failed to initialize the native target
+    /// - Failed to create the target machine
+    /// - Failed to write the object file
+    ///
+    /// # Platform Support
+    ///
+    /// The object file format depends on the host platform:
+    /// - macOS: Mach-O
+    /// - Linux: ELF
+    /// - Windows: COFF
     pub fn write_object_file(&self, path: &Path) -> Result<(), String> {
         Target::initialize_native(&InitializationConfig::default())
             .map_err(|e| format!("Failed to initialize native target: {}", e))?;

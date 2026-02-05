@@ -1,15 +1,75 @@
+//! Lexical analyzer for the Lak programming language.
+//!
+//! This module provides the [`Lexer`] struct which converts source code text
+//! into a stream of [`Token`]s for parsing.
+//!
+//! # Overview
+//!
+//! The lexer performs the following tasks:
+//! - Scans the input character by character
+//! - Recognizes identifiers, string literals, and punctuation
+//! - Tracks source positions for error reporting
+//! - Skips whitespace and comments
+//!
+//! # Supported Tokens
+//!
+//! - **Identifiers**: Start with a letter or underscore, contain alphanumerics and underscores
+//! - **String literals**: Enclosed in double quotes, support escape sequences (`\n`, `\t`, `\r`, `\\`, `\"`)
+//! - **Punctuation**: `(`, `)`, `,`
+//! - **Comments**: Line comments starting with `//`
+//!
+//! # Examples
+//!
+//! ```
+//! use lak::lexer::Lexer;
+//! use lak::token::TokenKind;
+//!
+//! let mut lexer = Lexer::new("println(\"hello\")");
+//! let tokens = lexer.tokenize().unwrap();
+//!
+//! assert!(matches!(tokens[0].kind, TokenKind::Identifier(_)));
+//! assert!(matches!(tokens[1].kind, TokenKind::LeftParen));
+//! ```
+//!
+//! # See Also
+//!
+//! * [`crate::token`] - Token type definitions
+//! * [`crate::parser`] - Parser that consumes the token stream
+
 use crate::token::{Span, Token, TokenKind};
 
+/// A lexical analyzer that tokenizes Lak source code.
+///
+/// The `Lexer` maintains its position within the input and tracks line/column
+/// numbers for error reporting. It is designed to be used once per source file.
+///
+/// # Lifetime
+///
+/// The `'a` lifetime parameter ties the lexer to the input string slice,
+/// ensuring the input remains valid while the lexer is in use.
 pub struct Lexer<'a> {
+    /// The input source code being tokenized.
     input: &'a str,
+    /// Current byte position in the input.
     pos: usize,
+    /// Current line number (1-indexed).
     line: usize,
+    /// Current column number (1-indexed).
     column: usize,
 }
 
+/// An error that occurred during lexical analysis.
+///
+/// `LexError` contains a human-readable message and the source location
+/// where the error occurred, enabling rich error reporting with tools
+/// like [`ariadne`].
+///
+/// [`ariadne`]: https://docs.rs/ariadne
 #[derive(Debug)]
 pub struct LexError {
+    /// A human-readable description of the error.
     pub message: String,
+    /// The source location where the error occurred.
     pub span: Span,
 }
 
@@ -24,6 +84,18 @@ impl std::fmt::Display for LexError {
 }
 
 impl<'a> Lexer<'a> {
+    /// Creates a new `Lexer` for the given input string.
+    ///
+    /// The lexer starts at the beginning of the input with line and column
+    /// numbers initialized to 1.
+    ///
+    /// # Arguments
+    ///
+    /// * `input` - The source code to tokenize
+    ///
+    /// # Returns
+    ///
+    /// A new `Lexer` instance ready to tokenize the input.
     pub fn new(input: &'a str) -> Self {
         Lexer {
             input,
@@ -33,6 +105,23 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    /// Tokenizes the entire input and returns a vector of tokens.
+    ///
+    /// This method consumes the input from start to end, producing tokens
+    /// until the end of input is reached. The returned vector always ends
+    /// with an [`TokenKind::Eof`] token.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(Vec<Token>)` - A vector of tokens ending with `Eof`
+    /// * `Err(LexError)` - If an invalid character or unterminated string is encountered
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - An unexpected character is encountered (not whitespace, identifier, string, or punctuation)
+    /// - A string literal is not properly terminated
+    /// - An unknown escape sequence is used in a string literal
     pub fn tokenize(&mut self) -> Result<Vec<Token>, LexError> {
         let mut tokens = Vec::new();
 
@@ -52,14 +141,22 @@ impl<'a> Lexer<'a> {
         Ok(tokens)
     }
 
+    /// Returns the current character without consuming it.
+    ///
+    /// Returns `None` if the end of input has been reached.
     fn current_char(&self) -> Option<char> {
         self.input[self.pos..].chars().next()
     }
 
+    /// Returns `true` if the end of input has been reached.
     fn is_eof(&self) -> bool {
         self.pos >= self.input.len()
     }
 
+    /// Advances the lexer by one character.
+    ///
+    /// Updates the position, line, and column tracking. Handles multi-byte
+    /// UTF-8 characters correctly and increments the line counter on newlines.
     fn advance(&mut self) {
         if let Some(c) = self.current_char() {
             self.pos += c.len_utf8();
@@ -72,6 +169,10 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    /// Skips whitespace and comments in a loop.
+    ///
+    /// This method handles the case where a comment might be followed by
+    /// whitespace, which might be followed by another comment, etc.
     fn skip_whitespace_and_comments(&mut self) {
         loop {
             self.skip_whitespace();
@@ -81,6 +182,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    /// Skips consecutive whitespace characters.
     fn skip_whitespace(&mut self) {
         while let Some(c) = self.current_char() {
             if c.is_whitespace() {
@@ -91,6 +193,13 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    /// Skips a line comment if one is present at the current position.
+    ///
+    /// Line comments start with `//` and extend to the end of the line.
+    ///
+    /// # Returns
+    ///
+    /// `true` if a comment was skipped, `false` otherwise.
     fn skip_comment(&mut self) -> bool {
         if self.input[self.pos..].starts_with("//") {
             while let Some(c) = self.current_char() {
@@ -106,6 +215,16 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    /// Reads and returns the next token from the input.
+    ///
+    /// This method is called repeatedly by [`tokenize`](Self::tokenize) to
+    /// produce the token stream. It assumes that whitespace and comments
+    /// have already been skipped.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`LexError`] if an unexpected character is encountered
+    /// or if a string literal is malformed.
     fn next_token(&mut self) -> Result<Token, LexError> {
         let c = self.current_char().ok_or_else(|| LexError {
             message: "Unexpected end of input".to_string(),
@@ -143,6 +262,30 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    /// Reads a string literal from the input.
+    ///
+    /// The opening double quote should be at the current position. This method
+    /// processes escape sequences and returns the unescaped string value.
+    ///
+    /// # Supported Escape Sequences
+    ///
+    /// - `\n` - newline
+    /// - `\t` - tab
+    /// - `\r` - carriage return
+    /// - `\\` - backslash
+    /// - `\"` - double quote
+    ///
+    /// # Arguments
+    ///
+    /// * `start_pos` - The byte position of the opening quote
+    /// * `start_line` - The line number of the opening quote
+    /// * `start_column` - The column number of the opening quote
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`LexError`] if:
+    /// - The string contains an unknown escape sequence
+    /// - The string is not terminated (reaches end of line or file)
     fn read_string(
         &mut self,
         start_pos: usize,
@@ -221,6 +364,20 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    /// Reads an identifier from the input.
+    ///
+    /// Identifiers consist of a letter or underscore followed by any number
+    /// of alphanumeric characters or underscores.
+    ///
+    /// # Arguments
+    ///
+    /// * `start_pos` - The byte position of the first character
+    /// * `start_line` - The line number of the first character
+    /// * `start_column` - The column number of the first character
+    ///
+    /// # Returns
+    ///
+    /// A [`Token`] with kind [`TokenKind::Identifier`] containing the identifier text.
     fn read_identifier(
         &mut self,
         start_pos: usize,

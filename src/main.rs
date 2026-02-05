@@ -1,3 +1,29 @@
+//! The Lak programming language compiler.
+//!
+//! This is the main entry point for the Lak compiler CLI. It provides
+//! commands to build Lak source files into native executables.
+//!
+//! # Usage
+//!
+//! ```text
+//! lak build <file.lak>
+//! ```
+//!
+//! # Architecture
+//!
+//! The compiler follows a traditional pipeline:
+//!
+//! 1. **Lexing** ([`lexer`]) - Converts source text into tokens
+//! 2. **Parsing** ([`parser`]) - Builds an AST from tokens
+//! 3. **Code Generation** ([`codegen`]) - Generates LLVM IR from the AST
+//! 4. **Linking** - Uses the system linker to produce an executable
+//!
+//! # Error Reporting
+//!
+//! The compiler uses [ariadne](https://docs.rs/ariadne) for beautiful,
+//! colorful error messages that show the exact location of problems
+//! in the source code.
+
 mod ast;
 mod codegen;
 mod lexer;
@@ -13,23 +39,32 @@ use parser::{ParseError, Parser as LakParser};
 use std::path::Path;
 use std::process::Command;
 
+/// Command-line interface for the Lak compiler.
+///
+/// Uses [clap](https://docs.rs/clap) for argument parsing with
+/// derive-based configuration.
 #[derive(Parser)]
 #[command(name = "lak")]
 #[command(about = "The Lak programming language", long_about = None)]
 struct Cli {
+    /// The subcommand to execute.
     #[command(subcommand)]
     command: Commands,
 }
 
+/// Available CLI subcommands.
 #[derive(Subcommand)]
 enum Commands {
-    /// Build a Lak program
+    /// Build a Lak program into a native executable.
     Build {
-        /// The source file to compile
+        /// The source file to compile (e.g., `hello.lak`).
         file: String,
     },
 }
 
+/// Entry point for the Lak compiler.
+///
+/// Parses command-line arguments and dispatches to the appropriate handler.
 fn main() {
     let cli = Cli::parse();
 
@@ -43,12 +78,29 @@ fn main() {
     }
 }
 
+/// A compilation error from any phase of the compiler.
+///
+/// This enum unifies errors from lexing, parsing, and code generation
+/// to simplify error handling in the build pipeline.
 enum CompileError {
+    /// An error during lexical analysis.
     Lex(LexError),
+    /// An error during parsing.
     Parse(ParseError),
+    /// An error during code generation.
     Codegen(String),
 }
 
+/// Reports a compilation error with source location highlighting.
+///
+/// Uses [ariadne](https://docs.rs/ariadne) to produce beautiful error
+/// messages that show the exact location in the source code.
+///
+/// # Arguments
+///
+/// * `filename` - The name of the source file (for display purposes)
+/// * `source` - The source code content
+/// * `error` - The error to report
 fn report_error(filename: &str, source: &str, error: CompileError) {
     match error {
         CompileError::Lex(e) => {
@@ -81,6 +133,32 @@ fn report_error(filename: &str, source: &str, error: CompileError) {
     }
 }
 
+/// Builds a Lak source file into a native executable.
+///
+/// This function orchestrates the entire compilation pipeline:
+///
+/// 1. Read the source file
+/// 2. Tokenize the source code
+/// 3. Parse tokens into an AST
+/// 4. Generate LLVM IR
+/// 5. Write to an object file
+/// 6. Link with the system linker (`cc`)
+/// 7. Clean up temporary files
+///
+/// # Arguments
+///
+/// * `file` - Path to the Lak source file
+///
+/// # Returns
+///
+/// * `Ok(())` - Compilation succeeded, executable written to disk
+/// * `Err(String)` - Compilation failed with an error message
+///
+/// # Output Files
+///
+/// Given an input file `example.lak`, this function produces:
+/// - `example` - The final executable
+/// - `example.o` - Temporary object file (deleted after linking)
 fn build(file: &str) -> Result<(), String> {
     let source =
         std::fs::read_to_string(file).map_err(|e| format!("Failed to read file: {}", e))?;
