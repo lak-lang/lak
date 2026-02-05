@@ -17,7 +17,20 @@ Transforms a token stream from the lexer into an Abstract Syntax Tree (AST). Imp
 | `stmt.rs` | Statement parsing (`let`, expression statements) |
 | `types.rs` | Type annotation parsing |
 | `expr.rs` | Expression parsing (calls, identifiers, literals) |
-| `tests.rs` | Unit tests |
+| `tests/` | Unit tests (see below) |
+
+## Test Structure
+
+Tests are organized by parser component:
+
+| File | Coverage | Tests |
+|------|----------|-------|
+| `tests/mod.rs` | Shared test helpers | 3 helpers |
+| `tests/fn_def.rs` | Function definitions, spans | 18 |
+| `tests/stmt.rs` | Statements, newlines | 19 |
+| `tests/expr.rs` | Expressions, calls, literals | 12 |
+| `tests/errors.rs` | Error detection, messages | 18 |
+| `tests/helpers.rs` | Edge cases, utilities | 13 |
 
 ## Grammar
 
