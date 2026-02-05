@@ -24,18 +24,12 @@
 //! colorful error messages that show the exact location of problems
 //! in the source code.
 
-mod ast;
-mod codegen;
-mod lexer;
-mod parser;
-mod token;
-
 use ariadne::{Color, Label, Report, ReportKind, Source};
 use clap::{Parser, Subcommand};
-use codegen::Codegen;
 use inkwell::context::Context;
-use lexer::{LexError, Lexer};
-use parser::{ParseError, Parser as LakParser};
+use lak::codegen::Codegen;
+use lak::lexer::{LexError, Lexer};
+use lak::parser::{ParseError, Parser as LakParser};
 use std::path::Path;
 use std::process::Command;
 

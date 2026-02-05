@@ -179,7 +179,7 @@ impl<'ctx> Codegen<'ctx> {
     ///
     /// Currently handles:
     /// - Function calls (dispatches to built-in handlers)
-    /// - String literals (no-op when used standalone)
+    /// - String literals (only valid as function arguments; produce no IR in expression context)
     fn generate_expr(&mut self, expr: &Expr) -> Result<(), String> {
         match expr {
             Expr::Call { callee, args } => {
@@ -305,5 +305,230 @@ impl<'ctx> Codegen<'ctx> {
             .map_err(|e| format!("Failed to write object file: {}", e))?;
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_codegen_new() {
+        let context = Context::create();
+        let codegen = Codegen::new(&context, "test_module");
+        assert_eq!(codegen.module.get_name().to_str().unwrap(), "test_module");
+    }
+
+    #[test]
+    fn test_compile_empty_program() {
+        let context = Context::create();
+        let mut codegen = Codegen::new(&context, "test");
+
+        let program = Program { stmts: vec![] };
+        codegen
+            .compile(&program)
+            .expect("Empty program should compile");
+
+        assert!(codegen.module.get_function("main").is_some());
+    }
+
+    #[test]
+    fn test_compile_println() {
+        let context = Context::create();
+        let mut codegen = Codegen::new(&context, "test");
+
+        let program = Program {
+            stmts: vec![Stmt::Expr(Expr::Call {
+                callee: "println".to_string(),
+                args: vec![Expr::StringLiteral("hello".to_string())],
+            })],
+        };
+
+        codegen
+            .compile(&program)
+            .expect("println program should compile");
+
+        assert!(codegen.module.get_function("printf").is_some());
+    }
+
+    #[test]
+    fn test_compile_multiple_println() {
+        let context = Context::create();
+        let mut codegen = Codegen::new(&context, "test");
+
+        let program = Program {
+            stmts: vec![
+                Stmt::Expr(Expr::Call {
+                    callee: "println".to_string(),
+                    args: vec![Expr::StringLiteral("first".to_string())],
+                }),
+                Stmt::Expr(Expr::Call {
+                    callee: "println".to_string(),
+                    args: vec![Expr::StringLiteral("second".to_string())],
+                }),
+            ],
+        };
+
+        codegen
+            .compile(&program)
+            .expect("Multiple println program should compile");
+    }
+
+    #[test]
+    fn test_compile_println_with_escape_sequences() {
+        let context = Context::create();
+        let mut codegen = Codegen::new(&context, "test");
+
+        let program = Program {
+            stmts: vec![Stmt::Expr(Expr::Call {
+                callee: "println".to_string(),
+                args: vec![Expr::StringLiteral("hello\nworld\t!".to_string())],
+            })],
+        };
+
+        codegen
+            .compile(&program)
+            .expect("Escape sequences program should compile");
+    }
+
+    #[test]
+    fn test_error_unknown_function() {
+        let context = Context::create();
+        let mut codegen = Codegen::new(&context, "test");
+
+        let program = Program {
+            stmts: vec![Stmt::Expr(Expr::Call {
+                callee: "unknown_function".to_string(),
+                args: vec![],
+            })],
+        };
+
+        let err = codegen
+            .compile(&program)
+            .expect_err("Should fail for unknown function");
+        assert!(
+            err.contains("Unknown function"),
+            "Expected 'Unknown function' in error: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn test_error_println_no_args() {
+        let context = Context::create();
+        let mut codegen = Codegen::new(&context, "test");
+
+        let program = Program {
+            stmts: vec![Stmt::Expr(Expr::Call {
+                callee: "println".to_string(),
+                args: vec![],
+            })],
+        };
+
+        let err = codegen
+            .compile(&program)
+            .expect_err("Should fail for println with no args");
+        assert!(
+            err.contains("exactly 1 argument"),
+            "Expected 'exactly 1 argument' in error: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn test_error_println_too_many_args() {
+        let context = Context::create();
+        let mut codegen = Codegen::new(&context, "test");
+
+        let program = Program {
+            stmts: vec![Stmt::Expr(Expr::Call {
+                callee: "println".to_string(),
+                args: vec![
+                    Expr::StringLiteral("a".to_string()),
+                    Expr::StringLiteral("b".to_string()),
+                ],
+            })],
+        };
+
+        let err = codegen
+            .compile(&program)
+            .expect_err("Should fail for println with too many args");
+        assert!(
+            err.contains("exactly 1 argument"),
+            "Expected 'exactly 1 argument' in error: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn test_error_println_non_string() {
+        let context = Context::create();
+        let mut codegen = Codegen::new(&context, "test");
+
+        let program = Program {
+            stmts: vec![Stmt::Expr(Expr::Call {
+                callee: "println".to_string(),
+                args: vec![Expr::Call {
+                    callee: "other".to_string(),
+                    args: vec![],
+                }],
+            })],
+        };
+
+        let err = codegen
+            .compile(&program)
+            .expect_err("Should fail for println with non-string arg");
+        assert!(
+            err.contains("string literal"),
+            "Expected 'string literal' in error: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn test_write_object_file() {
+        let context = Context::create();
+        let mut codegen = Codegen::new(&context, "test");
+
+        let program = Program {
+            stmts: vec![Stmt::Expr(Expr::Call {
+                callee: "println".to_string(),
+                args: vec![Expr::StringLiteral("test".to_string())],
+            })],
+        };
+
+        codegen.compile(&program).unwrap();
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let object_path = temp_dir.path().join("test.o");
+
+        let result = codegen.write_object_file(&object_path);
+        assert!(result.is_ok());
+        assert!(object_path.exists());
+    }
+
+    #[test]
+    fn test_module_name() {
+        let context = Context::create();
+        let codegen = Codegen::new(&context, "my_custom_module");
+        assert_eq!(
+            codegen.module.get_name().to_str().unwrap(),
+            "my_custom_module"
+        );
+    }
+
+    #[test]
+    fn test_main_function_signature() {
+        let context = Context::create();
+        let mut codegen = Codegen::new(&context, "test");
+
+        let program = Program { stmts: vec![] };
+        codegen.compile(&program).unwrap();
+
+        let main_fn = codegen.module.get_function("main").unwrap();
+        // main returns i32
+        assert!(main_fn.get_type().get_return_type().is_some());
+        // main takes no arguments
+        assert_eq!(main_fn.count_params(), 0);
     }
 }

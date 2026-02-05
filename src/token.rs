@@ -138,3 +138,93 @@ impl Token {
         Token { kind, span }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_span_new() {
+        let span = Span::new(0, 5, 1, 1);
+        assert_eq!(span.start, 0);
+        assert_eq!(span.end, 5);
+        assert_eq!(span.line, 1);
+        assert_eq!(span.column, 1);
+    }
+
+    #[test]
+    fn test_span_equality() {
+        let span1 = Span::new(10, 20, 2, 5);
+        let span2 = Span::new(10, 20, 2, 5);
+        assert_eq!(span1, span2);
+    }
+
+    #[test]
+    fn test_span_inequality() {
+        let span1 = Span::new(0, 5, 1, 1);
+        let span2 = Span::new(0, 6, 1, 1);
+        assert_ne!(span1, span2);
+    }
+
+    #[test]
+    fn test_span_copy() {
+        let span1 = Span::new(0, 5, 1, 1);
+        let span2 = span1; // Copy
+        assert_eq!(span1, span2);
+        // span1 is still usable after copy
+        assert_eq!(span1.start, 0);
+    }
+
+    #[test]
+    fn test_token_new() {
+        let span = Span::new(0, 7, 1, 1);
+        let token = Token::new(TokenKind::Identifier("println".to_string()), span);
+        assert!(matches!(token.kind, TokenKind::Identifier(ref s) if s == "println"));
+        assert_eq!(token.span.start, 0);
+        assert_eq!(token.span.end, 7);
+    }
+
+    #[test]
+    fn test_token_kind_identifier() {
+        let kind = TokenKind::Identifier("my_func".to_string());
+        assert!(matches!(kind, TokenKind::Identifier(ref s) if s == "my_func"));
+    }
+
+    #[test]
+    fn test_token_kind_string_literal() {
+        let kind = TokenKind::StringLiteral("hello world".to_string());
+        assert!(matches!(kind, TokenKind::StringLiteral(ref s) if s == "hello world"));
+    }
+
+    #[test]
+    fn test_token_kind_punctuation() {
+        assert!(matches!(TokenKind::LeftParen, TokenKind::LeftParen));
+        assert!(matches!(TokenKind::RightParen, TokenKind::RightParen));
+        assert!(matches!(TokenKind::Comma, TokenKind::Comma));
+    }
+
+    #[test]
+    fn test_token_kind_eof() {
+        assert!(matches!(TokenKind::Eof, TokenKind::Eof));
+    }
+
+    #[test]
+    fn test_token_clone() {
+        let span = Span::new(0, 5, 1, 1);
+        let token1 = Token::new(TokenKind::Identifier("test".to_string()), span);
+        let token2 = token1.clone();
+        assert_eq!(token1, token2);
+    }
+
+    #[test]
+    fn test_token_kind_partial_eq() {
+        let kind1 = TokenKind::Identifier("foo".to_string());
+        let kind2 = TokenKind::Identifier("foo".to_string());
+        let kind3 = TokenKind::Identifier("bar".to_string());
+
+        assert_eq!(kind1, kind2);
+        assert_ne!(kind1, kind3);
+        assert_eq!(TokenKind::LeftParen, TokenKind::LeftParen);
+        assert_ne!(TokenKind::LeftParen, TokenKind::RightParen);
+    }
+}

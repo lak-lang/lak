@@ -262,3 +262,347 @@ impl Parser {
         Ok(Expr::Call { callee, args })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lexer::Lexer;
+
+    /// Helper function to parse input and return the Program.
+    fn parse(input: &str) -> Result<Program, ParseError> {
+        let mut lexer = Lexer::new(input);
+        let tokens = lexer
+            .tokenize()
+            .unwrap_or_else(|e| panic!("Lexer failed on parser test input {:?}: {}", input, e));
+        let mut parser = Parser::new(tokens);
+        parser.parse()
+    }
+
+    /// Helper function to parse input and extract the first expression.
+    fn parse_first_expr(input: &str) -> Expr {
+        let program =
+            parse(input).unwrap_or_else(|e| panic!("Failed to parse input {:?}: {}", input, e));
+
+        let first_stmt = program
+            .stmts
+            .first()
+            .unwrap_or_else(|| panic!("Input {:?} produced no statements", input));
+
+        match first_stmt {
+            Stmt::Expr(expr) => expr.clone(),
+        }
+    }
+
+    /// Helper function to parse input and return the error.
+    fn parse_error(input: &str) -> ParseError {
+        match parse(input) {
+            Ok(program) => panic!(
+                "Expected parsing to fail for input {:?}, but it succeeded with {} statements",
+                input,
+                program.stmts.len()
+            ),
+            Err(e) => e,
+        }
+    }
+
+    // ===================
+    // Basic parsing
+    // ===================
+
+    #[test]
+    fn test_empty_program() {
+        let program = parse("").unwrap();
+        assert!(program.stmts.is_empty());
+    }
+
+    #[test]
+    fn test_call_no_args() {
+        let expr = parse_first_expr("func()");
+        match expr {
+            Expr::Call { callee, args } => {
+                assert_eq!(callee, "func");
+                assert!(args.is_empty());
+            }
+            _ => panic!("Expected Call expression"),
+        }
+    }
+
+    #[test]
+    fn test_call_one_arg() {
+        let expr = parse_first_expr(r#"println("hello")"#);
+        match expr {
+            Expr::Call { callee, args } => {
+                assert_eq!(callee, "println");
+                assert_eq!(args.len(), 1);
+                assert!(matches!(&args[0], Expr::StringLiteral(s) if s == "hello"));
+            }
+            _ => panic!("Expected Call expression"),
+        }
+    }
+
+    #[test]
+    fn test_call_multiple_args() {
+        let expr = parse_first_expr(r#"f("a", "b", "c")"#);
+        match expr {
+            Expr::Call { callee, args } => {
+                assert_eq!(callee, "f");
+                assert_eq!(args.len(), 3);
+                assert!(matches!(&args[0], Expr::StringLiteral(s) if s == "a"));
+                assert!(matches!(&args[1], Expr::StringLiteral(s) if s == "b"));
+                assert!(matches!(&args[2], Expr::StringLiteral(s) if s == "c"));
+            }
+            _ => panic!("Expected Call expression"),
+        }
+    }
+
+    // ===================
+    // Nested calls
+    // ===================
+
+    #[test]
+    fn test_nested_call_single() {
+        let expr = parse_first_expr("outer(inner())");
+        match expr {
+            Expr::Call { callee, args } => {
+                assert_eq!(callee, "outer");
+                assert_eq!(args.len(), 1);
+                match &args[0] {
+                    Expr::Call {
+                        callee: inner_callee,
+                        args: inner_args,
+                    } => {
+                        assert_eq!(inner_callee, "inner");
+                        assert!(inner_args.is_empty());
+                    }
+                    _ => panic!("Expected nested Call"),
+                }
+            }
+            _ => panic!("Expected Call expression"),
+        }
+    }
+
+    #[test]
+    fn test_nested_call_with_arg() {
+        let expr = parse_first_expr(r#"outer(inner("x"))"#);
+        match expr {
+            Expr::Call { callee, args } => {
+                assert_eq!(callee, "outer");
+                assert_eq!(args.len(), 1);
+                match &args[0] {
+                    Expr::Call {
+                        callee: inner_callee,
+                        args: inner_args,
+                    } => {
+                        assert_eq!(inner_callee, "inner");
+                        assert_eq!(inner_args.len(), 1);
+                        assert!(matches!(&inner_args[0], Expr::StringLiteral(s) if s == "x"));
+                    }
+                    _ => panic!("Expected nested Call"),
+                }
+            }
+            _ => panic!("Expected Call expression"),
+        }
+    }
+
+    #[test]
+    fn test_deeply_nested() {
+        let expr = parse_first_expr("a(b(c(d())))");
+        match expr {
+            Expr::Call { callee, args } => {
+                assert_eq!(callee, "a");
+                assert_eq!(args.len(), 1);
+                // Verify structure: a -> b -> c -> d
+                match &args[0] {
+                    Expr::Call { callee: b, args } => {
+                        assert_eq!(b, "b");
+                        match &args[0] {
+                            Expr::Call { callee: c, args } => {
+                                assert_eq!(c, "c");
+                                match &args[0] {
+                                    Expr::Call { callee: d, args } => {
+                                        assert_eq!(d, "d");
+                                        assert!(args.is_empty());
+                                    }
+                                    _ => panic!("Expected d call"),
+                                }
+                            }
+                            _ => panic!("Expected c call"),
+                        }
+                    }
+                    _ => panic!("Expected b call"),
+                }
+            }
+            _ => panic!("Expected Call expression"),
+        }
+    }
+
+    #[test]
+    fn test_nested_multiple_args() {
+        let expr = parse_first_expr(r#"f(g(), h(), "x")"#);
+        match expr {
+            Expr::Call { callee, args } => {
+                assert_eq!(callee, "f");
+                assert_eq!(args.len(), 3);
+                assert!(matches!(&args[0], Expr::Call { callee, .. } if callee == "g"));
+                assert!(matches!(&args[1], Expr::Call { callee, .. } if callee == "h"));
+                assert!(matches!(&args[2], Expr::StringLiteral(s) if s == "x"));
+            }
+            _ => panic!("Expected Call expression"),
+        }
+    }
+
+    // ===================
+    // Multiple statements
+    // ===================
+
+    #[test]
+    fn test_multiple_statements() {
+        let program = parse("f()\ng()").unwrap();
+        assert_eq!(program.stmts.len(), 2);
+
+        match &program.stmts[0] {
+            Stmt::Expr(Expr::Call { callee, .. }) => assert_eq!(callee, "f"),
+            _ => panic!("Expected f call"),
+        }
+        match &program.stmts[1] {
+            Stmt::Expr(Expr::Call { callee, .. }) => assert_eq!(callee, "g"),
+            _ => panic!("Expected g call"),
+        }
+    }
+
+    #[test]
+    fn test_statements_with_comments() {
+        let program = parse("f() // c\ng()").unwrap();
+        assert_eq!(program.stmts.len(), 2);
+    }
+
+    #[test]
+    fn test_statements_on_same_line() {
+        // Note: In Lak, statements aren't separated by semicolons,
+        // but parsing should still work when tokens are contiguous
+        let program = parse("a() b()").unwrap();
+        assert_eq!(program.stmts.len(), 2);
+    }
+
+    // ===================
+    // Expression types
+    // ===================
+
+    #[test]
+    fn test_string_literal_as_arg() {
+        let expr = parse_first_expr(r#"f("str")"#);
+        match expr {
+            Expr::Call { args, .. } => {
+                assert!(matches!(&args[0], Expr::StringLiteral(s) if s == "str"));
+            }
+            _ => panic!("Expected Call"),
+        }
+    }
+
+    #[test]
+    fn test_call_as_arg() {
+        let expr = parse_first_expr("f(g())");
+        match expr {
+            Expr::Call { args, .. } => {
+                assert!(matches!(&args[0], Expr::Call { callee, .. } if callee == "g"));
+            }
+            _ => panic!("Expected Call"),
+        }
+    }
+
+    // ===================
+    // Error cases
+    // ===================
+
+    #[test]
+    fn test_error_missing_left_paren() {
+        let err = parse_error("func");
+        assert!(err.message.contains("Expected '('"));
+    }
+
+    #[test]
+    fn test_error_missing_right_paren() {
+        let err = parse_error(r#"func("a""#);
+        assert!(err.message.contains("RightParen"));
+    }
+
+    #[test]
+    fn test_error_unexpected_left_paren() {
+        let err = parse_error("(");
+        assert!(err.message.contains("Unexpected token"));
+    }
+
+    #[test]
+    fn test_error_unexpected_comma() {
+        let err = parse_error(",");
+        assert!(err.message.contains("Unexpected token"));
+    }
+
+    #[test]
+    fn test_error_double_comma() {
+        let err = parse_error(r#"f("a",,"b")"#);
+        assert!(err.message.contains("Unexpected token"));
+    }
+
+    #[test]
+    fn test_error_leading_comma() {
+        let err = parse_error(r#"f(,"a")"#);
+        assert!(err.message.contains("Unexpected token"));
+    }
+
+    #[test]
+    fn test_error_trailing_comma() {
+        // Trailing comma should error (no implicit nil in Lak)
+        let err = parse_error(r#"f("a",)"#);
+        assert!(err.message.contains("Unexpected token"));
+    }
+
+    // ===================
+    // Panic tests
+    // ===================
+
+    #[test]
+    #[should_panic(expected = "Token list must not be empty")]
+    fn test_parser_new_panics_on_empty() {
+        Parser::new(vec![]);
+    }
+
+    // ===================
+    // Edge cases
+    // ===================
+
+    #[test]
+    fn test_whitespace_in_call() {
+        let expr = parse_first_expr("func  (  )");
+        match expr {
+            Expr::Call { callee, args } => {
+                assert_eq!(callee, "func");
+                assert!(args.is_empty());
+            }
+            _ => panic!("Expected Call"),
+        }
+    }
+
+    #[test]
+    fn test_newlines_in_call() {
+        let expr = parse_first_expr("func(\n\"a\"\n)");
+        match expr {
+            Expr::Call { callee, args } => {
+                assert_eq!(callee, "func");
+                assert_eq!(args.len(), 1);
+            }
+            _ => panic!("Expected Call"),
+        }
+    }
+
+    #[test]
+    fn test_parse_error_display() {
+        let err = ParseError {
+            message: "Test error".to_string(),
+            span: Span::new(0, 1, 2, 3),
+        };
+        let display = format!("{}", err);
+        assert!(display.contains("2:3"));
+        assert!(display.contains("Test error"));
+    }
+}
