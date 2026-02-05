@@ -27,8 +27,37 @@ impl Parser {
                 if matches!(self.current_kind(), TokenKind::LeftParen) {
                     self.parse_call(name, start_span)
                 } else {
-                    // Variable reference
-                    Ok(Expr::new(ExprKind::Identifier(name), start_span))
+                    // Check for syntax error: identifier followed by expression-start token
+                    match self.current_kind() {
+                        TokenKind::StringLiteral(_) => Err(ParseError {
+                            message: format!(
+                                "Unexpected string literal after '{}'. If this is a function call, add parentheses: {}(...)",
+                                name, name
+                            ),
+                            span: self.current_span(),
+                        }),
+                        TokenKind::IntLiteral(_) => Err(ParseError {
+                            message: format!(
+                                "Unexpected integer literal after '{}'. If this is a function call, add parentheses: {}(...)",
+                                name, name
+                            ),
+                            span: self.current_span(),
+                        }),
+                        TokenKind::Identifier(next_name) => {
+                            let next_name = next_name.clone();
+                            Err(ParseError {
+                                message: format!(
+                                    "Unexpected identifier '{}' after '{}'. If this is a function call, add parentheses: {}(...)",
+                                    next_name, name, name
+                                ),
+                                span: self.current_span(),
+                            })
+                        }
+                        _ => {
+                            // Variable reference
+                            Ok(Expr::new(ExprKind::Identifier(name), start_span))
+                        }
+                    }
                 }
             }
             TokenKind::StringLiteral(value) => {

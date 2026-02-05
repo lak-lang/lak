@@ -384,6 +384,91 @@ fn test_error_trailing_comma() {
     assert!(err.message.contains("Unexpected token"));
 }
 
+#[test]
+fn test_error_unexpected_string_after_identifier() {
+    let err = parse_error(r#"fn main() -> void { println"hello" }"#);
+    assert!(
+        err.message.contains("Unexpected string literal"),
+        "Expected error about unexpected string literal, got: {}",
+        err.message
+    );
+    assert!(
+        err.message.contains("println"),
+        "Expected error to mention 'println', got: {}",
+        err.message
+    );
+}
+
+#[test]
+fn test_error_unexpected_int_after_identifier() {
+    let err = parse_error("fn main() -> void { foo 42 }");
+    assert!(
+        err.message.contains("Unexpected integer literal"),
+        "Expected error about unexpected integer literal, got: {}",
+        err.message
+    );
+    assert!(
+        err.message.contains("foo"),
+        "Expected error to mention 'foo', got: {}",
+        err.message
+    );
+}
+
+#[test]
+fn test_error_unexpected_identifier_after_identifier() {
+    let err = parse_error("fn main() -> void { foo bar }");
+    assert!(
+        err.message.contains("Unexpected identifier"),
+        "Expected error about unexpected identifier, got: {}",
+        err.message
+    );
+    assert!(
+        err.message.contains("bar"),
+        "Expected error to mention 'bar', got: {}",
+        err.message
+    );
+}
+
+#[test]
+fn test_error_message_suggests_parentheses() {
+    let err = parse_error(r#"fn main() -> void { println"hello" }"#);
+    assert!(
+        err.message.contains("add parentheses"),
+        "Expected helpful suggestion in error message, got: {}",
+        err.message
+    );
+}
+
+#[test]
+fn test_error_unexpected_string_in_let_init() {
+    let err = parse_error(r#"fn main() -> void { let x: i32 = foo"hello" }"#);
+    assert!(
+        err.message.contains("Unexpected string literal"),
+        "Expected error about unexpected string literal in let init, got: {}",
+        err.message
+    );
+    assert!(
+        err.message.contains("foo"),
+        "Expected error to mention 'foo', got: {}",
+        err.message
+    );
+}
+
+#[test]
+fn test_error_unexpected_string_in_call_arg() {
+    let err = parse_error(r#"fn main() -> void { f(foo"hello") }"#);
+    assert!(
+        err.message.contains("Unexpected string literal"),
+        "Expected error about unexpected string literal in call arg, got: {}",
+        err.message
+    );
+    assert!(
+        err.message.contains("foo"),
+        "Expected error to mention 'foo', got: {}",
+        err.message
+    );
+}
+
 // ===================
 // Panic tests
 // ===================
