@@ -74,6 +74,7 @@ impl<'a> Lexer<'a> {
             '=' => {
                 Ok(self.single_char_token(TokenKind::Equals, start_pos, start_line, start_column))
             }
+            '+' => Ok(self.single_char_token(TokenKind::Plus, start_pos, start_line, start_column)),
             '-' => {
                 self.advance();
                 if self.current_char() == Some('>') {
@@ -81,13 +82,17 @@ impl<'a> Lexer<'a> {
                     let span = Span::new(start_pos, self.pos, start_line, start_column);
                     Ok(Token::new(TokenKind::Arrow, span))
                 } else {
-                    Err(LexError::incomplete_arrow(Span::new(
-                        start_pos,
-                        self.pos,
-                        start_line,
-                        start_column,
-                    )))
+                    // Minus token (not part of arrow)
+                    let span = Span::new(start_pos, self.pos, start_line, start_column);
+                    Ok(Token::new(TokenKind::Minus, span))
                 }
+            }
+            '*' => Ok(self.single_char_token(TokenKind::Star, start_pos, start_line, start_column)),
+            '/' => {
+                Ok(self.single_char_token(TokenKind::Slash, start_pos, start_line, start_column))
+            }
+            '%' => {
+                Ok(self.single_char_token(TokenKind::Percent, start_pos, start_line, start_column))
             }
             '"' => self.read_string(start_pos, start_line, start_column),
             _ if c.is_ascii_digit() => self.read_number(start_pos, start_line, start_column),

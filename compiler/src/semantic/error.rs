@@ -87,6 +87,8 @@ pub struct SemanticError {
     span: Option<Span>,
     /// The kind of error, for structured error handling.
     kind: SemanticErrorKind,
+    /// Optional help text with suggestions for fixing the error.
+    help: Option<String>,
 }
 
 impl SemanticError {
@@ -99,6 +101,24 @@ impl SemanticError {
             message: message.into(),
             span: Some(span),
             kind,
+            help: None,
+        }
+    }
+
+    /// Creates a new error with a source location and help text.
+    ///
+    /// Use this for errors that benefit from additional guidance on how to fix them.
+    pub fn new_with_help(
+        kind: SemanticErrorKind,
+        message: impl Into<String>,
+        span: Span,
+        help: impl Into<String>,
+    ) -> Self {
+        SemanticError {
+            message: message.into(),
+            span: Some(span),
+            kind,
+            help: Some(help.into()),
         }
     }
 
@@ -111,6 +131,7 @@ impl SemanticError {
             message: message.into(),
             span: None,
             kind,
+            help: None,
         }
     }
 
@@ -124,6 +145,7 @@ impl SemanticError {
             message: message.into(),
             span: None,
             kind: SemanticErrorKind::MissingMainFunction,
+            help: None,
         }
     }
 
@@ -140,6 +162,11 @@ impl SemanticError {
     /// Returns the kind of error.
     pub fn kind(&self) -> SemanticErrorKind {
         self.kind
+    }
+
+    /// Returns the help text, if available.
+    pub fn help(&self) -> Option<&str> {
+        self.help.as_deref()
     }
 
     // =========================================================================
@@ -334,6 +361,30 @@ impl SemanticError {
                 name
             ),
             span,
+        )
+    }
+
+    /// Creates an error for binary operation used as statement.
+    pub fn invalid_expression_binary_op(span: Span) -> Self {
+        Self::new_with_help(
+            SemanticErrorKind::InvalidExpression,
+            "This expression computes a value but the result is not used",
+            span,
+            "assign the result to a variable: `let result = ...`",
+        )
+    }
+
+    /// Creates an error for invalid operand type in binary operation.
+    pub fn invalid_binary_op_type(
+        op: crate::ast::BinaryOperator,
+        actual_ty: &str,
+        span: Span,
+    ) -> Self {
+        Self::new_with_help(
+            SemanticErrorKind::TypeMismatch,
+            format!("Operator '{}' cannot be used with '{}' type", op, actual_ty),
+            span,
+            "arithmetic operators (+, -, *, /, %) only work with numeric types (i32, i64)",
         )
     }
 

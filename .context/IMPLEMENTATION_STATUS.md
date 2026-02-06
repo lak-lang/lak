@@ -115,14 +115,14 @@ This document tracks the implementation status of Lak language features as defin
 
 ### 4.1 Arithmetic Operators
 
-- [ ] `+` addition
-  - [ ] Integer addition
+- [x] `+` addition
+  - [x] Integer addition (i32, i64)
   - [ ] Float addition
   - [ ] String concatenation
-- [ ] `-` subtraction
-- [ ] `*` multiplication
-- [ ] `/` division
-- [ ] `%` modulo
+- [x] `-` subtraction (i32, i64)
+- [x] `*` multiplication (i32, i64)
+- [x] `/` division (i32, i64)
+- [x] `%` modulo (i32, i64)
 
 ### 4.2 Comparison Operators
 
@@ -150,8 +150,9 @@ This document tracks the implementation status of Lak language features as defin
 
 ### 4.6 Operator Precedence
 
-- [ ] Precedence levels 1-8 as specified
-- [ ] Parentheses for grouping `(expr)`
+- [x] Precedence levels for arithmetic (multiplicative > additive)
+- [ ] Full precedence levels 1-8 as specified
+- [x] Parentheses for grouping `(expr)`
 
 ---
 
@@ -433,7 +434,7 @@ This document tracks the implementation status of Lak language features as defin
 
 - [x] AST generation
 - [x] Error messages with source location
-- [ ] Operator precedence parsing
+- [x] Operator precedence parsing (Pratt parsing for arithmetic)
 
 ### 18.3 Semantic Analyzer
 
@@ -473,12 +474,12 @@ This document tracks the implementation status of Lak language features as defin
 
 ### Phase 1: Basic Expressions (High Priority)
 
-1. [ ] Arithmetic operators (`+`, `-`, `*`, `/`, `%`)
+1. [x] Arithmetic operators (`+`, `-`, `*`, `/`, `%`) - i32/i64 only
 2. [ ] Comparison operators (`==`, `!=`, `<`, `>`, `<=`, `>=`)
 3. [ ] `bool` type with `true`/`false` literals
 4. [ ] Logical operators (`&&`, `||`, `!`)
 5. [ ] Unary minus `-`
-6. [ ] Parentheses for grouping
+6. [x] Parentheses for grouping
 
 ### Phase 2: Control Flow (High Priority)
 
@@ -541,7 +542,7 @@ This document tracks the implementation status of Lak language features as defin
 |----------|-------------|-------|----------|
 | Types | 5 | 26 | 19% |
 | Variables | 3 | 8 | 38% |
-| Operators | 1 | 16 | 6% |
+| Operators | 7 | 17 | 41% |
 | Functions | 7 | 18 | 39% |
 | Structs | 0 | 12 | 0% |
 | Interfaces | 0 | 7 | 0% |
@@ -553,7 +554,7 @@ This document tracks the implementation status of Lak language features as defin
 | Modules | 0 | 12 | 0% |
 | Entry Point | 5 | 5 | 100% |
 
-**Overall Progress: ~17%**
+**Overall Progress: ~20%**
 
 ---
 

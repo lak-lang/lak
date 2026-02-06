@@ -431,6 +431,35 @@ impl CodegenError {
         )
     }
 
+    /// Creates an internal error for binary operation on string type.
+    pub fn internal_binary_op_string(op: crate::ast::BinaryOperator, span: Span) -> Self {
+        Self::new(
+            CodegenErrorKind::InternalError,
+            format!(
+                "Internal error: binary operator '{}' applied to string type in codegen. \
+                 Semantic analysis should have caught this. This is a compiler bug.",
+                op
+            ),
+            span,
+        )
+    }
+
+    /// Creates an internal error for failed binary operation.
+    pub fn internal_binary_op_failed(
+        op: crate::ast::BinaryOperator,
+        error: &str,
+        span: Span,
+    ) -> Self {
+        Self::new(
+            CodegenErrorKind::InternalError,
+            format!(
+                "Internal error: failed to generate '{}' instruction. This is a compiler bug: {}",
+                op, error
+            ),
+            span,
+        )
+    }
+
     // =========================================================================
     // Internal errors without span
     // =========================================================================

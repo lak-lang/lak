@@ -29,6 +29,11 @@ impl Parser {
             TokenKind::Equals => "'='".to_string(),
             TokenKind::IntLiteral(n) => format!("integer '{}'", n),
             TokenKind::Newline => "newline".to_string(),
+            TokenKind::Plus => "'+'".to_string(),
+            TokenKind::Minus => "'-'".to_string(),
+            TokenKind::Star => "'*'".to_string(),
+            TokenKind::Slash => "'/'".to_string(),
+            TokenKind::Percent => "'%'".to_string(),
         }
     }
 

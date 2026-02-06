@@ -223,18 +223,20 @@ fn report_error(filename: &str, source: &str, error: &CompileError) {
         }
         CompileError::Semantic(e) => {
             if let Some(span) = e.span() {
-                if let Err(report_err) =
-                    Report::build(ReportKind::Error, (filename, span.start..span.end))
-                        .with_config(Config::default().with_index_type(IndexType::Byte))
-                        .with_message(e.message())
-                        .with_label(
-                            Label::new((filename, span.start..span.end))
-                                .with_message(e.message())
-                                .with_color(Color::Red),
-                        )
-                        .finish()
-                        .eprint((filename, Source::from(source)))
-                {
+                let mut report = Report::build(ReportKind::Error, (filename, span.start..span.end))
+                    .with_config(Config::default().with_index_type(IndexType::Byte))
+                    .with_message(e.message())
+                    .with_label(
+                        Label::new((filename, span.start..span.end))
+                            .with_message(e.message())
+                            .with_color(Color::Red),
+                    );
+
+                if let Some(help) = e.help() {
+                    report = report.with_help(help);
+                }
+
+                if let Err(report_err) = report.finish().eprint((filename, Source::from(source))) {
                     // Fallback to basic error output if report printing fails
                     eprintln!("Error: {} (at {}:{})", e.message(), span.line, span.column);
                     eprintln!("(Failed to display detailed error report: {})", report_err);

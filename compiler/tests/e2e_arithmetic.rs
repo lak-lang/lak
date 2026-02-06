@@ -1,0 +1,410 @@
+//! End-to-end tests for arithmetic operators.
+//!
+//! These tests verify that arithmetic operations are correctly compiled
+//! and executed, including operator precedence, associativity, and
+//! parenthesized expressions.
+
+mod common;
+
+use common::compile_and_run;
+
+// ============================================================================
+// Basic Operations
+// ============================================================================
+
+#[test]
+fn test_addition() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = 3 + 5
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "8\n");
+}
+
+#[test]
+fn test_subtraction() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = 10 - 3
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "7\n");
+}
+
+#[test]
+fn test_multiplication() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = 4 * 5
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "20\n");
+}
+
+#[test]
+fn test_division() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = 20 / 4
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "5\n");
+}
+
+#[test]
+fn test_modulo() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = 17 % 5
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "2\n");
+}
+
+// ============================================================================
+// Operator Precedence
+// ============================================================================
+
+#[test]
+fn test_precedence_mul_before_add() {
+    // 2 + 3 * 4 should be 2 + (3 * 4) = 2 + 12 = 14, not (2 + 3) * 4 = 20
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = 2 + 3 * 4
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "14\n");
+}
+
+#[test]
+fn test_precedence_div_before_sub() {
+    // 10 - 6 / 2 should be 10 - (6 / 2) = 10 - 3 = 7, not (10 - 6) / 2 = 2
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = 10 - 6 / 2
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "7\n");
+}
+
+#[test]
+fn test_precedence_mod_before_add() {
+    // 5 + 7 % 3 should be 5 + (7 % 3) = 5 + 1 = 6, not (5 + 7) % 3 = 0
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = 5 + 7 % 3
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "6\n");
+}
+
+#[test]
+fn test_precedence_complex() {
+    // 1 + 2 * 3 + 4 = 1 + 6 + 4 = 11
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = 1 + 2 * 3 + 4
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "11\n");
+}
+
+// ============================================================================
+// Associativity (Left-to-Right)
+// ============================================================================
+
+#[test]
+fn test_left_associative_sub() {
+    // 10 - 5 - 2 should be (10 - 5) - 2 = 3, not 10 - (5 - 2) = 7
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = 10 - 5 - 2
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "3\n");
+}
+
+#[test]
+fn test_left_associative_div() {
+    // 100 / 10 / 2 should be (100 / 10) / 2 = 5, not 100 / (10 / 2) = 20
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = 100 / 10 / 2
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "5\n");
+}
+
+#[test]
+fn test_left_associative_mod() {
+    // 100 % 30 % 7 should be (100 % 30) % 7 = 10 % 7 = 3
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = 100 % 30 % 7
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "3\n");
+}
+
+// ============================================================================
+// Parentheses
+// ============================================================================
+
+#[test]
+fn test_parens_override_precedence() {
+    // (2 + 3) * 4 should be 5 * 4 = 20, overriding default precedence
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = (2 + 3) * 4
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "20\n");
+}
+
+#[test]
+fn test_nested_parens() {
+    // ((1 + 2) * 3) + 4 = (3 * 3) + 4 = 9 + 4 = 13
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = ((1 + 2) * 3) + 4
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "13\n");
+}
+
+#[test]
+fn test_parens_both_sides() {
+    // (1 + 2) * (3 + 4) = 3 * 7 = 21
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = (1 + 2) * (3 + 4)
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "21\n");
+}
+
+// ============================================================================
+// Complex Expressions
+// ============================================================================
+
+#[test]
+fn test_complex_expression() {
+    // (1 + 2) * (3 + 4) - 5 = 3 * 7 - 5 = 21 - 5 = 16
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = (1 + 2) * (3 + 4) - 5
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "16\n");
+}
+
+#[test]
+fn test_all_operators() {
+    // 10 + 20 - 5 * 2 / 2 % 3 = 10 + 20 - ((5 * 2) / 2) % 3 = 10 + 20 - (10 / 2) % 3 = 10 + 20 - 5 % 3 = 10 + 20 - 2 = 28
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = 10 + 20 - 5 * 2 / 2 % 3
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "28\n");
+}
+
+// ============================================================================
+// Variables in Expressions
+// ============================================================================
+
+#[test]
+fn test_arithmetic_with_variables() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let a: i32 = 10
+    let b: i32 = 5
+    let sum: i32 = a + b
+    let diff: i32 = a - b
+    let prod: i32 = a * b
+    let quot: i32 = a / b
+    let rem: i32 = a % b
+    println(sum)
+    println(diff)
+    println(prod)
+    println(quot)
+    println(rem)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "15\n5\n50\n2\n0\n");
+}
+
+#[test]
+fn test_variable_in_complex_expression() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = 5
+    let y: i32 = 3
+    let z: i32 = (x + y) * (x - y)
+    println(z)
+}"#,
+    )
+    .unwrap();
+    // (5 + 3) * (5 - 3) = 8 * 2 = 16
+    assert_eq!(output, "16\n");
+}
+
+// ============================================================================
+// i64 Arithmetic
+// ============================================================================
+
+#[test]
+fn test_i64_arithmetic() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i64 = 1000000000 + 1000000000
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "2000000000\n");
+}
+
+#[test]
+fn test_i64_large_multiplication() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i64 = 1000000 * 1000000
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "1000000000000\n");
+}
+
+// ============================================================================
+// Negative Results
+// ============================================================================
+
+#[test]
+fn test_negative_result() {
+    // 5 - 10 = -5
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = 5 - 10
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "-5\n");
+}
+
+#[test]
+fn test_negative_modulo() {
+    // -7 % 3 depends on platform, but for signed div: 17 % 5 = 2, then -(that) isn't what we're testing
+    // Let's test: 3 - 10 = -7, then -7 % 4 = -3 (signed remainder in LLVM)
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let a: i32 = 3 - 10
+    let b: i32 = a % 4
+    println(b)
+}"#,
+    )
+    .unwrap();
+    // -7 % 4 = -3 (sign follows dividend in LLVM srem)
+    assert_eq!(output, "-3\n");
+}
+
+// ============================================================================
+// println with Binary Operations
+// ============================================================================
+
+#[test]
+fn test_println_binary_op_directly() {
+    // println can take a binary operation expression
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    println(3 + 5)
+}"#,
+    )
+    .unwrap();
+    // Direct binary op in println uses i64 type (integer literals default to i64)
+    assert_eq!(output, "8\n");
+}
+
+#[test]
+fn test_println_complex_expression() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    println(2 * 3 + 4)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "10\n");
+}
+
+// ============================================================================
+// Edge Cases
+// ============================================================================
+
+#[test]
+fn test_zero_division_result() {
+    // 0 / 5 = 0
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = 0 / 5
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "0\n");
+}
+
+#[test]
+fn test_identity_operations() {
+    // x + 0 = x, x * 1 = x, x - 0 = x
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = 42
+    let a: i32 = x + 0
+    let b: i32 = x * 1
+    let c: i32 = x - 0
+    println(a)
+    println(b)
+    println(c)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "42\n42\n42\n");
+}

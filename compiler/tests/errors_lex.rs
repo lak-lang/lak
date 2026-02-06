@@ -71,30 +71,6 @@ fn test_compile_error_i64_overflow() {
 }
 
 #[test]
-fn test_negative_number_not_supported() {
-    // Negative literals like -42 are not supported; `-` is only valid in `->`
-    let result = compile_error_with_kind(
-        r#"fn main() -> void {
-    let x: i32 = -42
-}"#,
-    );
-    let (stage, msg, kind) = result.expect("Expected compilation to fail");
-    assert!(
-        matches!(stage, CompileStage::Lex),
-        "Expected Lex error for negative number, got {:?}: {}",
-        stage,
-        msg
-    );
-    // The lexer expects `->` after `-`, so we get an error about that
-    assert_eq!(msg, "Expected '>' after '-'");
-    assert_eq!(
-        kind,
-        CompileErrorKind::Lex(LexErrorKind::IncompleteArrow),
-        "Expected IncompleteArrow error kind"
-    );
-}
-
-#[test]
 fn test_non_ascii_identifier_rejected() {
     // Non-ASCII characters in identifiers should be rejected
     let result = compile_error_with_kind(

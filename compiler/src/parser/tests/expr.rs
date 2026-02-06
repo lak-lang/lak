@@ -217,3 +217,152 @@ fn test_variable_reference_in_init() {
         _ => panic!("Expected Let statement"),
     }
 }
+
+// ===================
+// Binary operation parsing
+// ===================
+
+#[test]
+fn test_binary_op_addition() {
+    let program = parse("fn main() -> void { let x: i32 = 1 + 2 }").unwrap();
+    match &program.functions[0].body[0].kind {
+        StmtKind::Let { init, .. } => match &init.kind {
+            ExprKind::BinaryOp { left, op, right } => {
+                assert_eq!(*op, BinaryOperator::Add);
+                assert!(matches!(left.kind, ExprKind::IntLiteral(1)));
+                assert!(matches!(right.kind, ExprKind::IntLiteral(2)));
+            }
+            _ => panic!("Expected BinaryOp"),
+        },
+        _ => panic!("Expected Let statement"),
+    }
+}
+
+#[test]
+fn test_binary_op_precedence_mul_before_add() {
+    // 1 + 2 * 3 should parse as 1 + (2 * 3)
+    let program = parse("fn main() -> void { let x: i32 = 1 + 2 * 3 }").unwrap();
+    match &program.functions[0].body[0].kind {
+        StmtKind::Let { init, .. } => match &init.kind {
+            ExprKind::BinaryOp { left, op, right } => {
+                assert_eq!(*op, BinaryOperator::Add);
+                assert!(matches!(left.kind, ExprKind::IntLiteral(1)));
+                // right should be 2 * 3
+                match &right.kind {
+                    ExprKind::BinaryOp {
+                        left: inner_left,
+                        op: inner_op,
+                        right: inner_right,
+                    } => {
+                        assert_eq!(*inner_op, BinaryOperator::Mul);
+                        assert!(matches!(inner_left.kind, ExprKind::IntLiteral(2)));
+                        assert!(matches!(inner_right.kind, ExprKind::IntLiteral(3)));
+                    }
+                    _ => panic!("Expected nested BinaryOp for 2 * 3"),
+                }
+            }
+            _ => panic!("Expected BinaryOp"),
+        },
+        _ => panic!("Expected Let statement"),
+    }
+}
+
+#[test]
+fn test_binary_op_left_associativity() {
+    // 10 - 5 - 2 should parse as (10 - 5) - 2
+    let program = parse("fn main() -> void { let x: i32 = 10 - 5 - 2 }").unwrap();
+    match &program.functions[0].body[0].kind {
+        StmtKind::Let { init, .. } => match &init.kind {
+            ExprKind::BinaryOp { left, op, right } => {
+                assert_eq!(*op, BinaryOperator::Sub);
+                assert!(matches!(right.kind, ExprKind::IntLiteral(2)));
+                // left should be 10 - 5
+                match &left.kind {
+                    ExprKind::BinaryOp {
+                        left: inner_left,
+                        op: inner_op,
+                        right: inner_right,
+                    } => {
+                        assert_eq!(*inner_op, BinaryOperator::Sub);
+                        assert!(matches!(inner_left.kind, ExprKind::IntLiteral(10)));
+                        assert!(matches!(inner_right.kind, ExprKind::IntLiteral(5)));
+                    }
+                    _ => panic!("Expected nested BinaryOp for 10 - 5"),
+                }
+            }
+            _ => panic!("Expected BinaryOp"),
+        },
+        _ => panic!("Expected Let statement"),
+    }
+}
+
+#[test]
+fn test_binary_op_parentheses_override_precedence() {
+    // (1 + 2) * 3 should parse as (1 + 2) * 3 (addition first)
+    let program = parse("fn main() -> void { let x: i32 = (1 + 2) * 3 }").unwrap();
+    match &program.functions[0].body[0].kind {
+        StmtKind::Let { init, .. } => match &init.kind {
+            ExprKind::BinaryOp { left, op, right } => {
+                assert_eq!(*op, BinaryOperator::Mul);
+                assert!(matches!(right.kind, ExprKind::IntLiteral(3)));
+                // left should be 1 + 2
+                match &left.kind {
+                    ExprKind::BinaryOp {
+                        left: inner_left,
+                        op: inner_op,
+                        right: inner_right,
+                    } => {
+                        assert_eq!(*inner_op, BinaryOperator::Add);
+                        assert!(matches!(inner_left.kind, ExprKind::IntLiteral(1)));
+                        assert!(matches!(inner_right.kind, ExprKind::IntLiteral(2)));
+                    }
+                    _ => panic!("Expected nested BinaryOp for 1 + 2"),
+                }
+            }
+            _ => panic!("Expected BinaryOp"),
+        },
+        _ => panic!("Expected Let statement"),
+    }
+}
+
+#[test]
+fn test_binary_op_all_operators() {
+    let operators = [
+        ("+", BinaryOperator::Add),
+        ("-", BinaryOperator::Sub),
+        ("*", BinaryOperator::Mul),
+        ("/", BinaryOperator::Div),
+        ("%", BinaryOperator::Mod),
+    ];
+
+    for (op_str, expected_op) in operators {
+        let source = format!("fn main() -> void {{ let x: i32 = 1 {} 2 }}", op_str);
+        let program = parse(&source).unwrap();
+        match &program.functions[0].body[0].kind {
+            StmtKind::Let { init, .. } => match &init.kind {
+                ExprKind::BinaryOp { op, .. } => {
+                    assert_eq!(*op, expected_op, "Failed for operator {}", op_str);
+                }
+                _ => panic!("Expected BinaryOp for {}", op_str),
+            },
+            _ => panic!("Expected Let statement for {}", op_str),
+        }
+    }
+}
+
+#[test]
+fn test_binary_op_with_variables() {
+    let program =
+        parse("fn main() -> void { let a: i32 = 1\nlet b: i32 = 2\nlet c: i32 = a + b }").unwrap();
+    match &program.functions[0].body[2].kind {
+        StmtKind::Let { init, .. } => match &init.kind {
+            ExprKind::BinaryOp { left, op, right } => {
+                assert_eq!(*op, BinaryOperator::Add);
+                assert!(matches!(&left.kind, ExprKind::Identifier(s) if s == "a"));
+                assert!(matches!(&right.kind, ExprKind::Identifier(s) if s == "b"));
+            }
+            _ => panic!("Expected BinaryOp"),
+        },
+        _ => panic!("Expected Let statement"),
+    }
+}

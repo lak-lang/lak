@@ -30,7 +30,7 @@ mod tests;
 pub use error::{SemanticError, SemanticErrorKind};
 use symbol::{FunctionInfo, SymbolTable, VariableInfo};
 
-use crate::ast::{Expr, ExprKind, FnDef, Program, Stmt, StmtKind, Type};
+use crate::ast::{BinaryOperator, Expr, ExprKind, FnDef, Program, Stmt, StmtKind, Type};
 use crate::token::Span;
 
 /// Semantic analyzer for Lak programs.
@@ -185,6 +185,10 @@ impl SemanticAnalyzer {
             ExprKind::Identifier(name) => Err(SemanticError::invalid_expression_identifier(
                 name, expr.span,
             )),
+            ExprKind::BinaryOp { .. } => {
+                // Binary operations as statements have no effect
+                Err(SemanticError::invalid_expression_binary_op(expr.span))
+            }
         }
     }
 
@@ -214,6 +218,12 @@ impl SemanticAnalyzer {
                         inner_callee,
                         args[0].span,
                     ));
+                }
+                ExprKind::BinaryOp { left, right, .. } => {
+                    // For binary operations, we need to infer the type from the operands
+                    // and validate that all variables exist
+                    self.validate_binary_op_for_println(left)?;
+                    self.validate_binary_op_for_println(right)?;
                 }
             }
 
@@ -291,6 +301,58 @@ impl SemanticAnalyzer {
             ExprKind::Call { callee, .. } => Err(SemanticError::type_mismatch_call_as_value(
                 callee, expr.span,
             )),
+            ExprKind::BinaryOp { left, op, right } => {
+                self.check_binary_op_type(left, *op, right, expected_ty, expr.span)
+            }
+        }
+    }
+
+    /// Checks the types of a binary operation.
+    ///
+    /// Binary operations require:
+    /// 1. Both operands to have the expected type
+    /// 2. The expected type to be numeric (i32 or i64)
+    fn check_binary_op_type(
+        &self,
+        left: &Expr,
+        op: BinaryOperator,
+        right: &Expr,
+        expected_ty: &Type,
+        span: Span,
+    ) -> Result<(), SemanticError> {
+        // Verify the expected type is numeric (not string)
+        if *expected_ty == Type::String {
+            return Err(SemanticError::invalid_binary_op_type(op, "string", span));
+        }
+
+        // Check both operands have the expected type
+        self.check_expr_type(left, expected_ty)?;
+        self.check_expr_type(right, expected_ty)?;
+
+        Ok(())
+    }
+
+    /// Validates a binary operation expression for use in println.
+    ///
+    /// This recursively validates that all variables referenced in the
+    /// binary operation exist.
+    fn validate_binary_op_for_println(&self, expr: &Expr) -> Result<(), SemanticError> {
+        match &expr.kind {
+            ExprKind::IntLiteral(_) | ExprKind::StringLiteral(_) => Ok(()),
+            ExprKind::Identifier(name) => {
+                self.symbols
+                    .lookup_variable(name)
+                    .ok_or_else(|| SemanticError::undefined_variable(name, expr.span))?;
+                Ok(())
+            }
+            ExprKind::BinaryOp { left, right, .. } => {
+                self.validate_binary_op_for_println(left)?;
+                self.validate_binary_op_for_println(right)?;
+                Ok(())
+            }
+            ExprKind::Call { callee, .. } => Err(
+                SemanticError::invalid_argument_call_not_supported(callee, expr.span),
+            ),
         }
     }
 

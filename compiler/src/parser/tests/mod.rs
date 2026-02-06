@@ -8,7 +8,7 @@
 //! - [`helpers`]: Parser utilities and edge cases
 
 use super::*;
-use crate::ast::{Expr, ExprKind, StmtKind, Type};
+use crate::ast::{BinaryOperator, Expr, ExprKind, StmtKind, Type};
 use crate::lexer::Lexer;
 use crate::token::Span;
 

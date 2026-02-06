@@ -118,3 +118,7 @@ Use the following prefixes based on the type of change:
 - **Prefer exact matching over partial matching**: Use `assert_eq!()` instead of `assert!(contains())` for error message tests. Exact matching ensures unintended changes are detected immediately.
 - **Test brittleness is acceptable**: If tests break due to internal changes, fix them. The cost of fixing tests is lower than the cost of undetected unintended changes.
 - **E2E tests should verify ANSI codes**: ariadne outputs colored error messages. E2E tests should verify the exact output including ANSI escape codes (e.g., `\x1b[31mError:\x1b[0m ...`).
+
+## Code Comments
+
+- **No work-log comments**: Do not write comments like "this test was moved from X" or "Y is now valid because of Z". Git history tracks these changes. Comments should explain *why* code exists, not its change history.

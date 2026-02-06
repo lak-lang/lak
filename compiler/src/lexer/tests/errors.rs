@@ -50,20 +50,6 @@ fn test_error_unexpected_char_dollar() {
 }
 
 #[test]
-fn test_error_minus_without_arrow() {
-    let err = tokenize_error("-");
-    assert_eq!(err.kind(), LexErrorKind::IncompleteArrow);
-    assert_eq!(err.message(), "Expected '>' after '-'");
-}
-
-#[test]
-fn test_error_minus_with_other_char() {
-    let err = tokenize_error("-x");
-    assert_eq!(err.kind(), LexErrorKind::IncompleteArrow);
-    assert_eq!(err.message(), "Expected '>' after '-'");
-}
-
-#[test]
 fn test_error_span_location() {
     let err = tokenize_error("foo @");
     assert_eq!(err.span().start, 4);

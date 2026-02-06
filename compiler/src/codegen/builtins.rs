@@ -81,6 +81,11 @@ impl<'ctx> Codegen<'ctx> {
             ExprKind::Call { callee, .. } => {
                 Err(CodegenError::internal_println_call_arg(callee, expr.span))
             }
+            ExprKind::BinaryOp { left, .. } => {
+                // For binary operations, infer the type from the left operand.
+                // Semantic analysis has already verified both operands have the same type.
+                self.get_expr_type(left)
+            }
         }
     }
 
@@ -179,8 +184,9 @@ impl<'ctx> Codegen<'ctx> {
 
     /// Generates LLVM IR for `println` with an i32 argument.
     ///
-    /// Note: Only i32 variables reach this function. Integer literals are always
-    /// treated as i64 by `get_expr_type()` and handled by `generate_println_i64()`.
+    /// Note: Only i32 variables and i32-typed binary operations reach this function.
+    /// Integer literals are always treated as i64 by `get_expr_type()` and handled by
+    /// `generate_println_i64()`.
     fn generate_println_i32(&mut self, arg: &Expr, span: Span) -> Result<(), CodegenError> {
         let i32_value = match &arg.kind {
             ExprKind::Identifier(name) => {
@@ -189,7 +195,6 @@ impl<'ctx> Codegen<'ctx> {
                     .get(name)
                     .ok_or_else(|| CodegenError::internal_variable_not_found(name, arg.span))?;
 
-                // Defensive type check: verify the variable is actually i32
                 if binding.ty() != &Type::I32 {
                     return Err(CodegenError::internal_println_type_mismatch(
                         name,
@@ -206,6 +211,10 @@ impl<'ctx> Codegen<'ctx> {
                         CodegenError::internal_variable_load_failed(name, &e.to_string(), arg.span)
                     })?
                     .into_int_value()
+            }
+            ExprKind::BinaryOp { .. } => {
+                // For binary operations, generate the expression value
+                self.generate_expr_value(arg, &Type::I32)?.into_int_value()
             }
             // This branch is currently unreachable: integer literals are always typed as i64
             // by get_expr_type() and routed to generate_println_i64().
@@ -232,8 +241,8 @@ impl<'ctx> Codegen<'ctx> {
 
     /// Generates LLVM IR for `println` with an i64 argument.
     ///
-    /// This handles both integer literals (which are always treated as i64) and
-    /// i64 variables.
+    /// This handles integer literals (which are always treated as i64),
+    /// i64 variables, and i64-typed binary operations.
     fn generate_println_i64(&mut self, arg: &Expr, span: Span) -> Result<(), CodegenError> {
         let i64_value = match &arg.kind {
             ExprKind::IntLiteral(value) => self.context.i64_type().const_int(*value as u64, true),
@@ -243,7 +252,6 @@ impl<'ctx> Codegen<'ctx> {
                     .get(name)
                     .ok_or_else(|| CodegenError::internal_variable_not_found(name, arg.span))?;
 
-                // Defensive type check: verify the variable is actually i64
                 if binding.ty() != &Type::I64 {
                     return Err(CodegenError::internal_println_type_mismatch(
                         name,
@@ -260,6 +268,10 @@ impl<'ctx> Codegen<'ctx> {
                         CodegenError::internal_variable_load_failed(name, &e.to_string(), arg.span)
                     })?
                     .into_int_value()
+            }
+            ExprKind::BinaryOp { .. } => {
+                // For binary operations, generate the expression value
+                self.generate_expr_value(arg, &Type::I64)?.into_int_value()
             }
             _ => {
                 return Err(CodegenError::internal_println_invalid_i64_arg(arg.span));

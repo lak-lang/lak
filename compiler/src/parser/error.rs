@@ -37,6 +37,8 @@ pub enum ParseErrorKind {
     ExpectedType,
     /// Expression following identifier without parentheses (likely missing function call syntax).
     MissingFunctionCallParentheses,
+    /// Internal parser inconsistency (compiler bug).
+    InternalError,
 }
 
 /// An error that occurred during parsing.
@@ -188,6 +190,21 @@ impl ParseError {
         Self::new(
             ParseErrorKind::UnexpectedToken,
             format!("Unexpected token: {}", found),
+            span,
+        )
+    }
+
+    // =========================================================================
+    // Internal errors
+    // =========================================================================
+
+    /// Creates an error for internal parser inconsistency.
+    ///
+    /// This indicates a compiler bug where internal invariants are violated.
+    pub fn internal_binary_op_inconsistency(span: Span) -> Self {
+        Self::new(
+            ParseErrorKind::InternalError,
+            "Internal error: binary_op_precedence returned Some, but token_to_binary_op returned None. This is a compiler bug.".to_string(),
             span,
         )
     }

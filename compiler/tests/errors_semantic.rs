@@ -496,3 +496,80 @@ fn test_compile_error_string_variable_as_statement() {
         "Expected InvalidExpression error kind"
     );
 }
+
+#[test]
+fn test_compile_error_binary_op_type_mismatch_in_operand() {
+    // Binary operation with mismatched operand type (i64 variable used in i32 context)
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let a: i64 = 10
+    let b: i32 = a + 1
+}"#,
+    );
+    let (stage, msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Type mismatch: variable 'a' has type 'i64', expected 'i32'"
+    );
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch),
+        "Expected TypeMismatch error kind"
+    );
+}
+
+#[test]
+fn test_compile_error_binary_op_to_string_type() {
+    // Binary operation result cannot be assigned to string type
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let x: string = 1 + 2
+}"#,
+    );
+    let (stage, msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(msg, "Operator '+' cannot be used with 'string' type");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch),
+        "Expected TypeMismatch error kind"
+    );
+}
+
+#[test]
+fn test_compile_error_binary_op_as_statement() {
+    // Binary operation as statement has no effect
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let x: i32 = 5
+    x + 10
+}"#,
+    );
+    let (stage, msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "This expression computes a value but the result is not used"
+    );
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::InvalidExpression),
+        "Expected InvalidExpression error kind"
+    );
+}

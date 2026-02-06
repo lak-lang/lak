@@ -12,9 +12,9 @@
 pub enum TokenKind {
     /// An identifier (function name, variable name, etc.).
     ///
-    /// Identifiers start with a Unicode alphabetic character or underscore,
-    /// followed by any number of Unicode alphanumeric characters or underscores.
-    /// Uses Rust's `char::is_alphabetic()` and `char::is_alphanumeric()`.
+    /// Identifiers start with an ASCII alphabetic character (a-z, A-Z) or underscore,
+    /// followed by any number of ASCII alphanumeric characters (a-z, A-Z, 0-9) or underscores.
+    /// Non-ASCII Unicode characters are explicitly rejected by the lexer.
     Identifier(String),
 
     /// A string literal enclosed in double quotes.
@@ -52,6 +52,21 @@ pub enum TokenKind {
 
     /// An equals sign `=` for variable initialization in let statements.
     Equals,
+
+    /// A plus sign `+` for addition.
+    Plus,
+
+    /// A minus sign `-` for subtraction.
+    Minus,
+
+    /// An asterisk `*` for multiplication.
+    Star,
+
+    /// A forward slash `/` for division.
+    Slash,
+
+    /// A percent sign `%` for modulo.
+    Percent,
 
     /// An integer literal (e.g., 42, 100).
     IntLiteral(i64),

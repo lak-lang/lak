@@ -1,6 +1,39 @@
 //! Expression nodes for the Lak AST.
 
 use crate::token::Span;
+use std::fmt;
+
+/// Binary operators for arithmetic operations.
+///
+/// These operators are used in binary expressions like `a + b` or `x * y`.
+/// All operators are left-associative with standard arithmetic precedence:
+/// - Multiplicative operators (`*`, `/`, `%`) have higher precedence
+/// - Additive operators (`+`, `-`) have lower precedence
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BinaryOperator {
+    /// Addition operator `+`
+    Add,
+    /// Subtraction operator `-`
+    Sub,
+    /// Multiplication operator `*`
+    Mul,
+    /// Division operator `/`
+    Div,
+    /// Modulo (remainder) operator `%`
+    Mod,
+}
+
+impl fmt::Display for BinaryOperator {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            BinaryOperator::Add => write!(f, "+"),
+            BinaryOperator::Sub => write!(f, "-"),
+            BinaryOperator::Mul => write!(f, "*"),
+            BinaryOperator::Div => write!(f, "/"),
+            BinaryOperator::Mod => write!(f, "%"),
+        }
+    }
+}
 
 /// The kind of an expression in the Lak language.
 ///
@@ -33,6 +66,20 @@ pub enum ExprKind {
         callee: String,
         /// The arguments passed to the function.
         args: Vec<Expr>,
+    },
+
+    /// A binary operation expression.
+    ///
+    /// Represents expressions like `a + b`, `x * y`, etc.
+    /// The left and right operands are boxed to avoid infinite
+    /// size due to recursive type definition.
+    BinaryOp {
+        /// The left operand.
+        left: Box<Expr>,
+        /// The operator.
+        op: BinaryOperator,
+        /// The right operand.
+        right: Box<Expr>,
     },
 }
 
