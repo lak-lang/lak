@@ -193,7 +193,7 @@ fn test_run_lexer_error() {
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("Compilation failed"));
+    assert!(stderr.contains("Unterminated string literal"));
 }
 
 #[test]
@@ -211,7 +211,7 @@ fn test_run_parser_error() {
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("Compilation failed"));
+    assert!(stderr.contains("Expected ')', found '->'"));
 }
 
 #[test]

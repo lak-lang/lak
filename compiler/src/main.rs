@@ -82,13 +82,15 @@ fn main() {
 
     match cli.command {
         Commands::Build { file, output } => {
-            if build(&file, output.as_deref()).is_err() {
+            if let Err(e) = build(&file, output.as_deref()) {
+                e.report();
                 std::process::exit(1);
             }
         }
         Commands::Run { file } => match run(&file) {
             Ok(exit_code) => std::process::exit(exit_code),
-            Err(_) => {
+            Err(e) => {
+                e.report();
                 std::process::exit(1);
             }
         },
@@ -98,7 +100,7 @@ fn main() {
 /// A compilation error from any phase of the compiler.
 ///
 /// This enum unifies errors from lexing, parsing, semantic analysis,
-/// and code generation to simplify error handling in the build pipeline.
+/// code generation, linking, and I/O to simplify error handling in the build pipeline.
 enum CompileError {
     /// An error during lexical analysis.
     Lex(LexError),
@@ -108,6 +110,59 @@ enum CompileError {
     Semantic(SemanticError),
     /// An error during code generation.
     Codegen(CodegenError),
+    /// An error during linking.
+    Link(LinkError),
+    /// An I/O error (file read, path validation, etc.).
+    Io(String),
+}
+
+/// A linker error.
+enum LinkError {
+    /// Failed to execute the linker command.
+    ExecutionFailed(std::io::Error),
+    /// Linker exited with non-zero status.
+    Failed {
+        exit_code: String,
+        stdout: String,
+        stderr: String,
+    },
+}
+
+/// Context needed for compiling a source file.
+#[derive(Clone)]
+struct CompileContext {
+    filename: String,
+    source: String,
+}
+
+impl CompileContext {
+    fn new(filename: impl Into<String>, source: impl Into<String>) -> Self {
+        Self {
+            filename: filename.into(),
+            source: source.into(),
+        }
+    }
+
+    /// Combines this context with an error to create a reportable error.
+    fn with_error(self, error: CompileError) -> CompileErrorWithContext {
+        CompileErrorWithContext {
+            context: self,
+            error,
+        }
+    }
+}
+
+/// A compilation error with the context needed for reporting.
+struct CompileErrorWithContext {
+    context: CompileContext,
+    error: CompileError,
+}
+
+impl CompileErrorWithContext {
+    /// Reports this error using ariadne for beautiful error messages.
+    fn report(&self) {
+        report_error(&self.context.filename, &self.context.source, &self.error);
+    }
 }
 
 /// Reports a compilation error with source location highlighting.
@@ -126,7 +181,7 @@ enum CompileError {
 /// The `source` parameter **must** be the actual contents of `filename`.
 /// Passing mismatched values will produce confusing error messages that
 /// point to the wrong file or show incorrect source context.
-fn report_error(filename: &str, source: &str, error: CompileError) {
+fn report_error(filename: &str, source: &str, error: &CompileError) {
     match error {
         CompileError::Lex(e) => {
             if let Err(report_err) =
@@ -250,6 +305,28 @@ fn report_error(filename: &str, source: &str, error: CompileError) {
                 eprintln!("Error in {}: {}", filename, e.message());
             }
         }
+        CompileError::Link(e) => match e {
+            LinkError::ExecutionFailed(io_err) => {
+                eprintln!("Error: Failed to run linker: {}", io_err);
+            }
+            LinkError::Failed {
+                exit_code,
+                stdout,
+                stderr,
+            } => {
+                eprint!("Error: Linker failed with exit code {}", exit_code);
+                if !stdout.is_empty() {
+                    eprint!("\n[stdout]\n{}", stdout);
+                }
+                if !stderr.is_empty() {
+                    eprint!("\n[stderr]\n{}", stderr);
+                }
+                eprintln!();
+            }
+        },
+        CompileError::Io(msg) => {
+            eprintln!("Error: {}", msg);
+        }
     }
 }
 
@@ -293,90 +370,79 @@ fn get_exit_code_with_signal(status: &ExitStatus) -> i32 {
     1
 }
 
-/// Compiles a Lak source file and links it into an executable.
-///
-/// This is the shared compilation pipeline used by both `build` and `run` commands.
+/// Links an object file into an executable.
 ///
 /// # Arguments
 ///
-/// * `file` - Path to the source file (for error reporting)
-/// * `source` - The source code content
+/// * `object_path` - Path to the object file
+/// * `output_path` - Path to write the final executable
+///
+/// # Returns
+///
+/// * `Ok(())` - Linking succeeded
+/// * `Err(CompileError)` - Linking failed
+fn link(object_path: &Path, output_path: &Path) -> Result<(), CompileError> {
+    let object_str = object_path.to_str().ok_or_else(|| {
+        CompileError::Io(format!("Object path {:?} is not valid UTF-8", object_path))
+    })?;
+    let output_str = output_path.to_str().ok_or_else(|| {
+        CompileError::Io(format!("Output path {:?} is not valid UTF-8", output_path))
+    })?;
+
+    let output = Command::new("cc")
+        .args([object_str, LAK_RUNTIME_PATH, "-o", output_str])
+        .output()
+        .map_err(|e| CompileError::Link(LinkError::ExecutionFailed(e)))?;
+
+    if !output.status.success() {
+        return Err(CompileError::Link(LinkError::Failed {
+            exit_code: format_exit_status(&output.status),
+            stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
+            stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+        }));
+    }
+
+    Ok(())
+}
+
+/// Compiles a Lak source file and links it into an executable.
+///
+/// This is the shared compilation pipeline used by both `build` and `run` commands.
+/// This function is pure and does not produce any output - error reporting is the
+/// caller's responsibility.
+///
+/// # Arguments
+///
+/// * `context` - The compilation context containing filename and source
 /// * `object_path` - Path to write the object file
 /// * `output_path` - Path to write the final executable
 ///
 /// # Returns
 ///
 /// * `Ok(())` - Compilation and linking succeeded
-/// * `Err(String)` - Compilation failed with an error message
+/// * `Err(CompileError)` - Compilation failed
 fn compile_to_executable(
-    file: &str,
-    source: &str,
+    context: &CompileContext,
     object_path: &Path,
     output_path: &Path,
-) -> Result<(), String> {
-    let mut lexer = Lexer::new(source);
-    let tokens = match lexer.tokenize() {
-        Ok(tokens) => tokens,
-        Err(e) => {
-            report_error(file, source, CompileError::Lex(e));
-            return Err("Compilation failed".to_string());
-        }
-    };
+) -> Result<(), CompileError> {
+    let mut lexer = Lexer::new(&context.source);
+    let tokens = lexer.tokenize().map_err(CompileError::Lex)?;
 
     let mut parser = LakParser::new(tokens);
-    let program = match parser.parse() {
-        Ok(program) => program,
-        Err(e) => {
-            report_error(file, source, CompileError::Parse(e));
-            return Err("Compilation failed".to_string());
-        }
-    };
+    let program = parser.parse().map_err(CompileError::Parse)?;
 
-    // Semantic analysis
     let mut analyzer = SemanticAnalyzer::new();
-    if let Err(e) = analyzer.analyze(&program) {
-        report_error(file, source, CompileError::Semantic(e));
-        return Err("Compilation failed".to_string());
-    }
+    analyzer.analyze(&program).map_err(CompileError::Semantic)?;
 
-    let context = Context::create();
-    let mut codegen = Codegen::new(&context, "lak_module");
-    codegen.compile(&program).map_err(|e| {
-        report_error(file, source, CompileError::Codegen(e));
-        "Compilation failed".to_string()
-    })?;
+    let llvm_context = Context::create();
+    let mut codegen = Codegen::new(&llvm_context, "lak_module");
+    codegen.compile(&program).map_err(CompileError::Codegen)?;
+    codegen
+        .write_object_file(object_path)
+        .map_err(CompileError::Codegen)?;
 
-    codegen.write_object_file(object_path).map_err(|e| {
-        report_error(file, source, CompileError::Codegen(e));
-        "Compilation failed".to_string()
-    })?;
-
-    let object_str = object_path
-        .to_str()
-        .ok_or_else(|| format!("Object path {:?} is not valid UTF-8", object_path))?;
-    let output_str = output_path
-        .to_str()
-        .ok_or_else(|| format!("Output path {:?} is not valid UTF-8", output_path))?;
-
-    let output = Command::new("cc")
-        .args([object_str, LAK_RUNTIME_PATH, "-o", output_str])
-        .output()
-        .map_err(|e| format!("Failed to run linker: {}", e))?;
-
-    if !output.status.success() {
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        let exit_code = format_exit_status(&output.status);
-
-        let mut error_msg = format!("Linker failed with exit code {}:", exit_code);
-        if !stdout.is_empty() {
-            error_msg.push_str(&format!("\n[stdout]\n{}", stdout));
-        }
-        if !stderr.is_empty() {
-            error_msg.push_str(&format!("\n[stderr]\n{}", stderr));
-        }
-        return Err(error_msg);
-    }
+    link(object_path, output_path)?;
 
     Ok(())
 }
@@ -401,7 +467,7 @@ fn compile_to_executable(
 /// # Returns
 ///
 /// * `Ok(())` - Compilation succeeded, executable written to disk
-/// * `Err(String)` - Compilation failed with an error message
+/// * `Err(CompileErrorWithContext)` - Compilation failed
 ///
 /// # Output Files
 ///
@@ -409,16 +475,32 @@ fn compile_to_executable(
 /// - Without `-o`: produces `example` executable
 /// - With `-o myapp`: produces `myapp` executable
 /// - `example.o` - Temporary object file (deleted after linking)
-fn build(file: &str, output: Option<&str>) -> Result<(), String> {
-    let source =
-        std::fs::read_to_string(file).map_err(|e| format!("Failed to read file: {}", e))?;
+fn build(file: &str, output: Option<&str>) -> Result<(), Box<CompileErrorWithContext>> {
+    let source = std::fs::read_to_string(file).map_err(|e| {
+        Box::new(
+            CompileContext::new(file, "")
+                .with_error(CompileError::Io(format!("Failed to read file: {}", e))),
+        )
+    })?;
+
+    let context = CompileContext::new(file, source);
 
     let source_path = Path::new(file);
     let stem = source_path
         .file_stem()
-        .ok_or_else(|| format!("Cannot determine filename from path: {}", file))?
+        .ok_or_else(|| {
+            Box::new(context.clone().with_error(CompileError::Io(format!(
+                "Cannot determine filename from path: {}",
+                file
+            ))))
+        })?
         .to_str()
-        .ok_or_else(|| format!("Filename contains invalid UTF-8: {}", file))?;
+        .ok_or_else(|| {
+            Box::new(context.clone().with_error(CompileError::Io(format!(
+                "Filename contains invalid UTF-8: {}",
+                file
+            ))))
+        })?;
 
     let object_path = PathBuf::from(format!("{}.o", stem));
     let output_path = match output {
@@ -426,7 +508,8 @@ fn build(file: &str, output: Option<&str>) -> Result<(), String> {
         None => PathBuf::from(stem),
     };
 
-    compile_to_executable(file, &source, &object_path, &output_path)?;
+    compile_to_executable(&context, &object_path, &output_path)
+        .map_err(|e| Box::new(context.with_error(e)))?;
 
     if let Err(e) = std::fs::remove_file(&object_path)
         && e.kind() != std::io::ErrorKind::NotFound
@@ -449,7 +532,7 @@ fn build(file: &str, output: Option<&str>) -> Result<(), String> {
 /// 2. Compiles the source file to an executable in the temp directory
 /// 3. Runs the executable
 /// 4. Returns the exit code of the executed program
-/// 5. Cleans up temporary files explicitly (with warning on failure)
+/// 5. Cleans up temporary files automatically
 ///
 /// # Arguments
 ///
@@ -458,40 +541,47 @@ fn build(file: &str, output: Option<&str>) -> Result<(), String> {
 /// # Returns
 ///
 /// * `Ok(i32)` - The exit code of the executed program
-/// * `Err(String)` - Compilation or execution failed
-fn run(file: &str) -> Result<i32, String> {
-    let source =
-        std::fs::read_to_string(file).map_err(|e| format!("Failed to read file: {}", e))?;
+/// * `Err(CompileErrorWithContext)` - Compilation or execution failed
+fn run(file: &str) -> Result<i32, Box<CompileErrorWithContext>> {
+    let source = std::fs::read_to_string(file).map_err(|e| {
+        Box::new(
+            CompileContext::new(file, "")
+                .with_error(CompileError::Io(format!("Failed to read file: {}", e))),
+        )
+    })?;
+
+    let context = CompileContext::new(file, source);
 
     // Create temporary directory
-    let temp_dir =
-        TempDir::new().map_err(|e| format!("Failed to create temporary directory: {}", e))?;
+    let temp_dir = TempDir::new().map_err(|e| {
+        Box::new(context.clone().with_error(CompileError::Io(format!(
+            "Failed to create temporary directory: {}",
+            e
+        ))))
+    })?;
 
     let object_path = temp_dir.path().join("program.o");
     let executable_path = temp_dir.path().join("program");
 
-    compile_to_executable(file, &source, &object_path, &executable_path)?;
+    compile_to_executable(&context, &object_path, &executable_path)
+        .map_err(|e| Box::new(context.clone().with_error(e)))?;
 
     // Run the executable
-    let exec_str = executable_path
-        .to_str()
-        .ok_or_else(|| format!("Executable path {:?} is not valid UTF-8", executable_path))?;
+    let exec_str = executable_path.to_str().ok_or_else(|| {
+        Box::new(context.clone().with_error(CompileError::Io(format!(
+            "Executable path {:?} is not valid UTF-8",
+            executable_path
+        ))))
+    })?;
 
-    let status = Command::new(exec_str)
-        .status()
-        .map_err(|e| format!("Failed to run executable: {}", e))?;
+    let status = Command::new(exec_str).status().map_err(|e| {
+        Box::new(context.with_error(CompileError::Io(format!("Failed to run executable: {}", e))))
+    })?;
 
     let exit_code = get_exit_code_with_signal(&status);
 
-    // Explicitly clean up and report any errors
-    let temp_path = temp_dir.keep();
-    if let Err(e) = std::fs::remove_dir_all(&temp_path) {
-        eprintln!(
-            "Warning: Failed to clean up temporary directory '{}': {}",
-            temp_path.display(),
-            e
-        );
-    }
+    // temp_dir is automatically cleaned up when dropped
+    drop(temp_dir);
 
     Ok(exit_code)
 }
