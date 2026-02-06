@@ -151,3 +151,39 @@ fn test_emoji_in_code_rejected() {
         msg
     );
 }
+
+#[test]
+fn test_fullwidth_space_rejected() {
+    // U+3000 (full-width space) should be rejected
+    let result = compile_error("fn main() -> void {\u{3000}println(\"test\")\n}");
+    let (stage, msg) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Lex),
+        "Expected Lex error for full-width space, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert!(
+        msg.contains("Invalid whitespace character") && msg.contains("U+3000"),
+        "Expected specific error about invalid whitespace U+3000, got: {}",
+        msg
+    );
+}
+
+#[test]
+fn test_nbsp_rejected() {
+    // U+00A0 (non-breaking space) should be rejected
+    let result = compile_error("fn main() -> void {\n    let\u{00A0}x: i32 = 42\n}");
+    let (stage, msg) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Lex),
+        "Expected Lex error for non-breaking space, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert!(
+        msg.contains("Invalid whitespace character") && msg.contains("U+00A0"),
+        "Expected specific error about invalid whitespace U+00A0, got: {}",
+        msg
+    );
+}

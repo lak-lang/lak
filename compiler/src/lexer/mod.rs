@@ -133,7 +133,7 @@ impl<'a> Lexer<'a> {
 
         loop {
             // Skip non-newline whitespace first
-            self.skip_whitespace();
+            self.skip_whitespace()?;
 
             // Check for newline
             if self.current_char() == Some('\n') {

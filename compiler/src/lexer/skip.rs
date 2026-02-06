@@ -4,20 +4,53 @@
 //! and line comments during tokenization.
 
 use super::Lexer;
-use crate::token::TokenKind;
+use crate::token::{Span, TokenKind};
+
+use super::LexError;
 
 impl<'a> Lexer<'a> {
     /// Skips consecutive whitespace characters except newlines.
     ///
-    /// Newlines are handled separately in tokenize() to potentially
-    /// emit Newline tokens based on the previous token.
-    pub(super) fn skip_whitespace(&mut self) {
-        while self
-            .current_char()
-            .is_some_and(|c| c.is_whitespace() && c != '\n')
-        {
-            self.advance();
+    /// Valid whitespace characters (following Go specification):
+    /// - Space (U+0020)
+    /// - Horizontal tab (U+0009)
+    /// - Carriage return (U+000D)
+    /// - Newline (U+000A) - handled separately in tokenize()
+    ///
+    /// Non-ASCII whitespace characters (e.g., U+3000 full-width space)
+    /// are rejected with a clear error message.
+    pub(super) fn skip_whitespace(&mut self) -> Result<(), LexError> {
+        while let Some(c) = self.current_char() {
+            match c {
+                ' ' | '\t' | '\r' => {
+                    self.advance();
+                }
+                '\n' => {
+                    // Newlines handled separately in tokenize()
+                    break;
+                }
+                _ => {
+                    // Check if this is a non-ASCII whitespace character
+                    if c.is_whitespace() {
+                        return Err(LexError {
+                            message: format!(
+                                "Invalid whitespace character '{}' (U+{:04X}). Only space, tab, carriage return, and newline are allowed",
+                                c, c as u32
+                            ),
+                            span: Span::new(
+                                self.pos,
+                                self.pos + c.len_utf8(),
+                                self.line,
+                                self.column,
+                            ),
+                        });
+                    }
+                    // Not whitespace at all, stop skipping
+                    break;
+                }
+            }
         }
+        Ok(())
     }
 
     /// Returns true if a Newline token should be emitted after the last token.
