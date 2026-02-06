@@ -47,10 +47,22 @@ cargo clippy
 
 ```
 lak/
+├── .context/          # Language specification documents
+│   └── SPEC.md        # Lak language specification (for AI agents)
 ├── compiler/          # Main compiler crate (see compiler/CLAUDE.md)
 ├── runtime/           # Lak runtime library (see runtime/CLAUDE.md)
 └── examples/          # Example .lak programs
 ```
+
+## Language Specification
+
+The complete Lak language specification is documented in `.context/SPEC.md`. Refer to this document for:
+- Type system (primitives, tuples, collections, generics)
+- Variable declarations and mutability
+- Functions, structs, interfaces, and enums
+- Control flow (if, for, while, match)
+- Error handling (Option, Result, panic)
+- Module system
 
 ## Architecture
 
