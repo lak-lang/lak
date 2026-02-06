@@ -82,15 +82,13 @@ fn main() {
 
     match cli.command {
         Commands::Build { file, output } => {
-            if let Err(e) = build(&file, output.as_deref()) {
-                eprintln!("Error: {}", e);
+            if build(&file, output.as_deref()).is_err() {
                 std::process::exit(1);
             }
         }
         Commands::Run { file } => match run(&file) {
             Ok(exit_code) => std::process::exit(exit_code),
-            Err(e) => {
-                eprintln!("Error: {}", e);
+            Err(_) => {
                 std::process::exit(1);
             }
         },
