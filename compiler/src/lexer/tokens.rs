@@ -90,13 +90,26 @@ impl<'a> Lexer<'a> {
             }
             '"' => self.read_string(start_pos, start_line, start_column),
             _ if c.is_ascii_digit() => self.read_number(start_pos, start_line, start_column),
-            _ if c.is_alphabetic() || c == '_' => {
-                Ok(self.read_identifier(start_pos, start_line, start_column))
+            _ if c.is_ascii_alphabetic() || c == '_' => {
+                self.read_identifier(start_pos, start_line, start_column)
             }
-            _ => Err(LexError {
-                message: format!("Unexpected character: '{}'", c),
-                span: Span::new(self.pos, self.pos + c.len_utf8(), self.line, self.column),
-            }),
+            _ => {
+                // Provide specific error message for non-ASCII alphabetic characters
+                if c.is_alphabetic() {
+                    Err(LexError {
+                        message: format!(
+                            "Invalid character '{}' in identifier. Only ASCII letters (a-z, A-Z), digits (0-9), and underscores (_) are allowed",
+                            c
+                        ),
+                        span: Span::new(self.pos, self.pos + c.len_utf8(), self.line, self.column),
+                    })
+                } else {
+                    Err(LexError {
+                        message: format!("Unexpected character: '{}'", c),
+                        span: Span::new(self.pos, self.pos + c.len_utf8(), self.line, self.column),
+                    })
+                }
+            }
         }
     }
 
@@ -204,8 +217,9 @@ impl<'a> Lexer<'a> {
 
     /// Reads an identifier or keyword from the input.
     ///
-    /// Identifiers consist of a Unicode alphabetic character or underscore
-    /// followed by any number of Unicode alphanumeric characters or underscores.
+    /// Identifiers consist of an ASCII alphabetic character (a-z, A-Z) or underscore
+    /// followed by any number of ASCII alphanumeric characters (a-z, A-Z, 0-9) or underscores.
+    /// Non-ASCII characters (e.g., Unicode letters) are not allowed in identifiers.
     /// If the identifier matches a keyword (`fn` or `let`), the appropriate
     /// keyword token is returned instead.
     ///
@@ -218,17 +232,31 @@ impl<'a> Lexer<'a> {
     /// # Returns
     ///
     /// A [`Token`] with kind [`TokenKind::Identifier`] or a keyword token.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`LexError`] if a non-ASCII character is encountered in the identifier.
     fn read_identifier(
         &mut self,
         start_pos: usize,
         start_line: usize,
         start_column: usize,
-    ) -> Token {
-        while self
-            .current_char()
-            .is_some_and(|c| c.is_alphanumeric() || c == '_')
-        {
-            self.advance();
+    ) -> Result<Token, LexError> {
+        while let Some(c) = self.current_char() {
+            if c.is_ascii_alphanumeric() || c == '_' {
+                self.advance();
+            } else if c.is_alphanumeric() {
+                // Non-ASCII alphanumeric character detected
+                return Err(LexError {
+                    message: format!(
+                        "Invalid character '{}' in identifier. Only ASCII letters (a-z, A-Z), digits (0-9), and underscores (_) are allowed",
+                        c
+                    ),
+                    span: Span::new(self.pos, self.pos + c.len_utf8(), self.line, self.column),
+                });
+            } else {
+                break;
+            }
         }
 
         let value = self.input[start_pos..self.pos].to_string();
@@ -241,7 +269,7 @@ impl<'a> Lexer<'a> {
             _ => TokenKind::Identifier(value),
         };
 
-        Token::new(kind, span)
+        Ok(Token::new(kind, span))
     }
 
     /// Reads an integer literal from the input.

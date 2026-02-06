@@ -64,10 +64,85 @@ fn test_multiple_identifiers() {
 }
 
 #[test]
-fn test_identifier_unicode() {
-    let kinds = tokenize_kinds("日本語");
+fn test_identifier_unicode_rejected() {
+    let err = tokenize_error("日本語");
+    assert!(
+        err.message.contains("Invalid character"),
+        "Expected 'Invalid character' in error: {}",
+        err.message
+    );
+}
+
+#[test]
+fn test_identifier_mixed_ascii_unicode_rejected() {
+    let err = tokenize_error("hello世界");
+    assert!(
+        err.message.contains("Invalid character"),
+        "Expected 'Invalid character' in error: {}",
+        err.message
+    );
+}
+
+#[test]
+fn test_identifier_underscore_then_unicode_rejected() {
+    let err = tokenize_error("_日本語");
+    assert!(
+        err.message.contains("Invalid character"),
+        "Expected 'Invalid character' in error: {}",
+        err.message
+    );
+}
+
+#[test]
+fn test_identifier_emoji_rejected() {
+    let err = tokenize_error("🚀hello");
+    assert!(
+        err.message.contains("Unexpected character"),
+        "Expected 'Unexpected character' in error for emoji: {}",
+        err.message
+    );
+}
+
+#[test]
+fn test_identifier_multiple_underscores() {
+    let kinds = tokenize_kinds("__private__");
     assert_eq!(
         kinds,
-        vec![TokenKind::Identifier("日本語".to_string()), TokenKind::Eof]
+        vec![
+            TokenKind::Identifier("__private__".to_string()),
+            TokenKind::Eof
+        ]
+    );
+}
+
+#[test]
+fn test_identifier_unicode_start_then_ascii_rejected() {
+    // Unicode at start followed by ASCII should be rejected
+    let err = tokenize_error("世界hello");
+    assert!(
+        err.message.contains("Invalid character"),
+        "Expected 'Invalid character' in error: {}",
+        err.message
+    );
+}
+
+#[test]
+fn test_identifier_ascii_unicode_ascii_rejected() {
+    // Non-ASCII sandwiched between ASCII should be rejected
+    let err = tokenize_error("abc中def");
+    assert!(
+        err.message.contains("Invalid character"),
+        "Expected 'Invalid character' in error: {}",
+        err.message
+    );
+}
+
+#[test]
+fn test_identifier_underscore_digit_valid() {
+    // Underscore followed by digits is a valid identifier
+    let kinds = tokenize_kinds("_123");
+    assert_eq!(
+        kinds,
+        vec![TokenKind::Identifier("_123".to_string()), TokenKind::Eof]
     );
 }

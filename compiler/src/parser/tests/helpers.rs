@@ -60,24 +60,6 @@ fn test_parse_error_display() {
 }
 
 // ===================
-// Unicode edge cases
-// ===================
-
-#[test]
-fn test_unicode_function_name() {
-    let program = parse("fn 挨拶() -> void {}").unwrap();
-    assert_eq!(program.functions.len(), 1);
-    assert_eq!(program.functions[0].name, "挨拶");
-}
-
-#[test]
-fn test_unicode_return_type() {
-    // Although not a valid type, parser should accept any identifier
-    let program = parse("fn main() -> 型 {}").unwrap();
-    assert_eq!(program.functions[0].return_type, "型");
-}
-
-// ===================
 // Span tracking tests
 // ===================
 

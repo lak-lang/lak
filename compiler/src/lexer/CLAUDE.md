@@ -25,7 +25,7 @@ Tests are organized by category in `tests/` directory:
 |------|----------|
 | `mod.rs` | Helper functions (`tokenize_kinds`, `tokenize_error`) |
 | `basic_tokens.rs` | Punctuation, braces, arrow |
-| `identifiers.rs` | Identifier parsing including Unicode |
+| `identifiers.rs` | Identifier parsing (ASCII only, rejects Unicode) |
 | `keywords.rs` | Keyword recognition (`fn`, `let`) |
 | `strings.rs` | String literals and escape sequences |
 | `integers.rs` | Integer literal parsing |
@@ -41,7 +41,7 @@ Tests are organized by category in `tests/` directory:
 | Category | Tokens |
 |----------|--------|
 | Keywords | `fn`, `let` |
-| Identifiers | Unicode alphabetic/underscore start, alphanumeric/underscore continue |
+| Identifiers | ASCII alphabetic (a-z, A-Z)/underscore start, ASCII alphanumeric/underscore continue (non-ASCII rejected) |
 | Integer literals | ASCII digit sequences, stored as `i64` (overflow → error) |
 | String literals | Double-quoted, supports `\n`, `\t`, `\r`, `\\`, `\"` |
 | Punctuation | `(`, `)`, `{`, `}`, `,`, `:`, `=`, `->` |

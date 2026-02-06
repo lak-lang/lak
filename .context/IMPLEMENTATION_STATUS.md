@@ -425,7 +425,7 @@ This document tracks the implementation status of Lak language features as defin
 
 - [x] Token position tracking (line, column)
 - [x] Error recovery / reporting
-- [x] Unicode identifier support
+- [x] ASCII-only identifiers (a-z, A-Z, 0-9, _; Unicode rejected with error)
 - [x] Integer overflow detection
 - [x] Automatic newline insertion
 

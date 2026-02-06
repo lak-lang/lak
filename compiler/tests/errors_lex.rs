@@ -85,3 +85,69 @@ fn test_negative_number_not_supported() {
         msg
     );
 }
+
+#[test]
+fn test_non_ascii_identifier_rejected() {
+    // Non-ASCII characters in identifiers should be rejected
+    let result = compile_error(
+        r#"fn main() -> void {
+    let 変数: i32 = 42
+}"#,
+    );
+    let (stage, msg) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Lex),
+        "Expected Lex error for non-ASCII identifier, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert!(
+        msg.contains("Invalid character") && msg.contains("Only ASCII letters"),
+        "Expected specific error about ASCII-only identifiers, got: {}",
+        msg
+    );
+}
+
+#[test]
+fn test_greek_letters_rejected() {
+    // Greek letters should be rejected in identifiers
+    let result = compile_error(
+        r#"fn main() -> void {
+    let αβγ: i64 = 100
+}"#,
+    );
+    let (stage, msg) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Lex),
+        "Expected Lex error for Greek letters, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert!(
+        msg.contains("Invalid character") && msg.contains("Only ASCII letters"),
+        "Expected specific error about ASCII-only identifiers, got: {}",
+        msg
+    );
+}
+
+#[test]
+fn test_emoji_in_code_rejected() {
+    // Emoji should be rejected with "Unexpected character"
+    let result = compile_error(
+        r#"fn main() -> void {
+    let 🚀: i32 = 42
+}"#,
+    );
+    let (stage, msg) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Lex),
+        "Expected Lex error for emoji, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert!(
+        msg.contains("Unexpected character"),
+        "Expected 'Unexpected character' error for emoji, got: {}",
+        msg
+    );
+}

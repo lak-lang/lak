@@ -123,20 +123,6 @@ fn test_let_underscore_prefix_name() {
 }
 
 #[test]
-fn test_let_unicode_variable_name() {
-    // Unicode variable names should work
-    let output = compile_and_run(
-        r#"fn main() -> void {
-    let 変数: i32 = 42
-    let αβγ: i64 = 100
-    println("unicode vars ok")
-}"#,
-    )
-    .unwrap();
-    assert_eq!(output, "unicode vars ok\n");
-}
-
-#[test]
 fn test_i32_max_value_valid() {
     // i32::MAX = 2147483647 should be valid for i32 with value verification
     let output = compile_and_run(

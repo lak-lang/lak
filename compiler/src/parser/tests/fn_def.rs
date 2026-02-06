@@ -249,30 +249,3 @@ fn test_fn_def_span_with_long_function_name() {
     let rt_end = fn_def.return_type_span.end;
     assert_eq!(rt_end - rt_start, 4); // "void" is 4 characters
 }
-
-#[test]
-fn test_fn_def_span_with_unicode_name() {
-    // Test with unicode function name
-    let source = "fn 日本語() -> void {}";
-    let program = parse(source).unwrap();
-    let fn_def = &program.functions[0];
-
-    assert_eq!(fn_def.name, "日本語");
-    // Spans use byte offsets, so unicode characters affect positions
-    // "fn " = 3 bytes, "日本語" = 9 bytes (3 chars * 3 bytes each)
-    // "() -> " = 6 bytes, so "void" starts at 3 + 9 + 6 = 18
-    assert_eq!(fn_def.return_type_span.start, 18);
-}
-
-#[test]
-fn test_return_type_span_with_unicode_return_type() {
-    // Test with unicode return type (hypothetical future feature)
-    let source = "fn main() -> 型 {}";
-    let program = parse(source).unwrap();
-    let fn_def = &program.functions[0];
-
-    assert_eq!(fn_def.return_type, "型");
-    // "fn main() -> " = 13 bytes, "型" = 3 bytes
-    assert_eq!(fn_def.return_type_span.start, 13);
-    assert_eq!(fn_def.return_type_span.end, 16); // 13 + 3 bytes
-}

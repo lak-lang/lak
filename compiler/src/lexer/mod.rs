@@ -14,7 +14,7 @@
 //! # Supported Tokens
 //!
 //! - **Keywords**: `fn`, `let`
-//! - **Identifiers**: Start with a Unicode alphabetic character or underscore, contain Unicode alphanumerics and underscores
+//! - **Identifiers**: Start with an ASCII alphabetic character (a-z, A-Z) or underscore, contain ASCII alphanumerics and underscores. Non-ASCII characters are rejected with an error.
 //! - **Integer literals**: Sequences of ASCII digits (e.g., `42`, `0`, `9223372036854775807`).
 //!   Stored as `i64` values. Negative literals (e.g., `-42`) are not directly supported;
 //!   the minus sign is only recognized as part of the `->` arrow syntax.
