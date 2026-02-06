@@ -7,7 +7,7 @@
 
 use super::Parser;
 use super::error::ParseError;
-use crate::ast::{BinaryOperator, Expr, ExprKind};
+use crate::ast::{BinaryOperator, Expr, ExprKind, UnaryOperator};
 use crate::token::{Span, TokenKind};
 
 /// Operator precedence levels (higher number = lower precedence = looser binding).
@@ -17,8 +17,10 @@ use crate::token::{Span, TokenKind};
 /// (precedence 2) binds tighter than addition (precedence 3).
 ///
 /// Levels follow the Lak specification:
-/// - Level 2: `*`, `/`, `%` (multiplicative) - tighter binding
+/// - Level 1: `-` (unary negation) - tightest binding
+/// - Level 2: `*`, `/`, `%` (multiplicative)
 /// - Level 3: `+`, `-` (additive) - looser binding
+const PRECEDENCE_UNARY: u8 = 1;
 const PRECEDENCE_MULTIPLICATIVE: u8 = 2;
 const PRECEDENCE_ADDITIVE: u8 = 3;
 
@@ -102,9 +104,11 @@ impl Parser {
             // Skip newlines after operator (allows multi-line expressions)
             self.skip_newlines();
 
-            // Parse the right-hand side with `precedence - 1` for left-associativity.
-            // This makes the current operator bind tighter than itself, so `a - b - c`
-            // parses as `(a - b) - c` rather than `a - (b - c)`.
+            // Parse the right-hand side with `precedence - 1` for left-associativity
+            // of binary operators. This makes the current operator bind tighter than
+            // itself, so `a - b - c` parses as `(a - b) - c` rather than `a - (b - c)`.
+            // Note: Unary operators are handled in parse_primary_expr() and are
+            // right-associative (e.g., `--5` parses as `-(-5)`).
             let right = self.parse_expr_pratt(precedence - 1)?;
 
             // Build the BinaryOp node with span covering both operands
@@ -131,6 +135,7 @@ impl Parser {
     /// Parses a primary expression (atom).
     ///
     /// Primary expressions are the basic building blocks:
+    /// - Unary operators (`-`)
     /// - Integer literals
     /// - String literals
     /// - Identifiers (variable references)
@@ -140,6 +145,29 @@ impl Parser {
         let start_span = self.current_span();
 
         match self.current_kind() {
+            TokenKind::Minus => {
+                // Unary negation
+                self.advance(); // consume '-'
+                self.skip_newlines(); // allow newlines after operator
+
+                // Parse the operand with unary precedence
+                let operand = self.parse_expr_pratt(PRECEDENCE_UNARY)?;
+
+                let span = Span::new(
+                    start_span.start,
+                    operand.span.end,
+                    start_span.line,
+                    start_span.column,
+                );
+
+                Ok(Expr::new(
+                    ExprKind::UnaryOp {
+                        op: UnaryOperator::Neg,
+                        operand: Box::new(operand),
+                    },
+                    span,
+                ))
+            }
             TokenKind::LeftParen => {
                 // Parenthesized expression
                 self.advance(); // consume '('

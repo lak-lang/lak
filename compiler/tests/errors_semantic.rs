@@ -780,3 +780,59 @@ fn main() -> void {
         "Expected InvalidArgument error kind"
     );
 }
+
+#[test]
+fn test_compile_error_unary_minus_on_string_variable() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let s: string = "hello"
+    let x: string = -s
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert!(
+        msg.contains("Unary operator '-'") && msg.contains("'string'"),
+        "Expected unary operator string type error, got: {}",
+        msg
+    );
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch),
+        "Expected TypeMismatch error kind"
+    );
+}
+
+#[test]
+fn test_compile_error_unary_minus_on_string_variable_in_println() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let s: string = "hello"
+    println(-s)
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert!(
+        msg.contains("Unary operator '-'") && msg.contains("'string'"),
+        "Expected unary operator string type error, got: {}",
+        msg
+    );
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch),
+        "Expected TypeMismatch error kind"
+    );
+}

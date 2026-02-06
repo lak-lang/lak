@@ -427,6 +427,33 @@ impl SemanticError {
         )
     }
 
+    /// Creates an error for invalid operand type in unary operation.
+    pub fn invalid_unary_op_type(
+        op: crate::ast::UnaryOperator,
+        actual_ty: &str,
+        span: Span,
+    ) -> Self {
+        Self::new_with_help(
+            SemanticErrorKind::TypeMismatch,
+            format!(
+                "Unary operator '{}' cannot be used with '{}' type",
+                op, actual_ty
+            ),
+            span,
+            "unary negation (-) only works with numeric types (i32, i64)",
+        )
+    }
+
+    /// Creates an error for unary operation used as statement.
+    pub fn invalid_expression_unary_op(span: Span) -> Self {
+        Self::new_with_help(
+            SemanticErrorKind::InvalidExpression,
+            "This expression computes a value but the result is not used",
+            span,
+            "assign the result to a variable: `let result = ...`",
+        )
+    }
+
     // =========================================================================
     // Structural errors
     // =========================================================================

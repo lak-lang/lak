@@ -366,3 +366,213 @@ fn test_binary_op_with_variables() {
         _ => panic!("Expected Let statement"),
     }
 }
+
+// ===================
+// Unary operation parsing
+// ===================
+
+#[test]
+fn test_unary_minus_literal() {
+    let program = parse("fn main() -> void { let x: i32 = -5 }").unwrap();
+    match &program.functions[0].body[0].kind {
+        StmtKind::Let { init, .. } => match &init.kind {
+            ExprKind::UnaryOp { op, operand } => {
+                assert_eq!(*op, UnaryOperator::Neg);
+                assert!(matches!(operand.kind, ExprKind::IntLiteral(5)));
+            }
+            _ => panic!("Expected UnaryOp"),
+        },
+        _ => panic!("Expected Let statement"),
+    }
+}
+
+#[test]
+fn test_unary_minus_identifier() {
+    let program = parse("fn main() -> void { let a: i32 = 5\nlet b: i32 = -a }").unwrap();
+    match &program.functions[0].body[1].kind {
+        StmtKind::Let { init, .. } => match &init.kind {
+            ExprKind::UnaryOp { op, operand } => {
+                assert_eq!(*op, UnaryOperator::Neg);
+                assert!(matches!(&operand.kind, ExprKind::Identifier(s) if s == "a"));
+            }
+            _ => panic!("Expected UnaryOp"),
+        },
+        _ => panic!("Expected Let statement"),
+    }
+}
+
+#[test]
+fn test_unary_minus_precedence() {
+    // -2 * 3 should parse as (-2) * 3
+    let program = parse("fn main() -> void { let x: i32 = -2 * 3 }").unwrap();
+    match &program.functions[0].body[0].kind {
+        StmtKind::Let { init, .. } => match &init.kind {
+            ExprKind::BinaryOp { left, op, right } => {
+                assert_eq!(*op, BinaryOperator::Mul);
+                assert!(matches!(right.kind, ExprKind::IntLiteral(3)));
+                // left should be -2
+                match &left.kind {
+                    ExprKind::UnaryOp {
+                        op: unary_op,
+                        operand,
+                    } => {
+                        assert_eq!(*unary_op, UnaryOperator::Neg);
+                        assert!(matches!(operand.kind, ExprKind::IntLiteral(2)));
+                    }
+                    _ => panic!("Expected UnaryOp for -2"),
+                }
+            }
+            _ => panic!("Expected BinaryOp"),
+        },
+        _ => panic!("Expected Let statement"),
+    }
+}
+
+#[test]
+fn test_double_unary_minus() {
+    // --5 should parse as -(-5)
+    let program = parse("fn main() -> void { let x: i32 = --5 }").unwrap();
+    match &program.functions[0].body[0].kind {
+        StmtKind::Let { init, .. } => match &init.kind {
+            ExprKind::UnaryOp {
+                op: outer_op,
+                operand: outer_operand,
+            } => {
+                assert_eq!(*outer_op, UnaryOperator::Neg);
+                match &outer_operand.kind {
+                    ExprKind::UnaryOp {
+                        op: inner_op,
+                        operand: inner_operand,
+                    } => {
+                        assert_eq!(*inner_op, UnaryOperator::Neg);
+                        assert!(matches!(inner_operand.kind, ExprKind::IntLiteral(5)));
+                    }
+                    _ => panic!("Expected inner UnaryOp"),
+                }
+            }
+            _ => panic!("Expected outer UnaryOp"),
+        },
+        _ => panic!("Expected Let statement"),
+    }
+}
+
+#[test]
+fn test_unary_minus_with_parens() {
+    // -(3 + 2) should parse correctly
+    let program = parse("fn main() -> void { let x: i32 = -(3 + 2) }").unwrap();
+    match &program.functions[0].body[0].kind {
+        StmtKind::Let { init, .. } => match &init.kind {
+            ExprKind::UnaryOp { op, operand } => {
+                assert_eq!(*op, UnaryOperator::Neg);
+                match &operand.kind {
+                    ExprKind::BinaryOp {
+                        left,
+                        op: bin_op,
+                        right,
+                    } => {
+                        assert_eq!(*bin_op, BinaryOperator::Add);
+                        assert!(matches!(left.kind, ExprKind::IntLiteral(3)));
+                        assert!(matches!(right.kind, ExprKind::IntLiteral(2)));
+                    }
+                    _ => panic!("Expected BinaryOp inside parens"),
+                }
+            }
+            _ => panic!("Expected UnaryOp"),
+        },
+        _ => panic!("Expected Let statement"),
+    }
+}
+
+#[test]
+fn test_subtraction_vs_unary_minus() {
+    // 5 - -3 should parse as BinaryOp(Sub, 5, UnaryOp(Neg, 3))
+    let program = parse("fn main() -> void { let x: i32 = 5 - -3 }").unwrap();
+    match &program.functions[0].body[0].kind {
+        StmtKind::Let { init, .. } => match &init.kind {
+            ExprKind::BinaryOp { left, op, right } => {
+                assert_eq!(*op, BinaryOperator::Sub);
+                assert!(matches!(left.kind, ExprKind::IntLiteral(5)));
+                // right should be -3 (UnaryOp)
+                match &right.kind {
+                    ExprKind::UnaryOp {
+                        op: unary_op,
+                        operand,
+                    } => {
+                        assert_eq!(*unary_op, UnaryOperator::Neg);
+                        assert!(matches!(operand.kind, ExprKind::IntLiteral(3)));
+                    }
+                    _ => panic!("Expected UnaryOp for -3, got: {:?}", right.kind),
+                }
+            }
+            _ => panic!("Expected BinaryOp"),
+        },
+        _ => panic!("Expected Let statement"),
+    }
+}
+
+#[test]
+fn test_unary_minus_in_function_arg() {
+    // foo(-5) should parse correctly
+    let program = parse("fn main() -> void { println(-42) }").unwrap();
+    match &program.functions[0].body[0].kind {
+        StmtKind::Expr(expr) => match &expr.kind {
+            ExprKind::Call { callee, args } => {
+                assert_eq!(callee, "println");
+                assert_eq!(args.len(), 1);
+                match &args[0].kind {
+                    ExprKind::UnaryOp { op, operand } => {
+                        assert_eq!(*op, UnaryOperator::Neg);
+                        assert!(matches!(operand.kind, ExprKind::IntLiteral(42)));
+                    }
+                    _ => panic!("Expected UnaryOp as argument"),
+                }
+            }
+            _ => panic!("Expected Call expression"),
+        },
+        _ => panic!("Expected Expr statement"),
+    }
+}
+
+#[test]
+fn test_unary_minus_with_newline() {
+    // -\n5 should parse correctly due to skip_newlines()
+    let program = parse("fn main() -> void { let x: i32 = -\n5 }").unwrap();
+    match &program.functions[0].body[0].kind {
+        StmtKind::Let { init, .. } => match &init.kind {
+            ExprKind::UnaryOp { op, operand } => {
+                assert_eq!(*op, UnaryOperator::Neg);
+                assert!(matches!(operand.kind, ExprKind::IntLiteral(5)));
+            }
+            _ => panic!("Expected UnaryOp, got: {:?}", init.kind),
+        },
+        _ => panic!("Expected Let statement"),
+    }
+}
+
+#[test]
+fn test_triple_unary_minus() {
+    // ---5 should parse as -(-(-5))
+    let program = parse("fn main() -> void { let x: i32 = ---5 }").unwrap();
+    match &program.functions[0].body[0].kind {
+        StmtKind::Let { init, .. } => match &init.kind {
+            ExprKind::UnaryOp { op: op1, operand } => {
+                assert_eq!(*op1, UnaryOperator::Neg);
+                match &operand.kind {
+                    ExprKind::UnaryOp { op: op2, operand } => {
+                        assert_eq!(*op2, UnaryOperator::Neg);
+                        match &operand.kind {
+                            ExprKind::UnaryOp { op: op3, operand } => {
+                                assert_eq!(*op3, UnaryOperator::Neg);
+                                assert!(matches!(operand.kind, ExprKind::IntLiteral(5)));
+                            }
+                            _ => panic!("Expected innermost UnaryOp"),
+                        }
+                    }
+                    _ => panic!("Expected middle UnaryOp"),
+                }
+            }
+            _ => panic!("Expected outer UnaryOp"),
+        },
+        _ => panic!("Expected Let statement"),
+    }
+}

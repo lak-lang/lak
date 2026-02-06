@@ -109,6 +109,10 @@ impl<'ctx> Codegen<'ctx> {
                 // Semantic analysis has already verified both operands have the same type.
                 self.get_expr_type(left)
             }
+            ExprKind::UnaryOp { operand, .. } => {
+                // For unary operations, infer the type from the operand.
+                self.get_expr_type(operand)
+            }
         }
     }
 
@@ -235,8 +239,8 @@ impl<'ctx> Codegen<'ctx> {
                     })?
                     .into_int_value()
             }
-            ExprKind::BinaryOp { .. } => {
-                // For binary operations, generate the expression value
+            ExprKind::BinaryOp { .. } | ExprKind::UnaryOp { .. } => {
+                // For binary/unary operations, generate the expression value
                 self.generate_expr_value(arg, &Type::I32)?.into_int_value()
             }
             // This branch is currently unreachable: integer literals are always typed as i64
@@ -292,8 +296,8 @@ impl<'ctx> Codegen<'ctx> {
                     })?
                     .into_int_value()
             }
-            ExprKind::BinaryOp { .. } => {
-                // For binary operations, generate the expression value
+            ExprKind::BinaryOp { .. } | ExprKind::UnaryOp { .. } => {
+                // For binary/unary operations, generate the expression value
                 self.generate_expr_value(arg, &Type::I64)?.into_int_value()
             }
             _ => {

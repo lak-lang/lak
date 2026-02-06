@@ -1,7 +1,7 @@
 //! Unit tests for the semantic analyzer.
 
 use super::*;
-use crate::ast::{Expr, ExprKind, FnDef, Program, Stmt, StmtKind, Type};
+use crate::ast::{Expr, ExprKind, FnDef, Program, Stmt, StmtKind, Type, UnaryOperator};
 use crate::token::Span;
 
 mod function_tests;

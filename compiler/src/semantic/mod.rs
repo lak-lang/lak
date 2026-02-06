@@ -30,7 +30,9 @@ mod tests;
 pub use error::{SemanticError, SemanticErrorKind};
 use symbol::{FunctionInfo, SymbolTable, VariableInfo};
 
-use crate::ast::{BinaryOperator, Expr, ExprKind, FnDef, Program, Stmt, StmtKind, Type};
+use crate::ast::{
+    BinaryOperator, Expr, ExprKind, FnDef, Program, Stmt, StmtKind, Type, UnaryOperator,
+};
 use crate::token::Span;
 
 /// Semantic analyzer for Lak programs.
@@ -189,6 +191,10 @@ impl SemanticAnalyzer {
                 // Binary operations as statements have no effect
                 Err(SemanticError::invalid_expression_binary_op(expr.span))
             }
+            ExprKind::UnaryOp { .. } => {
+                // Unary operations as statements have no effect
+                Err(SemanticError::invalid_expression_unary_op(expr.span))
+            }
         }
     }
 
@@ -222,8 +228,13 @@ impl SemanticAnalyzer {
                 ExprKind::BinaryOp { left, right, .. } => {
                     // For binary operations, we need to infer the type from the operands
                     // and validate that all variables exist
-                    self.validate_binary_op_for_println(left)?;
-                    self.validate_binary_op_for_println(right)?;
+                    self.validate_expr_for_println(left)?;
+                    self.validate_expr_for_println(right)?;
+                }
+                ExprKind::UnaryOp { .. } => {
+                    // For unary operations, validate that all variables exist
+                    // and that no unary operator is applied to a string type
+                    self.validate_expr_for_println(&args[0])?;
                 }
             }
 
@@ -269,6 +280,12 @@ impl SemanticAnalyzer {
                     ));
                 }
                 ExprKind::BinaryOp { .. } => {
+                    return Err(SemanticError::invalid_argument_panic_type(
+                        "expression",
+                        args[0].span,
+                    ));
+                }
+                ExprKind::UnaryOp { .. } => {
                     return Err(SemanticError::invalid_argument_panic_type(
                         "expression",
                         args[0].span,
@@ -353,6 +370,9 @@ impl SemanticAnalyzer {
             ExprKind::BinaryOp { left, op, right } => {
                 self.check_binary_op_type(left, *op, right, expected_ty, expr.span)
             }
+            ExprKind::UnaryOp { op, operand } => {
+                self.check_unary_op_type(operand, *op, expected_ty, expr.span)
+            }
         }
     }
 
@@ -381,11 +401,47 @@ impl SemanticAnalyzer {
         Ok(())
     }
 
-    /// Validates a binary operation expression for use in println.
+    /// Checks the types of a unary operation.
     ///
-    /// This recursively validates that all variables referenced in the
-    /// binary operation exist.
-    fn validate_binary_op_for_println(&self, expr: &Expr) -> Result<(), SemanticError> {
+    /// Unary operations require:
+    /// 1. The operand to have the expected type
+    /// 2. The expected type to be numeric (i32 or i64)
+    fn check_unary_op_type(
+        &self,
+        operand: &Expr,
+        op: UnaryOperator,
+        expected_ty: &Type,
+        span: Span,
+    ) -> Result<(), SemanticError> {
+        // Verify the expected type is numeric (not string)
+        if *expected_ty == Type::String {
+            return Err(SemanticError::invalid_unary_op_type(op, "string", span));
+        }
+
+        // Check the operand has the expected type, adding unary context to errors
+        self.check_expr_type(operand, expected_ty).map_err(|e| {
+            // Add unary operation context if not already present
+            if e.message().contains("unary") || e.message().contains("Unary") {
+                e
+            } else {
+                SemanticError::new_with_help(
+                    e.kind(),
+                    format!("in unary '{}' operation: {}", op, e.message()),
+                    span,
+                    e.help().unwrap_or(""),
+                )
+            }
+        })?;
+
+        Ok(())
+    }
+
+    /// Validates an expression for use in println.
+    ///
+    /// This recursively validates that:
+    /// 1. All variables referenced in the expression exist
+    /// 2. No unary operator is applied to a string type
+    fn validate_expr_for_println(&self, expr: &Expr) -> Result<(), SemanticError> {
         match &expr.kind {
             ExprKind::IntLiteral(_) | ExprKind::StringLiteral(_) => Ok(()),
             ExprKind::Identifier(name) => {
@@ -395,8 +451,33 @@ impl SemanticAnalyzer {
                 Ok(())
             }
             ExprKind::BinaryOp { left, right, .. } => {
-                self.validate_binary_op_for_println(left)?;
-                self.validate_binary_op_for_println(right)?;
+                self.validate_expr_for_println(left)?;
+                self.validate_expr_for_println(right)?;
+                Ok(())
+            }
+            ExprKind::UnaryOp { op, operand } => {
+                // First validate the operand recursively
+                self.validate_expr_for_println(operand)?;
+
+                // Then check that the immediate operand is not a string type
+                match &operand.kind {
+                    ExprKind::StringLiteral(_) => {
+                        return Err(SemanticError::invalid_unary_op_type(
+                            *op, "string", expr.span,
+                        ));
+                    }
+                    ExprKind::Identifier(name) => {
+                        // Variable was already validated to exist in the recursive call
+                        if let Some(var_info) = self.symbols.lookup_variable(name)
+                            && var_info.ty == Type::String
+                        {
+                            return Err(SemanticError::invalid_unary_op_type(
+                                *op, "string", expr.span,
+                            ));
+                        }
+                    }
+                    _ => {}
+                }
                 Ok(())
             }
             ExprKind::Call { callee, .. } => Err(

@@ -3,6 +3,24 @@
 use crate::token::Span;
 use std::fmt;
 
+/// Unary operators.
+///
+/// These operators are used in unary expressions like `-x`.
+/// Unary operators have the highest precedence (level 1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UnaryOperator {
+    /// Negation operator `-`
+    Neg,
+}
+
+impl fmt::Display for UnaryOperator {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            UnaryOperator::Neg => write!(f, "-"),
+        }
+    }
+}
+
 /// Binary operators for arithmetic operations.
 ///
 /// These operators are used in binary expressions like `a + b` or `x * y`.
@@ -80,6 +98,17 @@ pub enum ExprKind {
         op: BinaryOperator,
         /// The right operand.
         right: Box<Expr>,
+    },
+
+    /// A unary operation expression.
+    ///
+    /// Represents expressions like `-x`.
+    /// The operand is boxed to avoid infinite size due to recursive type definition.
+    UnaryOp {
+        /// The operator.
+        op: UnaryOperator,
+        /// The operand.
+        operand: Box<Expr>,
     },
 }
 

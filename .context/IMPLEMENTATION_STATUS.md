@@ -140,7 +140,7 @@ This document tracks the implementation status of Lak language features as defin
 
 ### 4.4 Unary Operators
 
-- [ ] `-` negation (unary minus)
+- [x] `-` negation (unary minus)
 - [ ] `!` logical NOT
 
 ### 4.5 Assignment Operators
@@ -478,7 +478,7 @@ This document tracks the implementation status of Lak language features as defin
 2. [ ] `bool` type with `true`/`false` literals
 3. [ ] Comparison operators (`==`, `!=`, `<`, `>`, `<=`, `>=`)
 4. [ ] Logical operators (`&&`, `||`, `!`)
-5. [ ] Unary minus `-`
+5. [x] Unary minus `-`
 6. [x] Parentheses for grouping
 7. [x] `panic` built-in function
 
@@ -543,7 +543,7 @@ This document tracks the implementation status of Lak language features as defin
 |----------|-------------|-------|----------|
 | Types | 5 | 26 | 19% |
 | Variables | 3 | 8 | 38% |
-| Operators | 7 | 17 | 41% |
+| Operators | 8 | 17 | 47% |
 | Functions | 8 | 18 | 44% |
 | Structs | 0 | 12 | 0% |
 | Interfaces | 0 | 7 | 0% |
@@ -559,4 +559,4 @@ This document tracks the implementation status of Lak language features as defin
 
 ---
 
-*Last updated: 2026-02-06*
+*Last updated: 2026-02-07*

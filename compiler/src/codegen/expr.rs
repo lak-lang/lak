@@ -5,7 +5,7 @@
 
 use super::Codegen;
 use super::error::CodegenError;
-use crate::ast::{BinaryOperator, Expr, ExprKind, Type};
+use crate::ast::{BinaryOperator, Expr, ExprKind, Type, UnaryOperator};
 use inkwell::IntPredicate;
 use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum};
 
@@ -34,7 +34,8 @@ impl<'ctx> Codegen<'ctx> {
             ExprKind::StringLiteral(_)
             | ExprKind::IntLiteral(_)
             | ExprKind::Identifier(_)
-            | ExprKind::BinaryOp { .. } => {
+            | ExprKind::BinaryOp { .. }
+            | ExprKind::UnaryOp { .. } => {
                 return Err(CodegenError::internal_invalid_expr_stmt(expr.span));
             }
         }
@@ -154,6 +155,9 @@ impl<'ctx> Codegen<'ctx> {
             ExprKind::BinaryOp { left, op, right } => {
                 self.generate_binary_op(left, *op, right, expected_ty, expr.span)
             }
+            ExprKind::UnaryOp { op, operand } => {
+                self.generate_unary_op(operand, *op, expected_ty, expr.span)
+            }
         }
     }
 
@@ -223,6 +227,60 @@ impl<'ctx> Codegen<'ctx> {
                         CodegenError::internal_binary_op_failed(op, &e.to_string(), span)
                     })?
             }
+        };
+
+        Ok(result.into())
+    }
+
+    /// Generates LLVM IR for a unary operation.
+    ///
+    /// # Arguments
+    ///
+    /// * `operand` - The operand expression
+    /// * `op` - The unary operator
+    /// * `expected_ty` - The expected type of the result
+    /// * `span` - The source span for error reporting
+    ///
+    /// # Errors
+    ///
+    /// Returns an internal error if:
+    /// - The expected type is string (semantic analysis should catch this)
+    /// - LLVM instruction building fails
+    fn generate_unary_op(
+        &mut self,
+        operand: &Expr,
+        op: UnaryOperator,
+        expected_ty: &Type,
+        span: crate::token::Span,
+    ) -> Result<BasicValueEnum<'ctx>, CodegenError> {
+        // Semantic analysis guarantees the type is numeric
+        if *expected_ty == Type::String {
+            return Err(CodegenError::internal_unary_op_string(op, span));
+        }
+
+        // Generate value for the operand, adding context to any errors
+        let operand_value = self
+            .generate_expr_value(operand, expected_ty)
+            .map_err(|e| {
+                // Add unary operation context if not already present
+                if e.message().contains("unary") {
+                    e
+                } else {
+                    CodegenError::new(
+                        e.kind(),
+                        format!("in unary '{}' operation: {}", op, e.message()),
+                        span,
+                    )
+                }
+            })?
+            .into_int_value();
+
+        // Generate the appropriate LLVM instruction based on the operator
+        let result = match op {
+            UnaryOperator::Neg => self
+                .builder
+                .build_int_neg(operand_value, "neg_tmp")
+                .map_err(|e| CodegenError::internal_unary_op_failed(op, &e.to_string(), span))?,
         };
 
         Ok(result.into())

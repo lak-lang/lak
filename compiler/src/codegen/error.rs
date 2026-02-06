@@ -552,6 +552,35 @@ impl CodegenError {
         )
     }
 
+    /// Creates an internal error for unary operation on string type.
+    pub fn internal_unary_op_string(op: crate::ast::UnaryOperator, span: Span) -> Self {
+        Self::new(
+            CodegenErrorKind::InternalError,
+            format!(
+                "Internal error: unary operator '{}' applied to string type in codegen. \
+                 Semantic analysis should have caught this. This is a compiler bug.",
+                op
+            ),
+            span,
+        )
+    }
+
+    /// Creates an internal error for failed unary operation.
+    pub fn internal_unary_op_failed(
+        op: crate::ast::UnaryOperator,
+        error: &str,
+        span: Span,
+    ) -> Self {
+        Self::new(
+            CodegenErrorKind::InternalError,
+            format!(
+                "Internal error: failed to generate unary '{}' instruction. This is a compiler bug: {}",
+                op, error
+            ),
+            span,
+        )
+    }
+
     // =========================================================================
     // Internal errors without span
     // =========================================================================

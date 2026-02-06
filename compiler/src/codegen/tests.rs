@@ -1,7 +1,7 @@
 //! Unit tests for code generation.
 
 use super::*;
-use crate::ast::{Expr, ExprKind, FnDef, Program, Stmt, StmtKind, Type};
+use crate::ast::{Expr, ExprKind, FnDef, Program, Stmt, StmtKind, Type, UnaryOperator};
 use crate::token::Span;
 use inkwell::context::Context;
 
@@ -570,4 +570,169 @@ fn test_get_expr_type_defined_string_variable() {
     let result = codegen.get_expr_type(&expr);
     assert!(result.is_ok(), "Expected Ok, got: {:?}", result);
     assert_eq!(result.unwrap(), Type::String);
+}
+
+// ====================
+// Unary operation tests
+// ====================
+
+#[test]
+fn test_compile_unary_minus_i32() {
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "test");
+
+    let program = make_program(vec![let_stmt(
+        "x",
+        Type::I32,
+        ExprKind::UnaryOp {
+            op: UnaryOperator::Neg,
+            operand: Box::new(Expr::new(ExprKind::IntLiteral(5), dummy_span())),
+        },
+    )]);
+
+    codegen
+        .compile(&program)
+        .expect("Unary negation should compile");
+}
+
+#[test]
+fn test_compile_unary_minus_i64() {
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "test");
+
+    let program = make_program(vec![let_stmt(
+        "x",
+        Type::I64,
+        ExprKind::UnaryOp {
+            op: UnaryOperator::Neg,
+            operand: Box::new(Expr::new(ExprKind::IntLiteral(100), dummy_span())),
+        },
+    )]);
+
+    codegen
+        .compile(&program)
+        .expect("Unary negation i64 should compile");
+}
+
+#[test]
+fn test_compile_unary_minus_nested() {
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "test");
+
+    // --5 (double negation)
+    let program = make_program(vec![let_stmt(
+        "x",
+        Type::I32,
+        ExprKind::UnaryOp {
+            op: UnaryOperator::Neg,
+            operand: Box::new(Expr::new(
+                ExprKind::UnaryOp {
+                    op: UnaryOperator::Neg,
+                    operand: Box::new(Expr::new(ExprKind::IntLiteral(5), dummy_span())),
+                },
+                dummy_span(),
+            )),
+        },
+    )]);
+
+    codegen
+        .compile(&program)
+        .expect("Nested unary negation should compile");
+}
+
+#[test]
+fn test_compile_unary_minus_with_variable() {
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "test");
+
+    let program = make_program(vec![
+        let_stmt("a", Type::I32, ExprKind::IntLiteral(10)),
+        let_stmt(
+            "b",
+            Type::I32,
+            ExprKind::UnaryOp {
+                op: UnaryOperator::Neg,
+                operand: Box::new(Expr::new(
+                    ExprKind::Identifier("a".to_string()),
+                    dummy_span(),
+                )),
+            },
+        ),
+    ]);
+
+    codegen
+        .compile(&program)
+        .expect("Unary negation on variable should compile");
+}
+
+#[test]
+fn test_get_expr_type_unary_minus() {
+    let context = Context::create();
+    let codegen = Codegen::new(&context, "test");
+
+    // -42 should infer as i64 (same as integer literal)
+    let expr = Expr::new(
+        ExprKind::UnaryOp {
+            op: UnaryOperator::Neg,
+            operand: Box::new(Expr::new(ExprKind::IntLiteral(42), dummy_span())),
+        },
+        dummy_span(),
+    );
+    let result = codegen.get_expr_type(&expr);
+    assert!(result.is_ok(), "Expected Ok, got: {:?}", result);
+    assert_eq!(result.unwrap(), Type::I64);
+}
+
+#[test]
+fn test_get_expr_type_unary_minus_variable() {
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "test");
+
+    // Define an i32 variable
+    let program = make_program(vec![let_stmt("x", Type::I32, ExprKind::IntLiteral(42))]);
+    codegen
+        .compile(&program)
+        .expect("Program should compile successfully");
+
+    // -x should infer as i32 (same as the variable type)
+    let expr = Expr::new(
+        ExprKind::UnaryOp {
+            op: UnaryOperator::Neg,
+            operand: Box::new(Expr::new(
+                ExprKind::Identifier("x".to_string()),
+                dummy_span(),
+            )),
+        },
+        dummy_span(),
+    );
+    let result = codegen.get_expr_type(&expr);
+    assert!(result.is_ok(), "Expected Ok, got: {:?}", result);
+    assert_eq!(result.unwrap(), Type::I32);
+}
+
+// ==================================
+// Unary operation error constructor tests
+// ==================================
+
+#[test]
+fn test_internal_unary_op_string_constructor() {
+    let err = CodegenError::internal_unary_op_string(UnaryOperator::Neg, dummy_span());
+    assert_eq!(err.kind(), CodegenErrorKind::InternalError);
+    assert!(err.span().is_some());
+    assert_eq!(
+        err.message(),
+        "Internal error: unary operator '-' applied to string type in codegen. Semantic analysis should have caught this. This is a compiler bug."
+    );
+}
+
+#[test]
+fn test_internal_unary_op_failed_constructor() {
+    let err =
+        CodegenError::internal_unary_op_failed(UnaryOperator::Neg, "LLVM error", dummy_span());
+    assert_eq!(err.kind(), CodegenErrorKind::InternalError);
+    assert!(err.span().is_some());
+    assert_eq!(
+        err.message(),
+        "Internal error: failed to generate unary '-' instruction. This is a compiler bug: LLVM error"
+    );
 }

@@ -667,3 +667,254 @@ fn test_modulo_by_zero_i64() {
         "panic: modulo by zero\n"
     );
 }
+
+// ============================================================================
+// Unary Minus
+// ============================================================================
+
+#[test]
+fn test_unary_minus_literal() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = -5
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "-5\n");
+}
+
+#[test]
+fn test_unary_minus_variable() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let a: i32 = 10
+    let b: i32 = -a
+    println(b)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "-10\n");
+}
+
+#[test]
+fn test_unary_minus_precedence() {
+    // -2 * 3 should be (-2) * 3 = -6, not -(2 * 3) = -6 (same result here, try another)
+    // -2 + 3 should be (-2) + 3 = 1, not -(2 + 3) = -5
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = -2 + 3
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "1\n");
+}
+
+#[test]
+fn test_unary_minus_multiply() {
+    // -2 * 3 = (-2) * 3 = -6
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = -2 * 3
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "-6\n");
+}
+
+#[test]
+fn test_double_unary_minus() {
+    // --5 = -(-5) = 5
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = --5
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "5\n");
+}
+
+#[test]
+fn test_unary_minus_with_parens() {
+    // -(3 + 2) = -5
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = -(3 + 2)
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "-5\n");
+}
+
+#[test]
+fn test_unary_minus_in_println() {
+    // println(-5) directly
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    println(-5)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "-5\n");
+}
+
+#[test]
+fn test_unary_minus_expression_in_println() {
+    // println(-(3 + 2)) directly
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    println(-(3 + 2))
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "-5\n");
+}
+
+#[test]
+fn test_unary_minus_i64() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i64 = -1000000000
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "-1000000000\n");
+}
+
+#[test]
+fn test_unary_minus_complex() {
+    // -a * -b = (-a) * (-b) = a * b
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let a: i32 = 3
+    let b: i32 = 4
+    let c: i32 = -a * -b
+    println(c)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "12\n");
+}
+
+#[test]
+fn test_unary_minus_with_division() {
+    // -10 / 2 = -5
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = -10 / 2
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "-5\n");
+}
+
+#[test]
+fn test_unary_minus_with_modulo() {
+    // -10 % 3 = -1 (sign follows dividend in LLVM srem)
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = -10 % 3
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "-1\n");
+}
+
+#[test]
+fn test_subtraction_vs_unary_minus() {
+    // 5 - -3 should parse as 5 - (-3) = 8
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let a: i32 = 5
+    let b: i32 = 3
+    let x: i32 = a - -b
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "8\n");
+}
+
+#[test]
+fn test_unary_minus_triple_negation() {
+    // ---5 = -(-(-5)) = -5
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = ---5
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "-5\n");
+}
+
+#[test]
+fn test_unary_minus_in_function_arg() {
+    // println(-42) with unary minus in function argument
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    println(-42)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "-42\n");
+}
+
+#[test]
+fn test_unary_minus_variable_in_function_arg() {
+    // println(-x) with variable
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = 100
+    println(-x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "-100\n");
+}
+
+// ============================================================================
+// Integer Overflow Behavior
+// ============================================================================
+
+#[test]
+fn test_unary_minus_i32_min_overflow() {
+    // Negating i32::MIN causes overflow in two's complement
+    // -(-2147483648) wraps around to -2147483648
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = -2147483648
+    let y: i32 = -x
+    println(y)
+}"#,
+    )
+    .unwrap();
+    // In two's complement, -i32::MIN == i32::MIN (overflow)
+    assert_eq!(output, "-2147483648\n");
+}
+
+#[test]
+fn test_unary_minus_i64_min_overflow() {
+    // Negating i64::MIN causes overflow in two's complement
+    // Note: i64::MIN (-9223372036854775808) cannot be written directly as a literal
+    // because the parser treats `-9223372036854775808` as unary minus applied to
+    // `9223372036854775808`, which exceeds i64::MAX.
+    // So we compute i64::MIN as -9223372036854775807 - 1
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i64 = -9223372036854775807 - 1
+    let y: i64 = -x
+    println(y)
+}"#,
+    )
+    .unwrap();
+    // In two's complement, -i64::MIN == i64::MIN (overflow)
+    assert_eq!(output, "-9223372036854775808\n");
+}
