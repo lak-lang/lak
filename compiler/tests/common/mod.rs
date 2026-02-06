@@ -137,8 +137,16 @@ pub fn compile_error(source: &str) -> Option<(CompileStage, String)> {
 }
 
 /// Attempts to lex, parse, analyze, and compile a program.
-/// Returns the stage, error message, and error kind if any stage fails.
-pub fn compile_error_with_kind(source: &str) -> Option<(CompileStage, String, CompileErrorKind)> {
+/// Returns the stage, error message, short message, and error kind if any stage fails.
+///
+/// The returned tuple contains:
+/// - `CompileStage`: The stage at which the error occurred
+/// - `String`: The detailed error message (used in labels)
+/// - `String`: The short error message (used in report titles)
+/// - `CompileErrorKind`: The kind of error for structured matching
+pub fn compile_error_with_kind(
+    source: &str,
+) -> Option<(CompileStage, String, String, CompileErrorKind)> {
     let mut lexer = Lexer::new(source);
     let tokens = match lexer.tokenize() {
         Ok(t) => t,
@@ -146,6 +154,7 @@ pub fn compile_error_with_kind(source: &str) -> Option<(CompileStage, String, Co
             return Some((
                 CompileStage::Lex,
                 e.message().to_string(),
+                e.short_message().to_string(),
                 CompileErrorKind::Lex(e.kind()),
             ));
         }
@@ -158,6 +167,7 @@ pub fn compile_error_with_kind(source: &str) -> Option<(CompileStage, String, Co
             return Some((
                 CompileStage::Parse,
                 e.message().to_string(),
+                e.short_message().to_string(),
                 CompileErrorKind::Parse(e.kind()),
             ));
         }
@@ -168,6 +178,7 @@ pub fn compile_error_with_kind(source: &str) -> Option<(CompileStage, String, Co
         return Some((
             CompileStage::Semantic,
             e.message().to_string(),
+            e.short_message().to_string(),
             CompileErrorKind::Semantic(e.kind()),
         ));
     }
@@ -179,6 +190,7 @@ pub fn compile_error_with_kind(source: &str) -> Option<(CompileStage, String, Co
         Err(e) => Some((
             CompileStage::Codegen,
             e.message().to_string(),
+            e.short_message().to_string(),
             CompileErrorKind::Codegen(e.kind()),
         )),
     }

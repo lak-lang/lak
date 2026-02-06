@@ -129,11 +129,10 @@ fn test_run_compile_error_missing_main() {
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains(
-            "\x1b[31mError:\x1b[0m No main function found. Defined functions: [\"helper\"]"
-        )
-    );
+    // Verify short_message in report title
+    assert!(stderr.contains("\x1b[31mError:\x1b[0m Missing main function"));
+    // Verify detailed message in label
+    assert!(stderr.contains("main function not found"));
     assert!(
         stderr
             .contains("\x1b[38;5;115mHelp\x1b[0m: add a main function: fn main() -> void { ... }")
@@ -201,7 +200,10 @@ fn test_run_lexer_error() {
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("\x1b[31mError:\x1b[0m Unterminated string literal"));
+    // Verify short_message in report title
+    assert!(stderr.contains("\x1b[31mError:\x1b[0m Unterminated string"));
+    // Verify detailed message in label
+    assert!(stderr.contains("Unterminated string literal"));
 }
 
 #[test]
@@ -219,7 +221,10 @@ fn test_run_parser_error() {
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("\x1b[31mError:\x1b[0m Expected ')', found '->'"));
+    // Verify short_message in report title
+    assert!(stderr.contains("\x1b[31mError:\x1b[0m Unexpected token"));
+    // Verify detailed message in label
+    assert!(stderr.contains("Expected ')', found '->'"));
 }
 
 #[test]

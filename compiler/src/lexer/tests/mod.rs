@@ -137,3 +137,55 @@ fn test_lex_error_display() {
     let display = format!("{}", err);
     assert_eq!(display, "10:20: Unexpected character: '#'");
 }
+
+// ============================================================================
+// LexError short_message tests
+// ============================================================================
+
+#[test]
+fn test_lex_error_short_message_unexpected_eof() {
+    let err = LexError::unexpected_eof(dummy_span());
+    assert_eq!(err.short_message(), "Unexpected end of input");
+}
+
+#[test]
+fn test_lex_error_short_message_unexpected_character() {
+    let err = LexError::unexpected_character('@', dummy_span());
+    assert_eq!(err.short_message(), "Unexpected character");
+}
+
+#[test]
+fn test_lex_error_short_message_invalid_identifier_character() {
+    let err = LexError::invalid_identifier_character('日', dummy_span());
+    assert_eq!(err.short_message(), "Invalid identifier character");
+}
+
+#[test]
+fn test_lex_error_short_message_invalid_whitespace() {
+    let err = LexError::invalid_whitespace('\u{00A0}', dummy_span());
+    assert_eq!(err.short_message(), "Invalid whitespace");
+}
+
+#[test]
+fn test_lex_error_short_message_incomplete_arrow() {
+    let err = LexError::incomplete_arrow(dummy_span());
+    assert_eq!(err.short_message(), "Incomplete arrow");
+}
+
+#[test]
+fn test_lex_error_short_message_unknown_escape_sequence() {
+    let err = LexError::unknown_escape_sequence('q', dummy_span());
+    assert_eq!(err.short_message(), "Unknown escape sequence");
+}
+
+#[test]
+fn test_lex_error_short_message_unterminated_string() {
+    let err = LexError::unterminated_string(dummy_span());
+    assert_eq!(err.short_message(), "Unterminated string");
+}
+
+#[test]
+fn test_lex_error_short_message_integer_overflow() {
+    let err = LexError::integer_overflow("999", dummy_span());
+    assert_eq!(err.short_message(), "Integer overflow");
+}

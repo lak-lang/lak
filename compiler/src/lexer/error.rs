@@ -98,6 +98,23 @@ impl LexError {
         self.kind
     }
 
+    /// Returns a short, human-readable description of the error kind.
+    ///
+    /// This is used as the report title in error messages, while `message()`
+    /// provides the detailed explanation shown in the label.
+    pub fn short_message(&self) -> &'static str {
+        match self.kind {
+            LexErrorKind::UnexpectedEof => "Unexpected end of input",
+            LexErrorKind::UnexpectedCharacter => "Unexpected character",
+            LexErrorKind::InvalidIdentifierCharacter => "Invalid identifier character",
+            LexErrorKind::InvalidWhitespace => "Invalid whitespace",
+            LexErrorKind::IncompleteArrow => "Incomplete arrow",
+            LexErrorKind::UnknownEscapeSequence => "Unknown escape sequence",
+            LexErrorKind::UnterminatedString => "Unterminated string",
+            LexErrorKind::IntegerOverflow => "Integer overflow",
+        }
+    }
+
     // =========================================================================
     // EOF errors
     // =========================================================================

@@ -188,7 +188,7 @@ fn report_error(filename: &str, source: &str, error: &CompileError) {
             if let Err(report_err) =
                 Report::build(ReportKind::Error, (filename, span.start..span.end))
                     .with_config(Config::default().with_index_type(IndexType::Byte))
-                    .with_message(e.message())
+                    .with_message(e.short_message())
                     .with_label(
                         Label::new((filename, span.start..span.end))
                             .with_message(e.message())
@@ -207,7 +207,7 @@ fn report_error(filename: &str, source: &str, error: &CompileError) {
             if let Err(report_err) =
                 Report::build(ReportKind::Error, (filename, span.start..span.end))
                     .with_config(Config::default().with_index_type(IndexType::Byte))
-                    .with_message(e.message())
+                    .with_message(e.short_message())
                     .with_label(
                         Label::new((filename, span.start..span.end))
                             .with_message(e.message())
@@ -225,7 +225,7 @@ fn report_error(filename: &str, source: &str, error: &CompileError) {
             if let Some(span) = e.span() {
                 let mut report = Report::build(ReportKind::Error, (filename, span.start..span.end))
                     .with_config(Config::default().with_index_type(IndexType::Byte))
-                    .with_message(e.message())
+                    .with_message(e.short_message())
                     .with_label(
                         Label::new((filename, span.start..span.end))
                             .with_message(e.message())
@@ -260,7 +260,7 @@ fn report_error(filename: &str, source: &str, error: &CompileError) {
 
                 let mut report = Report::build(ReportKind::Error, (filename, span_range.clone()))
                     .with_config(Config::default().with_index_type(IndexType::Byte))
-                    .with_message(e.message())
+                    .with_message(e.short_message())
                     .with_label(
                         Label::new((filename, span_range))
                             .with_message(label_msg)
@@ -285,7 +285,7 @@ fn report_error(filename: &str, source: &str, error: &CompileError) {
                 if let Err(report_err) =
                     Report::build(ReportKind::Error, (filename, span.start..span.end))
                         .with_config(Config::default().with_index_type(IndexType::Byte))
-                        .with_message(e.message())
+                        .with_message(e.short_message())
                         .with_label(
                             Label::new((filename, span.start..span.end))
                                 .with_message(e.message())

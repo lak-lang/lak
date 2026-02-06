@@ -320,6 +320,18 @@ fn test_codegen_error_kinds() {
     );
 }
 
+#[test]
+fn test_codegen_error_short_message_internal() {
+    let err = CodegenError::new(CodegenErrorKind::InternalError, "test error", dummy_span());
+    assert_eq!(err.short_message(), "Internal error");
+}
+
+#[test]
+fn test_codegen_error_short_message_target() {
+    let err = CodegenError::without_span(CodegenErrorKind::TargetError, "test error");
+    assert_eq!(err.short_message(), "Target error");
+}
+
 // =================================
 // Error constructor tests (target)
 // =================================

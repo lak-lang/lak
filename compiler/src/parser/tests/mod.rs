@@ -149,3 +149,43 @@ fn test_parse_error_display() {
     let display = format!("{}", err);
     assert_eq!(display, "7:12: Expected '(', found '}'");
 }
+
+// ============================================================================
+// ParseError short_message tests
+// ============================================================================
+
+#[test]
+fn test_parse_error_short_message_missing_statement_terminator() {
+    let err = ParseError::missing_statement_terminator("'+'", dummy_span());
+    assert_eq!(err.short_message(), "Missing statement terminator");
+}
+
+#[test]
+fn test_parse_error_short_message_unexpected_token() {
+    let err = ParseError::unexpected_token("identifier", "'{'", dummy_span());
+    assert_eq!(err.short_message(), "Unexpected token");
+}
+
+#[test]
+fn test_parse_error_short_message_expected_identifier() {
+    let err = ParseError::expected_identifier("'123'", dummy_span());
+    assert_eq!(err.short_message(), "Expected identifier");
+}
+
+#[test]
+fn test_parse_error_short_message_expected_type() {
+    let err = ParseError::unknown_type("int", dummy_span());
+    assert_eq!(err.short_message(), "Unknown type");
+}
+
+#[test]
+fn test_parse_error_short_message_missing_function_call_parentheses() {
+    let err = ParseError::missing_fn_call_parens_string("println", dummy_span());
+    assert_eq!(err.short_message(), "Missing function call parentheses");
+}
+
+#[test]
+fn test_parse_error_short_message_internal_error() {
+    let err = ParseError::internal_binary_op_inconsistency(dummy_span());
+    assert_eq!(err.short_message(), "Internal error");
+}

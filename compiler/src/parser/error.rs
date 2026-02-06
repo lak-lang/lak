@@ -94,6 +94,21 @@ impl ParseError {
         self.kind
     }
 
+    /// Returns a short, human-readable description of the error kind.
+    ///
+    /// This is used as the report title in error messages, while `message()`
+    /// provides the detailed explanation shown in the label.
+    pub fn short_message(&self) -> &'static str {
+        match self.kind {
+            ParseErrorKind::MissingStatementTerminator => "Missing statement terminator",
+            ParseErrorKind::UnexpectedToken => "Unexpected token",
+            ParseErrorKind::ExpectedIdentifier => "Expected identifier",
+            ParseErrorKind::ExpectedType => "Unknown type",
+            ParseErrorKind::MissingFunctionCallParentheses => "Missing function call parentheses",
+            ParseErrorKind::InternalError => "Internal error",
+        }
+    }
+
     // =========================================================================
     // Statement termination errors
     // =========================================================================

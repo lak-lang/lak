@@ -169,6 +169,26 @@ impl SemanticError {
         self.help.as_deref()
     }
 
+    /// Returns a short, human-readable description of the error kind.
+    ///
+    /// This is used as the report title in error messages, while `message()`
+    /// provides the detailed explanation shown in the label.
+    pub fn short_message(&self) -> &'static str {
+        match self.kind {
+            SemanticErrorKind::DuplicateFunction => "Duplicate function",
+            SemanticErrorKind::DuplicateVariable => "Duplicate variable",
+            SemanticErrorKind::UndefinedVariable => "Undefined variable",
+            SemanticErrorKind::UndefinedFunction => "Undefined function",
+            SemanticErrorKind::TypeMismatch => "Type mismatch",
+            SemanticErrorKind::IntegerOverflow => "Integer overflow",
+            SemanticErrorKind::InvalidArgument => "Invalid argument",
+            SemanticErrorKind::InvalidExpression => "Invalid expression",
+            SemanticErrorKind::MissingMainFunction => "Missing main function",
+            SemanticErrorKind::InvalidMainSignature => "Invalid main signature",
+            SemanticErrorKind::InternalError => "Internal error",
+        }
+    }
+
     // =========================================================================
     // Name resolution errors
     // =========================================================================

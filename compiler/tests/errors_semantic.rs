@@ -11,7 +11,7 @@ use lak::semantic::SemanticErrorKind;
 #[test]
 fn test_compile_error_unknown_function() {
     let result = compile_error_with_kind(r#"fn main() -> void { unknown_func("test") }"#);
-    let (stage, msg, kind) = result.expect("Expected compilation to fail");
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
     assert!(
         matches!(stage, CompileStage::Semantic),
         "Expected Semantic error, got {:?}: {}",
@@ -19,6 +19,7 @@ fn test_compile_error_unknown_function() {
         msg
     );
     assert_eq!(msg, "Undefined function: 'unknown_func'");
+    assert_eq!(short_msg, "Undefined function");
     assert_eq!(
         kind,
         CompileErrorKind::Semantic(SemanticErrorKind::UndefinedFunction),
@@ -29,7 +30,7 @@ fn test_compile_error_unknown_function() {
 #[test]
 fn test_compile_error_missing_main() {
     let result = compile_error_with_kind("");
-    let (stage, msg, kind) = result.expect("Expected compilation to fail");
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
     assert!(
         matches!(stage, CompileStage::Semantic),
         "Expected Semantic error, got {:?}: {}",
@@ -40,6 +41,7 @@ fn test_compile_error_missing_main() {
         msg,
         "No main function found: program contains no function definitions"
     );
+    assert_eq!(short_msg, "Missing main function");
     assert_eq!(
         kind,
         CompileErrorKind::Semantic(SemanticErrorKind::MissingMainFunction),
@@ -50,7 +52,7 @@ fn test_compile_error_missing_main() {
 #[test]
 fn test_compile_error_missing_main_with_other_functions() {
     let result = compile_error_with_kind("fn hoge() -> void {}");
-    let (stage, msg, kind) = result.expect("Expected compilation to fail");
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
     assert!(
         matches!(stage, CompileStage::Semantic),
         "Expected Semantic error, got {:?}: {}",
@@ -58,6 +60,7 @@ fn test_compile_error_missing_main_with_other_functions() {
         msg
     );
     assert_eq!(msg, "No main function found. Defined functions: [\"hoge\"]");
+    assert_eq!(short_msg, "Missing main function");
     assert_eq!(
         kind,
         CompileErrorKind::Semantic(SemanticErrorKind::MissingMainFunction),
@@ -68,7 +71,7 @@ fn test_compile_error_missing_main_with_other_functions() {
 #[test]
 fn test_compile_error_main_wrong_return_type() {
     let result = compile_error_with_kind("fn main() -> int {}");
-    let (stage, msg, kind) = result.expect("Expected compilation to fail");
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
     assert!(
         matches!(stage, CompileStage::Semantic),
         "Expected Semantic error, got {:?}: {}",
@@ -79,6 +82,7 @@ fn test_compile_error_main_wrong_return_type() {
         msg,
         "main function must return void, but found return type 'int'"
     );
+    assert_eq!(short_msg, "Invalid main signature");
     assert_eq!(
         kind,
         CompileErrorKind::Semantic(SemanticErrorKind::InvalidMainSignature),
@@ -94,7 +98,7 @@ fn test_compile_error_duplicate_variable() {
     let x: i32 = 2
 }"#,
     );
-    let (stage, msg, kind) = result.expect("Expected compilation to fail");
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
     assert!(
         matches!(stage, CompileStage::Semantic),
         "Expected Semantic error, got {:?}: {}",
@@ -102,6 +106,7 @@ fn test_compile_error_duplicate_variable() {
         msg
     );
     assert_eq!(msg, "Variable 'x' is already defined at 2:5");
+    assert_eq!(short_msg, "Duplicate variable");
     assert_eq!(
         kind,
         CompileErrorKind::Semantic(SemanticErrorKind::DuplicateVariable),
@@ -116,7 +121,7 @@ fn test_compile_error_undefined_variable() {
     let x: i32 = undefined_var
 }"#,
     );
-    let (stage, msg, kind) = result.expect("Expected compilation to fail");
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
     assert!(
         matches!(stage, CompileStage::Semantic),
         "Expected Semantic error, got {:?}: {}",
@@ -124,6 +129,7 @@ fn test_compile_error_undefined_variable() {
         msg
     );
     assert_eq!(msg, "Undefined variable: 'undefined_var'");
+    assert_eq!(short_msg, "Undefined variable");
     assert_eq!(
         kind,
         CompileErrorKind::Semantic(SemanticErrorKind::UndefinedVariable),
@@ -139,7 +145,7 @@ fn test_compile_error_type_mismatch() {
     let y: i64 = x
 }"#,
     );
-    let (stage, msg, kind) = result.expect("Expected compilation to fail");
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
     assert!(
         matches!(stage, CompileStage::Semantic),
         "Expected Semantic error, got {:?}: {}",
@@ -150,6 +156,7 @@ fn test_compile_error_type_mismatch() {
         msg,
         "Type mismatch: variable 'x' has type 'i32', expected 'i64'"
     );
+    assert_eq!(short_msg, "Type mismatch");
     assert_eq!(
         kind,
         CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch),
@@ -165,7 +172,7 @@ fn test_compile_error_i32_overflow() {
     let x: i32 = 2147483648
 }"#,
     );
-    let (stage, msg, kind) = result.expect("Expected compilation to fail");
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
     assert!(
         matches!(stage, CompileStage::Semantic),
         "Expected Semantic error, got {:?}: {}",
@@ -176,6 +183,7 @@ fn test_compile_error_i32_overflow() {
         msg,
         "Integer literal '2147483648' is out of range for i32 (valid range: -2147483648 to 2147483647)"
     );
+    assert_eq!(short_msg, "Integer overflow");
     assert_eq!(
         kind,
         CompileErrorKind::Semantic(SemanticErrorKind::IntegerOverflow),
@@ -192,7 +200,7 @@ fn test_compile_error_i32_large_value_overflow() {
     let x: i32 = 9223372036854775807
 }"#,
     );
-    let (stage, msg, kind) = result.expect("Expected compilation to fail");
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
     assert!(
         matches!(stage, CompileStage::Semantic),
         "Expected Semantic error, got {:?}: {}",
@@ -203,6 +211,7 @@ fn test_compile_error_i32_large_value_overflow() {
         msg,
         "Integer literal '9223372036854775807' is out of range for i32 (valid range: -2147483648 to 2147483647)"
     );
+    assert_eq!(short_msg, "Integer overflow");
     assert_eq!(
         kind,
         CompileErrorKind::Semantic(SemanticErrorKind::IntegerOverflow),
@@ -219,7 +228,7 @@ fn test_compile_error_duplicate_variable_different_type() {
     let x: i64 = 2
 }"#,
     );
-    let (stage, msg, kind) = result.expect("Expected compilation to fail");
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
     assert!(
         matches!(stage, CompileStage::Semantic),
         "Expected Semantic error, got {:?}: {}",
@@ -227,6 +236,7 @@ fn test_compile_error_duplicate_variable_different_type() {
         msg
     );
     assert_eq!(msg, "Variable 'x' is already defined at 2:5");
+    assert_eq!(short_msg, "Duplicate variable");
     assert_eq!(
         kind,
         CompileErrorKind::Semantic(SemanticErrorKind::DuplicateVariable),
@@ -243,7 +253,7 @@ fn test_compile_error_forward_reference() {
     let y: i32 = 1
 }"#,
     );
-    let (stage, msg, kind) = result.expect("Expected compilation to fail");
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
     assert!(
         matches!(stage, CompileStage::Semantic),
         "Expected Semantic error, got {:?}: {}",
@@ -251,6 +261,7 @@ fn test_compile_error_forward_reference() {
         msg
     );
     assert_eq!(msg, "Undefined variable: 'y'");
+    assert_eq!(short_msg, "Undefined variable");
     assert_eq!(
         kind,
         CompileErrorKind::Semantic(SemanticErrorKind::UndefinedVariable),
@@ -266,7 +277,7 @@ fn test_compile_error_string_literal_to_int() {
     let x: i32 = "hello"
 }"#,
     );
-    let (stage, msg, kind) = result.expect("Expected compilation to fail");
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
     assert!(
         matches!(stage, CompileStage::Semantic),
         "Expected Semantic error, got {:?}: {}",
@@ -277,6 +288,7 @@ fn test_compile_error_string_literal_to_int() {
         msg,
         "Type mismatch: string literal cannot be assigned to type 'i32'"
     );
+    assert_eq!(short_msg, "Type mismatch");
     assert_eq!(
         kind,
         CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch),
@@ -292,7 +304,7 @@ fn test_compile_error_int_literal_to_string() {
     let s: string = 42
 }"#,
     );
-    let (stage, msg, kind) = result.expect("Expected compilation to fail");
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
     assert!(
         matches!(stage, CompileStage::Semantic),
         "Expected Semantic error, got {:?}: {}",
@@ -303,6 +315,7 @@ fn test_compile_error_int_literal_to_string() {
         msg,
         "Type mismatch: integer literal '42' cannot be assigned to type 'string'"
     );
+    assert_eq!(short_msg, "Type mismatch");
     assert_eq!(
         kind,
         CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch),
@@ -316,7 +329,7 @@ fn test_compile_error_duplicate_function() {
         r#"fn main() -> void {}
 fn main() -> void {}"#,
     );
-    let (stage, msg, kind) = result.expect("Expected compilation to fail");
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
     assert!(
         matches!(stage, CompileStage::Semantic),
         "Expected Semantic error, got {:?}: {}",
@@ -324,6 +337,7 @@ fn main() -> void {}"#,
         msg
     );
     assert_eq!(msg, "Function 'main' is already defined at 1:1");
+    assert_eq!(short_msg, "Duplicate function");
     assert_eq!(
         kind,
         CompileErrorKind::Semantic(SemanticErrorKind::DuplicateFunction),
@@ -345,7 +359,7 @@ fn main() -> void {
 }
 "#,
     );
-    let (stage, msg, kind) = result.expect("Expected compilation to fail");
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
     assert!(
         matches!(stage, CompileStage::Semantic),
         "Expected Semantic error, got {:?}: {}",
@@ -353,6 +367,7 @@ fn main() -> void {
         msg
     );
     assert_eq!(msg, "Function 'helper' expects 0 arguments, but got 1");
+    assert_eq!(short_msg, "Invalid argument");
     assert_eq!(
         kind,
         CompileErrorKind::Semantic(SemanticErrorKind::InvalidArgument),
@@ -374,7 +389,7 @@ fn main() -> void {
 }
 "#,
     );
-    let (stage, msg, kind) = result.expect("Expected compilation to fail");
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
     assert!(
         matches!(stage, CompileStage::Semantic),
         "Expected Semantic error, got {:?}: {}",
@@ -382,6 +397,7 @@ fn main() -> void {
         msg
     );
     assert_eq!(msg, "Function 'helper' expects 0 arguments, but got 3");
+    assert_eq!(short_msg, "Invalid argument");
     assert_eq!(
         kind,
         CompileErrorKind::Semantic(SemanticErrorKind::InvalidArgument),
@@ -403,7 +419,7 @@ fn main() -> void {
 }
 "#,
     );
-    let (stage, msg, kind) = result.expect("Expected compilation to fail");
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
     assert!(
         matches!(stage, CompileStage::Semantic),
         "Expected Semantic error, got {:?}: {}",
@@ -411,6 +427,7 @@ fn main() -> void {
         msg
     );
     assert_eq!(msg, "Cannot call 'main' function directly");
+    assert_eq!(short_msg, "Invalid argument");
     assert_eq!(
         kind,
         CompileErrorKind::Semantic(SemanticErrorKind::InvalidArgument),
@@ -428,7 +445,7 @@ fn main() -> void {
 }
 "#,
     );
-    let (stage, msg, kind) = result.expect("Expected compilation to fail");
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
     assert!(
         matches!(stage, CompileStage::Semantic),
         "Expected Semantic error, got {:?}: {}",
@@ -436,6 +453,7 @@ fn main() -> void {
         msg
     );
     assert_eq!(msg, "Cannot call 'main' function directly");
+    assert_eq!(short_msg, "Invalid argument");
     assert_eq!(
         kind,
         CompileErrorKind::Semantic(SemanticErrorKind::InvalidArgument),
@@ -452,7 +470,7 @@ fn test_compile_error_int_variable_to_string() {
     let s: string = x
 }"#,
     );
-    let (stage, msg, kind) = result.expect("Expected compilation to fail");
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
     assert!(
         matches!(stage, CompileStage::Semantic),
         "Expected Semantic error, got {:?}: {}",
@@ -463,6 +481,7 @@ fn test_compile_error_int_variable_to_string() {
         msg,
         "Type mismatch: variable 'x' has type 'i32', expected 'string'"
     );
+    assert_eq!(short_msg, "Type mismatch");
     assert_eq!(
         kind,
         CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch),
@@ -479,7 +498,7 @@ fn test_compile_error_string_variable_as_statement() {
     s
 }"#,
     );
-    let (stage, msg, kind) = result.expect("Expected compilation to fail");
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
     assert!(
         matches!(stage, CompileStage::Semantic),
         "Expected Semantic error, got {:?}: {}",
@@ -490,6 +509,7 @@ fn test_compile_error_string_variable_as_statement() {
         msg,
         "Variable 's' used as a statement has no effect. Did you mean to use it in an expression?"
     );
+    assert_eq!(short_msg, "Invalid expression");
     assert_eq!(
         kind,
         CompileErrorKind::Semantic(SemanticErrorKind::InvalidExpression),
@@ -506,7 +526,7 @@ fn test_compile_error_binary_op_type_mismatch_in_operand() {
     let b: i32 = a + 1
 }"#,
     );
-    let (stage, msg, kind) = result.expect("Expected compilation to fail");
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
     assert!(
         matches!(stage, CompileStage::Semantic),
         "Expected Semantic error, got {:?}: {}",
@@ -517,6 +537,7 @@ fn test_compile_error_binary_op_type_mismatch_in_operand() {
         msg,
         "Type mismatch: variable 'a' has type 'i64', expected 'i32'"
     );
+    assert_eq!(short_msg, "Type mismatch");
     assert_eq!(
         kind,
         CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch),
@@ -532,7 +553,7 @@ fn test_compile_error_binary_op_to_string_type() {
     let x: string = 1 + 2
 }"#,
     );
-    let (stage, msg, kind) = result.expect("Expected compilation to fail");
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
     assert!(
         matches!(stage, CompileStage::Semantic),
         "Expected Semantic error, got {:?}: {}",
@@ -540,6 +561,7 @@ fn test_compile_error_binary_op_to_string_type() {
         msg
     );
     assert_eq!(msg, "Operator '+' cannot be used with 'string' type");
+    assert_eq!(short_msg, "Type mismatch");
     assert_eq!(
         kind,
         CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch),
@@ -556,7 +578,7 @@ fn test_compile_error_binary_op_as_statement() {
     x + 10
 }"#,
     );
-    let (stage, msg, kind) = result.expect("Expected compilation to fail");
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
     assert!(
         matches!(stage, CompileStage::Semantic),
         "Expected Semantic error, got {:?}: {}",
@@ -567,6 +589,7 @@ fn test_compile_error_binary_op_as_statement() {
         msg,
         "This expression computes a value but the result is not used"
     );
+    assert_eq!(short_msg, "Invalid expression");
     assert_eq!(
         kind,
         CompileErrorKind::Semantic(SemanticErrorKind::InvalidExpression),
@@ -581,7 +604,7 @@ fn test_compile_error_binary_op_as_statement() {
 #[test]
 fn test_compile_error_panic_no_args() {
     let result = compile_error_with_kind(r#"fn main() -> void { panic() }"#);
-    let (stage, msg, kind) = result.expect("Expected compilation to fail");
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
     assert!(
         matches!(stage, CompileStage::Semantic),
         "Expected Semantic error, got {:?}: {}",
@@ -589,6 +612,7 @@ fn test_compile_error_panic_no_args() {
         msg
     );
     assert_eq!(msg, "panic expects exactly 1 argument");
+    assert_eq!(short_msg, "Invalid argument");
     assert_eq!(
         kind,
         CompileErrorKind::Semantic(SemanticErrorKind::InvalidArgument),
@@ -599,7 +623,7 @@ fn test_compile_error_panic_no_args() {
 #[test]
 fn test_compile_error_panic_multiple_args() {
     let result = compile_error_with_kind(r#"fn main() -> void { panic("a", "b") }"#);
-    let (stage, msg, kind) = result.expect("Expected compilation to fail");
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
     assert!(
         matches!(stage, CompileStage::Semantic),
         "Expected Semantic error, got {:?}: {}",
@@ -607,6 +631,7 @@ fn test_compile_error_panic_multiple_args() {
         msg
     );
     assert_eq!(msg, "panic expects exactly 1 argument");
+    assert_eq!(short_msg, "Invalid argument");
     assert_eq!(
         kind,
         CompileErrorKind::Semantic(SemanticErrorKind::InvalidArgument),
@@ -617,7 +642,7 @@ fn test_compile_error_panic_multiple_args() {
 #[test]
 fn test_compile_error_panic_int_arg() {
     let result = compile_error_with_kind(r#"fn main() -> void { panic(42) }"#);
-    let (stage, msg, kind) = result.expect("Expected compilation to fail");
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
     assert!(
         matches!(stage, CompileStage::Semantic),
         "Expected Semantic error, got {:?}: {}",
@@ -628,6 +653,7 @@ fn test_compile_error_panic_int_arg() {
         msg,
         "panic requires a string argument, but got 'integer literal'"
     );
+    assert_eq!(short_msg, "Invalid argument");
     assert_eq!(
         kind,
         CompileErrorKind::Semantic(SemanticErrorKind::InvalidArgument),
@@ -643,7 +669,7 @@ fn test_compile_error_panic_i32_variable() {
     panic(x)
 }"#,
     );
-    let (stage, msg, kind) = result.expect("Expected compilation to fail");
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
     assert!(
         matches!(stage, CompileStage::Semantic),
         "Expected Semantic error, got {:?}: {}",
@@ -651,6 +677,7 @@ fn test_compile_error_panic_i32_variable() {
         msg
     );
     assert_eq!(msg, "panic requires a string argument, but got 'i32'");
+    assert_eq!(short_msg, "Invalid argument");
     assert_eq!(
         kind,
         CompileErrorKind::Semantic(SemanticErrorKind::InvalidArgument),
@@ -666,7 +693,7 @@ fn test_compile_error_panic_i64_variable() {
     panic(x)
 }"#,
     );
-    let (stage, msg, kind) = result.expect("Expected compilation to fail");
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
     assert!(
         matches!(stage, CompileStage::Semantic),
         "Expected Semantic error, got {:?}: {}",
@@ -674,6 +701,7 @@ fn test_compile_error_panic_i64_variable() {
         msg
     );
     assert_eq!(msg, "panic requires a string argument, but got 'i64'");
+    assert_eq!(short_msg, "Invalid argument");
     assert_eq!(
         kind,
         CompileErrorKind::Semantic(SemanticErrorKind::InvalidArgument),
@@ -684,7 +712,7 @@ fn test_compile_error_panic_i64_variable() {
 #[test]
 fn test_compile_error_panic_undefined_variable() {
     let result = compile_error_with_kind(r#"fn main() -> void { panic(unknown) }"#);
-    let (stage, msg, kind) = result.expect("Expected compilation to fail");
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
     assert!(
         matches!(stage, CompileStage::Semantic),
         "Expected Semantic error, got {:?}: {}",
@@ -692,6 +720,7 @@ fn test_compile_error_panic_undefined_variable() {
         msg
     );
     assert_eq!(msg, "Undefined variable: 'unknown'");
+    assert_eq!(short_msg, "Undefined variable");
     assert_eq!(
         kind,
         CompileErrorKind::Semantic(SemanticErrorKind::UndefinedVariable),
@@ -706,7 +735,7 @@ fn test_compile_error_panic_binary_op() {
     panic(1 + 2)
 }"#,
     );
-    let (stage, msg, kind) = result.expect("Expected compilation to fail");
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
     assert!(
         matches!(stage, CompileStage::Semantic),
         "Expected Semantic error, got {:?}: {}",
@@ -717,6 +746,7 @@ fn test_compile_error_panic_binary_op() {
         msg,
         "panic requires a string argument, but got 'expression'"
     );
+    assert_eq!(short_msg, "Invalid argument");
     assert_eq!(
         kind,
         CompileErrorKind::Semantic(SemanticErrorKind::InvalidArgument),
@@ -732,7 +762,7 @@ fn main() -> void {
     panic(get_msg())
 }"#,
     );
-    let (stage, msg, kind) = result.expect("Expected compilation to fail");
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
     assert!(
         matches!(stage, CompileStage::Semantic),
         "Expected Semantic error, got {:?}: {}",
@@ -743,6 +773,7 @@ fn main() -> void {
         msg,
         "Function call 'get_msg' cannot be used as println argument (functions returning values not yet supported)"
     );
+    assert_eq!(short_msg, "Invalid argument");
     assert_eq!(
         kind,
         CompileErrorKind::Semantic(SemanticErrorKind::InvalidArgument),

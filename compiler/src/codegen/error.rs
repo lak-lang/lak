@@ -126,6 +126,17 @@ impl CodegenError {
         self.kind
     }
 
+    /// Returns a short, human-readable description of the error kind.
+    ///
+    /// This is used as the report title in error messages, while `message()`
+    /// provides the detailed explanation shown in the label.
+    pub fn short_message(&self) -> &'static str {
+        match self.kind {
+            CodegenErrorKind::InternalError => "Internal error",
+            CodegenErrorKind::TargetError => "Target error",
+        }
+    }
+
     // =========================================================================
     // Target errors (without span)
     // =========================================================================
