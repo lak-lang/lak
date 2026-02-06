@@ -67,9 +67,9 @@ fn test_multiple_identifiers() {
 fn test_identifier_unicode_rejected() {
     let err = tokenize_error("日本語");
     assert!(
-        err.message.contains("Invalid character"),
+        err.message().contains("Invalid character"),
         "Expected 'Invalid character' in error: {}",
-        err.message
+        err.message()
     );
 }
 
@@ -77,9 +77,9 @@ fn test_identifier_unicode_rejected() {
 fn test_identifier_mixed_ascii_unicode_rejected() {
     let err = tokenize_error("hello世界");
     assert!(
-        err.message.contains("Invalid character"),
+        err.message().contains("Invalid character"),
         "Expected 'Invalid character' in error: {}",
-        err.message
+        err.message()
     );
 }
 
@@ -87,9 +87,9 @@ fn test_identifier_mixed_ascii_unicode_rejected() {
 fn test_identifier_underscore_then_unicode_rejected() {
     let err = tokenize_error("_日本語");
     assert!(
-        err.message.contains("Invalid character"),
+        err.message().contains("Invalid character"),
         "Expected 'Invalid character' in error: {}",
-        err.message
+        err.message()
     );
 }
 
@@ -97,9 +97,9 @@ fn test_identifier_underscore_then_unicode_rejected() {
 fn test_identifier_emoji_rejected() {
     let err = tokenize_error("🚀hello");
     assert!(
-        err.message.contains("Unexpected character"),
+        err.message().contains("Unexpected character"),
         "Expected 'Unexpected character' in error for emoji: {}",
-        err.message
+        err.message()
     );
 }
 
@@ -120,9 +120,9 @@ fn test_identifier_unicode_start_then_ascii_rejected() {
     // Unicode at start followed by ASCII should be rejected
     let err = tokenize_error("世界hello");
     assert!(
-        err.message.contains("Invalid character"),
+        err.message().contains("Invalid character"),
         "Expected 'Invalid character' in error: {}",
-        err.message
+        err.message()
     );
 }
 
@@ -131,9 +131,9 @@ fn test_identifier_ascii_unicode_ascii_rejected() {
     // Non-ASCII sandwiched between ASCII should be rejected
     let err = tokenize_error("abc中def");
     assert!(
-        err.message.contains("Invalid character"),
+        err.message().contains("Invalid character"),
         "Expected 'Invalid character' in error: {}",
-        err.message
+        err.message()
     );
 }
 

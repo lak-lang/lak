@@ -7,6 +7,7 @@
 //! - Scope shadowing
 
 use super::*;
+use crate::semantic::error::SemanticErrorKind;
 use crate::semantic::symbol::{FunctionInfo, SymbolTable, VariableInfo};
 
 #[test]
@@ -55,7 +56,9 @@ fn test_duplicate_function_error() {
     assert!(table.define_function(info1).is_ok());
     let result = table.define_function(info2);
     assert!(result.is_err());
-    assert!(result.unwrap_err().contains("already defined"));
+    let err = result.unwrap_err();
+    assert!(err.message().contains("already defined"));
+    assert_eq!(err.kind(), SemanticErrorKind::DuplicateFunction);
 }
 
 #[test]
@@ -86,9 +89,10 @@ fn test_define_variable_outside_scope_error() {
 
     let result = table.define_variable(info);
     assert!(result.is_err());
-    let err_msg = result.unwrap_err();
-    assert!(err_msg.contains("Internal error"));
-    assert!(err_msg.contains("orphan"));
+    let err = result.unwrap_err();
+    assert!(err.message().contains("Internal error"));
+    assert!(err.message().contains("orphan"));
+    assert_eq!(err.kind(), SemanticErrorKind::InternalError);
 }
 
 #[test]
@@ -110,7 +114,9 @@ fn test_duplicate_variable_in_same_scope() {
     assert!(table.define_variable(info1).is_ok());
     let result = table.define_variable(info2);
     assert!(result.is_err());
-    assert!(result.unwrap_err().contains("already defined"));
+    let err = result.unwrap_err();
+    assert!(err.message().contains("already defined"));
+    assert_eq!(err.kind(), SemanticErrorKind::DuplicateVariable);
 }
 
 #[test]

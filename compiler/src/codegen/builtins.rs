@@ -68,8 +68,8 @@ impl<'ctx> Codegen<'ctx> {
     /// # Returns
     ///
     /// - `Ok(Type)` - The resolved type for supported expressions
-    /// - `Err(String)` - A descriptive error message for unsupported expressions
-    pub(super) fn get_expr_type(&self, expr: &Expr) -> Result<Type, String> {
+    /// - `Err(CodegenError)` - An internal error for unsupported expressions
+    pub(super) fn get_expr_type(&self, expr: &Expr) -> Result<Type, CodegenError> {
         match &expr.kind {
             ExprKind::IntLiteral(_) => Ok(Type::I64),
             ExprKind::StringLiteral(_) => Ok(Type::String),
@@ -77,11 +77,25 @@ impl<'ctx> Codegen<'ctx> {
                 .variables
                 .get(name)
                 .map(|b| b.ty().clone())
-                .ok_or_else(|| format!("undefined variable '{}'", name)),
-            ExprKind::Call { callee, .. } => Err(format!(
-                "function call '{}()' cannot be used as println argument \
-                 (value-returning functions are not yet supported)",
-                callee
+                .ok_or_else(|| {
+                    CodegenError::new(
+                        CodegenErrorKind::InternalError,
+                        format!(
+                            "Internal error: undefined variable '{}' in codegen. \
+                             Semantic analysis should have caught this. This is a compiler bug.",
+                            name
+                        ),
+                        expr.span,
+                    )
+                }),
+            ExprKind::Call { callee, .. } => Err(CodegenError::new(
+                CodegenErrorKind::InternalError,
+                format!(
+                    "Internal error: function call '{}()' cannot be used as println argument. \
+                     Semantic analysis should have caught this. This is a compiler bug.",
+                    callee
+                ),
+                expr.span,
             )),
         }
     }
@@ -135,17 +149,7 @@ impl<'ctx> Codegen<'ctx> {
         let arg = &args[0];
 
         // Determine the type of the argument and call the appropriate runtime function
-        let arg_type = self.get_expr_type(arg).map_err(|type_error| {
-            CodegenError::new(
-                CodegenErrorKind::InternalError,
-                format!(
-                    "Internal error: {}. Semantic analysis should have caught this. \
-                     This is a compiler bug.",
-                    type_error
-                ),
-                arg.span,
-            )
-        })?;
+        let arg_type = self.get_expr_type(arg)?;
 
         match arg_type {
             Type::String => self.generate_println_string(arg, span),

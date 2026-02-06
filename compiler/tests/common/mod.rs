@@ -7,10 +7,10 @@
 // are used in every test file. This is expected behavior.
 #![allow(dead_code)]
 
-use lak::codegen::{Codegen, CodegenError};
-use lak::lexer::Lexer;
-use lak::parser::Parser;
-use lak::semantic::SemanticAnalyzer;
+use lak::codegen::{Codegen, CodegenError, CodegenErrorKind};
+use lak::lexer::{LexErrorKind, Lexer};
+use lak::parser::{ParseErrorKind, Parser};
+use lak::semantic::{SemanticAnalyzer, SemanticErrorKind};
 use lak::token::Span;
 
 use inkwell::context::Context;
@@ -99,6 +99,15 @@ pub enum CompileStage {
     Codegen,
 }
 
+/// Represents the error kind for each compilation stage.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CompileErrorKind {
+    Lex(LexErrorKind),
+    Parse(ParseErrorKind),
+    Semantic(SemanticErrorKind),
+    Codegen(CodegenErrorKind),
+}
+
 /// Attempts to lex, parse, analyze, and compile a program.
 /// Returns the stage and error message if any stage fails.
 pub fn compile_error(source: &str) -> Option<(CompileStage, String)> {
@@ -124,5 +133,53 @@ pub fn compile_error(source: &str) -> Option<(CompileStage, String)> {
     match codegen.compile(&program) {
         Ok(()) => None,
         Err(e) => Some((CompileStage::Codegen, e.message().to_string())),
+    }
+}
+
+/// Attempts to lex, parse, analyze, and compile a program.
+/// Returns the stage, error message, and error kind if any stage fails.
+pub fn compile_error_with_kind(source: &str) -> Option<(CompileStage, String, CompileErrorKind)> {
+    let mut lexer = Lexer::new(source);
+    let tokens = match lexer.tokenize() {
+        Ok(t) => t,
+        Err(e) => {
+            return Some((
+                CompileStage::Lex,
+                e.to_string(),
+                CompileErrorKind::Lex(e.kind()),
+            ));
+        }
+    };
+
+    let mut parser = Parser::new(tokens);
+    let program = match parser.parse() {
+        Ok(p) => p,
+        Err(e) => {
+            return Some((
+                CompileStage::Parse,
+                e.to_string(),
+                CompileErrorKind::Parse(e.kind()),
+            ));
+        }
+    };
+
+    let mut analyzer = SemanticAnalyzer::new();
+    if let Err(e) = analyzer.analyze(&program) {
+        return Some((
+            CompileStage::Semantic,
+            e.message().to_string(),
+            CompileErrorKind::Semantic(e.kind()),
+        ));
+    }
+
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "test");
+    match codegen.compile(&program) {
+        Ok(()) => None,
+        Err(e) => Some((
+            CompileStage::Codegen,
+            e.message().to_string(),
+            CompileErrorKind::Codegen(e.kind()),
+        )),
     }
 }

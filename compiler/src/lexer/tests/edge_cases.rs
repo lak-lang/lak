@@ -1,11 +1,13 @@
 //! Tests for edge cases and platform compatibility.
 
 use super::*;
+use crate::lexer::LexErrorKind;
 
 #[test]
 fn test_error_escape_at_eof() {
     let err = tokenize_error(r#""hello\"#);
-    assert!(err.message.contains("Unterminated string"));
+    assert!(err.message().contains("Unterminated string"));
+    assert_eq!(err.kind(), LexErrorKind::UnterminatedString);
 }
 
 #[test]

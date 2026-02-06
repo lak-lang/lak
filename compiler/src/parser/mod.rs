@@ -67,7 +67,7 @@ mod types;
 #[cfg(test)]
 mod tests;
 
-pub use error::ParseError;
+pub use error::{ParseError, ParseErrorKind};
 
 use crate::ast::Program;
 use crate::token::Token;

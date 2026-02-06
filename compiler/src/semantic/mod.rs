@@ -97,9 +97,7 @@ impl SemanticAnalyzer {
                 definition_span: function.span,
             };
 
-            self.symbols.define_function(info).map_err(|msg| {
-                SemanticError::new(SemanticErrorKind::DuplicateFunction, msg, function.span)
-            })?;
+            self.symbols.define_function(info)?;
         }
         Ok(())
     }
@@ -171,9 +169,7 @@ impl SemanticAnalyzer {
             definition_span: span,
         };
 
-        self.symbols
-            .define_variable(info)
-            .map_err(|msg| SemanticError::new(SemanticErrorKind::DuplicateVariable, msg, span))?;
+        self.symbols.define_variable(info)?;
 
         // Type check initializer
         self.check_expr_type(init, ty)?;

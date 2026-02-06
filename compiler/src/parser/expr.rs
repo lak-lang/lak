@@ -1,7 +1,7 @@
 //! Expression parsing.
 
 use super::Parser;
-use super::error::ParseError;
+use super::error::{ParseError, ParseErrorKind};
 use crate::ast::{Expr, ExprKind};
 use crate::token::{Span, TokenKind};
 
@@ -30,29 +30,32 @@ impl Parser {
                     // Check for syntax error: identifier followed by expression-start token
                     // without an intervening Newline (which would indicate a new statement)
                     match self.current_kind() {
-                        TokenKind::StringLiteral(_) => Err(ParseError {
-                            message: format!(
+                        TokenKind::StringLiteral(_) => Err(ParseError::new(
+                            ParseErrorKind::MissingFunctionCallParentheses,
+                            format!(
                                 "Unexpected string literal after '{}'. If this is a function call, add parentheses: {}(...)",
                                 name, name
                             ),
-                            span: self.current_span(),
-                        }),
-                        TokenKind::IntLiteral(_) => Err(ParseError {
-                            message: format!(
+                            self.current_span(),
+                        )),
+                        TokenKind::IntLiteral(_) => Err(ParseError::new(
+                            ParseErrorKind::MissingFunctionCallParentheses,
+                            format!(
                                 "Unexpected integer literal after '{}'. If this is a function call, add parentheses: {}(...)",
                                 name, name
                             ),
-                            span: self.current_span(),
-                        }),
+                            self.current_span(),
+                        )),
                         TokenKind::Identifier(next_name) => {
                             let next_name = next_name.clone();
-                            Err(ParseError {
-                                message: format!(
+                            Err(ParseError::new(
+                                ParseErrorKind::MissingFunctionCallParentheses,
+                                format!(
                                     "Unexpected identifier '{}' after '{}'. If this is a function call, add parentheses: {}(...)",
                                     next_name, name, name
                                 ),
-                                span: self.current_span(),
-                            })
+                                self.current_span(),
+                            ))
                         }
                         // Any other token (including Newline, Eof, operators, etc.)
                         // means this is a valid variable reference
@@ -70,13 +73,14 @@ impl Parser {
                 self.advance();
                 Ok(Expr::new(ExprKind::IntLiteral(value), start_span))
             }
-            _ => Err(ParseError {
-                message: format!(
+            _ => Err(ParseError::new(
+                ParseErrorKind::UnexpectedToken,
+                format!(
                     "Unexpected token: {}",
                     Self::token_kind_display(self.current_kind())
                 ),
-                span: start_span,
-            }),
+                start_span,
+            )),
         }
     }
 

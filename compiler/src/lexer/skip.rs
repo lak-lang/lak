@@ -4,9 +4,8 @@
 //! and line comments during tokenization.
 
 use super::Lexer;
+use super::error::{LexError, LexErrorKind};
 use crate::token::{Span, TokenKind};
-
-use super::LexError;
 
 impl<'a> Lexer<'a> {
     /// Skips consecutive whitespace characters except newlines.
@@ -32,18 +31,14 @@ impl<'a> Lexer<'a> {
                 _ => {
                     // Check if this is a non-ASCII whitespace character
                     if c.is_whitespace() {
-                        return Err(LexError {
-                            message: format!(
+                        return Err(LexError::new(
+                            LexErrorKind::InvalidWhitespace,
+                            format!(
                                 "Invalid whitespace character '{}' (U+{:04X}). Only space, tab, carriage return, and newline are allowed",
                                 c, c as u32
                             ),
-                            span: Span::new(
-                                self.pos,
-                                self.pos + c.len_utf8(),
-                                self.line,
-                                self.column,
-                            ),
-                        });
+                            Span::new(self.pos, self.pos + c.len_utf8(), self.line, self.column),
+                        ));
                     }
                     // Not whitespace at all, stop skipping
                     break;

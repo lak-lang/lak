@@ -8,6 +8,7 @@
 //! - Trailing newline handling
 
 use super::*;
+use crate::parser::ParseErrorKind;
 use crate::token::Span;
 
 // ===================
@@ -50,10 +51,11 @@ fn test_newlines_in_call() {
 
 #[test]
 fn test_parse_error_display() {
-    let err = ParseError {
-        message: "Test error".to_string(),
-        span: Span::new(0, 1, 2, 3),
-    };
+    let err = ParseError::new(
+        ParseErrorKind::UnexpectedToken,
+        "Test error",
+        Span::new(0, 1, 2, 3),
+    );
     let display = format!("{}", err);
     assert!(display.contains("2:3"));
     assert!(display.contains("Test error"));

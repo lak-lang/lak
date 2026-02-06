@@ -1,7 +1,7 @@
 //! Type annotation parsing.
 
 use super::Parser;
-use super::error::ParseError;
+use super::error::{ParseError, ParseErrorKind};
 use crate::ast::Type;
 
 impl Parser {
@@ -19,13 +19,14 @@ impl Parser {
             "i32" => Ok(Type::I32),
             "i64" => Ok(Type::I64),
             "string" => Ok(Type::String),
-            _ => Err(ParseError {
-                message: format!(
+            _ => Err(ParseError::new(
+                ParseErrorKind::ExpectedType,
+                format!(
                     "Unknown type: '{}'. Expected 'i32', 'i64', or 'string'",
                     name
                 ),
-                span: type_span,
-            }),
+                type_span,
+            )),
         }
     }
 }

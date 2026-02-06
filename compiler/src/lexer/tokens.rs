@@ -4,7 +4,7 @@
 //! including identifiers, keywords, string literals, integer literals, and punctuation.
 
 use super::Lexer;
-use super::error::LexError;
+use super::error::{LexError, LexErrorKind};
 use crate::token::{Span, Token, TokenKind};
 
 impl<'a> Lexer<'a> {
@@ -32,9 +32,12 @@ impl<'a> Lexer<'a> {
     /// Returns a [`LexError`] if an unexpected character is encountered
     /// or if a string literal is malformed.
     pub(super) fn next_token(&mut self) -> Result<Token, LexError> {
-        let c = self.current_char().ok_or_else(|| LexError {
-            message: "Unexpected end of input".to_string(),
-            span: Span::new(self.pos, self.pos, self.line, self.column),
+        let c = self.current_char().ok_or_else(|| {
+            LexError::new(
+                LexErrorKind::UnexpectedEof,
+                "Unexpected end of input",
+                Span::new(self.pos, self.pos, self.line, self.column),
+            )
         })?;
 
         let start_pos = self.pos;
@@ -82,10 +85,11 @@ impl<'a> Lexer<'a> {
                     let span = Span::new(start_pos, self.pos, start_line, start_column);
                     Ok(Token::new(TokenKind::Arrow, span))
                 } else {
-                    Err(LexError {
-                        message: "Expected '>' after '-'".to_string(),
-                        span: Span::new(start_pos, self.pos, start_line, start_column),
-                    })
+                    Err(LexError::new(
+                        LexErrorKind::IncompleteArrow,
+                        "Expected '>' after '-'",
+                        Span::new(start_pos, self.pos, start_line, start_column),
+                    ))
                 }
             }
             '"' => self.read_string(start_pos, start_line, start_column),
@@ -96,18 +100,20 @@ impl<'a> Lexer<'a> {
             _ => {
                 // Provide specific error message for non-ASCII alphabetic characters
                 if c.is_alphabetic() {
-                    Err(LexError {
-                        message: format!(
+                    Err(LexError::new(
+                        LexErrorKind::InvalidIdentifierCharacter,
+                        format!(
                             "Invalid character '{}' in identifier. Only ASCII letters (a-z, A-Z), digits (0-9), and underscores (_) are allowed",
                             c
                         ),
-                        span: Span::new(self.pos, self.pos + c.len_utf8(), self.line, self.column),
-                    })
+                        Span::new(self.pos, self.pos + c.len_utf8(), self.line, self.column),
+                    ))
                 } else {
-                    Err(LexError {
-                        message: format!("Unexpected character: '{}'", c),
-                        span: Span::new(self.pos, self.pos + c.len_utf8(), self.line, self.column),
-                    })
+                    Err(LexError::new(
+                        LexErrorKind::UnexpectedCharacter,
+                        format!("Unexpected character: '{}'", c),
+                        Span::new(self.pos, self.pos + c.len_utf8(), self.line, self.column),
+                    ))
                 }
             }
         }
@@ -177,39 +183,43 @@ impl<'a> Lexer<'a> {
                             self.advance();
                         }
                         Some(c) => {
-                            return Err(LexError {
-                                message: format!("Unknown escape sequence: \\{}", c),
-                                span: Span::new(
+                            return Err(LexError::new(
+                                LexErrorKind::UnknownEscapeSequence,
+                                format!("Unknown escape sequence: \\{}", c),
+                                Span::new(
                                     self.pos - 1,
                                     self.pos + c.len_utf8(),
                                     self.line,
                                     self.column - 1,
                                 ),
-                            });
+                            ));
                         }
                         None => {
-                            return Err(LexError {
-                                message: "Unterminated string literal".to_string(),
-                                span: Span::new(start_pos, self.pos, start_line, start_column),
-                            });
+                            return Err(LexError::new(
+                                LexErrorKind::UnterminatedString,
+                                "Unterminated string literal",
+                                Span::new(start_pos, self.pos, start_line, start_column),
+                            ));
                         }
                     }
                 }
                 Some('\n') => {
-                    return Err(LexError {
-                        message: "Unterminated string literal (newline in string)".to_string(),
-                        span: Span::new(start_pos, self.pos, start_line, start_column),
-                    });
+                    return Err(LexError::new(
+                        LexErrorKind::UnterminatedString,
+                        "Unterminated string literal (newline in string)",
+                        Span::new(start_pos, self.pos, start_line, start_column),
+                    ));
                 }
                 Some(c) => {
                     value.push(c);
                     self.advance();
                 }
                 None => {
-                    return Err(LexError {
-                        message: "Unterminated string literal".to_string(),
-                        span: Span::new(start_pos, self.pos, start_line, start_column),
-                    });
+                    return Err(LexError::new(
+                        LexErrorKind::UnterminatedString,
+                        "Unterminated string literal",
+                        Span::new(start_pos, self.pos, start_line, start_column),
+                    ));
                 }
             }
         }
@@ -247,13 +257,14 @@ impl<'a> Lexer<'a> {
                 self.advance();
             } else if c.is_alphanumeric() {
                 // Non-ASCII alphanumeric character detected
-                return Err(LexError {
-                    message: format!(
+                return Err(LexError::new(
+                    LexErrorKind::InvalidIdentifierCharacter,
+                    format!(
                         "Invalid character '{}' in identifier. Only ASCII letters (a-z, A-Z), digits (0-9), and underscores (_) are allowed",
                         c
                     ),
-                    span: Span::new(self.pos, self.pos + c.len_utf8(), self.line, self.column),
-                });
+                    Span::new(self.pos, self.pos + c.len_utf8(), self.line, self.column),
+                ));
             } else {
                 break;
             }
@@ -302,15 +313,16 @@ impl<'a> Lexer<'a> {
         let value_str = &self.input[start_pos..self.pos];
         let span = Span::new(start_pos, self.pos, start_line, start_column);
 
-        let value: i64 = value_str
-            .parse()
-            .map_err(|e: std::num::ParseIntError| LexError {
-                message: format!(
+        let value: i64 = value_str.parse().map_err(|e: std::num::ParseIntError| {
+            LexError::new(
+                LexErrorKind::IntegerOverflow,
+                format!(
                     "Integer literal '{}' is out of range for i64: {}",
                     value_str, e
                 ),
                 span,
-            })?;
+            )
+        })?;
 
         Ok(Token::new(TokenKind::IntLiteral(value), span))
     }

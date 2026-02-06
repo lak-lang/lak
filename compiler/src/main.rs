@@ -184,44 +184,40 @@ impl CompileErrorWithContext {
 fn report_error(filename: &str, source: &str, error: &CompileError) {
     match error {
         CompileError::Lex(e) => {
+            let span = e.span();
             if let Err(report_err) =
-                Report::build(ReportKind::Error, (filename, e.span.start..e.span.end))
+                Report::build(ReportKind::Error, (filename, span.start..span.end))
                     .with_config(Config::default().with_index_type(IndexType::Byte))
-                    .with_message(&e.message)
+                    .with_message(e.message())
                     .with_label(
-                        Label::new((filename, e.span.start..e.span.end))
-                            .with_message(&e.message)
+                        Label::new((filename, span.start..span.end))
+                            .with_message(e.message())
                             .with_color(Color::Red),
                     )
                     .finish()
                     .eprint((filename, Source::from(source)))
             {
                 // Fallback to basic error output if report printing fails
-                eprintln!(
-                    "Error: {} (at {}:{})",
-                    e.message, e.span.line, e.span.column
-                );
+                eprintln!("Error: {} (at {}:{})", e.message(), span.line, span.column);
                 eprintln!("(Failed to display detailed error report: {})", report_err);
             }
         }
         CompileError::Parse(e) => {
+            let span = e.span();
             if let Err(report_err) =
-                Report::build(ReportKind::Error, (filename, e.span.start..e.span.end))
+                Report::build(ReportKind::Error, (filename, span.start..span.end))
                     .with_config(Config::default().with_index_type(IndexType::Byte))
-                    .with_message(&e.message)
+                    .with_message(e.message())
                     .with_label(
-                        Label::new((filename, e.span.start..e.span.end))
-                            .with_message(&e.message)
+                        Label::new((filename, span.start..span.end))
+                            .with_message(e.message())
                             .with_color(Color::Red),
                     )
                     .finish()
                     .eprint((filename, Source::from(source)))
             {
                 // Fallback to basic error output if report printing fails
-                eprintln!(
-                    "Error: {} (at {}:{})",
-                    e.message, e.span.line, e.span.column
-                );
+                eprintln!("Error: {} (at {}:{})", e.message(), span.line, span.column);
                 eprintln!("(Failed to display detailed error report: {})", report_err);
             }
         }

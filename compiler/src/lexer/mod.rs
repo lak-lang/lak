@@ -59,7 +59,7 @@ mod tokens;
 #[cfg(test)]
 mod tests;
 
-pub use error::LexError;
+pub use error::{LexError, LexErrorKind};
 
 use crate::token::{Span, Token, TokenKind};
 
