@@ -39,10 +39,9 @@ fn test_compile_error_unknown_type() {
         stage,
         msg
     );
-    assert!(
-        msg.contains("Unknown type"),
-        "Expected 'Unknown type' in error: {}",
-        msg
+    assert_eq!(
+        msg,
+        "Unknown type: 'unknown'. Expected 'i32', 'i64', or 'string'"
     );
     assert_eq!(
         kind,
@@ -67,11 +66,7 @@ fn test_compile_error_let_missing_variable_name() {
         msg
     );
     // Parser expects an identifier after 'let'
-    assert!(
-        msg.contains("Expected identifier") || msg.contains("expected identifier"),
-        "Expected 'identifier' in error: {}",
-        msg
-    );
+    assert_eq!(msg, "Expected identifier, found ':'");
     assert_eq!(
         kind,
         CompileErrorKind::Parse(ParseErrorKind::ExpectedIdentifier),

@@ -35,20 +35,18 @@ fn test_multiple_statements_in_body_with_newline() {
 #[test]
 fn test_error_multiple_statements_same_line() {
     let err = parse_error("fn main() -> void { f() g() }");
-    assert!(
-        err.message().contains("newline"),
-        "Expected error about newline, got: {}",
-        err.message()
+    assert_eq!(
+        err.message(),
+        "Expected newline after statement, found identifier 'g'"
     );
 }
 
 #[test]
 fn test_error_multiple_functions_same_line() {
     let err = parse_error("fn foo() -> void {}fn bar() -> void {}");
-    assert!(
-        err.message().contains("newline"),
-        "Expected error about newline, got: {}",
-        err.message()
+    assert_eq!(
+        err.message(),
+        "Expected newline after statement, found 'fn' keyword"
     );
 }
 
@@ -56,40 +54,36 @@ fn test_error_multiple_functions_same_line() {
 fn test_error_multiple_functions_same_line_with_space() {
     // Space between functions but still on same line
     let err = parse_error("fn foo() -> void {} fn bar() -> void {}");
-    assert!(
-        err.message().contains("newline"),
-        "Expected error about newline, got: {}",
-        err.message()
+    assert_eq!(
+        err.message(),
+        "Expected newline after statement, found 'fn' keyword"
     );
 }
 
 #[test]
 fn test_error_let_statements_same_line() {
     let err = parse_error("fn main() -> void { let x: i32 = 1 let y: i32 = 2 }");
-    assert!(
-        err.message().contains("newline"),
-        "Expected error about newline, got: {}",
-        err.message()
+    assert_eq!(
+        err.message(),
+        "Expected newline after statement, found 'let' keyword"
     );
 }
 
 #[test]
 fn test_error_let_then_expr_same_line() {
     let err = parse_error("fn main() -> void { let x: i32 = 1 f() }");
-    assert!(
-        err.message().contains("newline"),
-        "Expected error about newline, got: {}",
-        err.message()
+    assert_eq!(
+        err.message(),
+        "Expected newline after statement, found identifier 'f'"
     );
 }
 
 #[test]
 fn test_error_expr_then_let_same_line() {
     let err = parse_error("fn main() -> void { f() let x: i32 = 1 }");
-    assert!(
-        err.message().contains("newline"),
-        "Expected error about newline, got: {}",
-        err.message()
+    assert_eq!(
+        err.message(),
+        "Expected newline after statement, found 'let' keyword"
     );
 }
 
@@ -97,10 +91,9 @@ fn test_error_expr_then_let_same_line() {
 fn test_error_same_line_reports_correct_token() {
     // Verify the error message includes what token was found
     let err = parse_error("fn main() -> void { f() g() }");
-    assert!(
-        err.message().contains("identifier 'g'"),
-        "Expected error to mention the found token, got: {}",
-        err.message()
+    assert_eq!(
+        err.message(),
+        "Expected newline after statement, found identifier 'g'"
     );
 }
 
@@ -196,49 +189,32 @@ fn test_let_mixed_with_println() {
 #[test]
 fn test_error_let_missing_colon() {
     let err = parse_error("fn main() -> void { let x i32 = 42 }");
-    assert!(
-        err.message().contains("':'"),
-        "Expected error about ':', got: {}",
-        err.message()
-    );
+    assert_eq!(err.message(), "Expected ':', found identifier 'i32'");
 }
 
 #[test]
 fn test_error_let_missing_type() {
     let err = parse_error("fn main() -> void { let x: = 42 }");
-    assert!(
-        err.message().contains("identifier"),
-        "Expected error about identifier, got: {}",
-        err.message()
-    );
+    assert_eq!(err.message(), "Expected identifier, found '='");
 }
 
 #[test]
 fn test_error_let_unknown_type() {
     let err = parse_error("fn main() -> void { let x: unknown = 42 }");
-    assert!(
-        err.message().contains("Unknown type"),
-        "Expected error about unknown type, got: {}",
-        err.message()
+    assert_eq!(
+        err.message(),
+        "Unknown type: 'unknown'. Expected 'i32', 'i64', or 'string'"
     );
 }
 
 #[test]
 fn test_error_let_missing_equals() {
     let err = parse_error("fn main() -> void { let x: i32 42 }");
-    assert!(
-        err.message().contains("'='"),
-        "Expected error about '=', got: {}",
-        err.message()
-    );
+    assert_eq!(err.message(), "Expected '=', found integer '42'");
 }
 
 #[test]
 fn test_error_let_missing_initializer() {
     let err = parse_error("fn main() -> void { let x: i32 = }");
-    assert!(
-        err.message().contains("Unexpected token"),
-        "Expected error about unexpected token, got: {}",
-        err.message()
-    );
+    assert_eq!(err.message(), "Unexpected token: '}'");
 }

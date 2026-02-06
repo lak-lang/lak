@@ -66,41 +66,34 @@ fn test_multiple_identifiers() {
 #[test]
 fn test_identifier_unicode_rejected() {
     let err = tokenize_error("日本語");
-    assert!(
-        err.message().contains("Invalid character"),
-        "Expected 'Invalid character' in error: {}",
-        err.message()
+    assert_eq!(
+        err.message(),
+        "Invalid character '日' in identifier. Only ASCII letters (a-z, A-Z), digits (0-9), and underscores (_) are allowed"
     );
 }
 
 #[test]
 fn test_identifier_mixed_ascii_unicode_rejected() {
     let err = tokenize_error("hello世界");
-    assert!(
-        err.message().contains("Invalid character"),
-        "Expected 'Invalid character' in error: {}",
-        err.message()
+    assert_eq!(
+        err.message(),
+        "Invalid character '世' in identifier. Only ASCII letters (a-z, A-Z), digits (0-9), and underscores (_) are allowed"
     );
 }
 
 #[test]
 fn test_identifier_underscore_then_unicode_rejected() {
     let err = tokenize_error("_日本語");
-    assert!(
-        err.message().contains("Invalid character"),
-        "Expected 'Invalid character' in error: {}",
-        err.message()
+    assert_eq!(
+        err.message(),
+        "Invalid character '日' in identifier. Only ASCII letters (a-z, A-Z), digits (0-9), and underscores (_) are allowed"
     );
 }
 
 #[test]
 fn test_identifier_emoji_rejected() {
     let err = tokenize_error("🚀hello");
-    assert!(
-        err.message().contains("Unexpected character"),
-        "Expected 'Unexpected character' in error for emoji: {}",
-        err.message()
-    );
+    assert_eq!(err.message(), "Unexpected character: '🚀'");
 }
 
 #[test]
@@ -119,10 +112,9 @@ fn test_identifier_multiple_underscores() {
 fn test_identifier_unicode_start_then_ascii_rejected() {
     // Unicode at start followed by ASCII should be rejected
     let err = tokenize_error("世界hello");
-    assert!(
-        err.message().contains("Invalid character"),
-        "Expected 'Invalid character' in error: {}",
-        err.message()
+    assert_eq!(
+        err.message(),
+        "Invalid character '世' in identifier. Only ASCII letters (a-z, A-Z), digits (0-9), and underscores (_) are allowed"
     );
 }
 
@@ -130,10 +122,9 @@ fn test_identifier_unicode_start_then_ascii_rejected() {
 fn test_identifier_ascii_unicode_ascii_rejected() {
     // Non-ASCII sandwiched between ASCII should be rejected
     let err = tokenize_error("abc中def");
-    assert!(
-        err.message().contains("Invalid character"),
-        "Expected 'Invalid character' in error: {}",
-        err.message()
+    assert_eq!(
+        err.message(),
+        "Invalid character '中' in identifier. Only ASCII letters (a-z, A-Z), digits (0-9), and underscores (_) are allowed"
     );
 }
 

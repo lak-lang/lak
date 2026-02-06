@@ -18,11 +18,7 @@ fn test_compile_error_syntax() {
         stage,
         msg
     );
-    assert!(
-        msg.contains("Unterminated"),
-        "Expected 'Unterminated' in error: {}",
-        msg
-    );
+    assert_eq!(msg, "Unterminated string literal");
     assert_eq!(
         kind,
         CompileErrorKind::Lex(LexErrorKind::UnterminatedString),
@@ -40,11 +36,7 @@ fn test_compile_error_invalid_escape() {
         stage,
         msg
     );
-    assert!(
-        msg.contains("Unknown escape"),
-        "Expected 'Unknown escape' in error: {}",
-        msg
-    );
+    assert_eq!(msg, "Unknown escape sequence: '\\z'");
     assert_eq!(
         kind,
         CompileErrorKind::Lex(LexErrorKind::UnknownEscapeSequence),
@@ -67,10 +59,9 @@ fn test_compile_error_i64_overflow() {
         stage,
         msg
     );
-    assert!(
-        msg.contains("out of range for i64"),
-        "Expected 'out of range for i64' in error: {}",
-        msg
+    assert_eq!(
+        msg,
+        "Integer literal '9223372036854775808' is out of range for i64 (exceeds maximum value)"
     );
     assert_eq!(
         kind,
@@ -95,11 +86,7 @@ fn test_negative_number_not_supported() {
         msg
     );
     // The lexer expects `->` after `-`, so we get an error about that
-    assert!(
-        msg.contains("Expected '>' after '-'"),
-        "Expected error about '->' arrow, got: {}",
-        msg
-    );
+    assert_eq!(msg, "Expected '>' after '-'");
     assert_eq!(
         kind,
         CompileErrorKind::Lex(LexErrorKind::IncompleteArrow),
@@ -122,10 +109,9 @@ fn test_non_ascii_identifier_rejected() {
         stage,
         msg
     );
-    assert!(
-        msg.contains("Invalid character") && msg.contains("Only ASCII letters"),
-        "Expected specific error about ASCII-only identifiers, got: {}",
-        msg
+    assert_eq!(
+        msg,
+        "Invalid character '変' in identifier. Only ASCII letters (a-z, A-Z), digits (0-9), and underscores (_) are allowed"
     );
     assert_eq!(
         kind,
@@ -149,10 +135,9 @@ fn test_greek_letters_rejected() {
         stage,
         msg
     );
-    assert!(
-        msg.contains("Invalid character") && msg.contains("Only ASCII letters"),
-        "Expected specific error about ASCII-only identifiers, got: {}",
-        msg
+    assert_eq!(
+        msg,
+        "Invalid character 'α' in identifier. Only ASCII letters (a-z, A-Z), digits (0-9), and underscores (_) are allowed"
     );
     assert_eq!(
         kind,
@@ -176,11 +161,7 @@ fn test_emoji_in_code_rejected() {
         stage,
         msg
     );
-    assert!(
-        msg.contains("Unexpected character"),
-        "Expected 'Unexpected character' error for emoji, got: {}",
-        msg
-    );
+    assert_eq!(msg, "Unexpected character: '🚀'");
     assert_eq!(
         kind,
         CompileErrorKind::Lex(LexErrorKind::UnexpectedCharacter),
@@ -199,10 +180,9 @@ fn test_fullwidth_space_rejected() {
         stage,
         msg
     );
-    assert!(
-        msg.contains("Invalid whitespace character") && msg.contains("U+3000"),
-        "Expected specific error about invalid whitespace U+3000, got: {}",
-        msg
+    assert_eq!(
+        msg,
+        "Invalid whitespace character '\u{3000}' (U+3000). Only space, tab, carriage return, and newline are allowed"
     );
     assert_eq!(
         kind,
@@ -222,10 +202,9 @@ fn test_nbsp_rejected() {
         stage,
         msg
     );
-    assert!(
-        msg.contains("Invalid whitespace character") && msg.contains("U+00A0"),
-        "Expected specific error about invalid whitespace U+00A0, got: {}",
-        msg
+    assert_eq!(
+        msg,
+        "Invalid whitespace character '\u{00A0}' (U+00A0). Only space, tab, carriage return, and newline are allowed"
     );
     assert_eq!(
         kind,

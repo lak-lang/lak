@@ -134,11 +134,9 @@ fn test_error_string_literal_as_int_value() {
 
     let mut analyzer = SemanticAnalyzer::new();
     let err = analyzer.analyze(&program).expect_err("Should fail");
-    assert!(
-        err.message()
-            .contains("string literal cannot be assigned to type 'i32'"),
-        "Expected 'string literal cannot be assigned to type' in error: {}",
-        err.message()
+    assert_eq!(
+        err.message(),
+        "Type mismatch: string literal cannot be assigned to type 'i32'"
     );
 }
 
@@ -171,10 +169,9 @@ fn test_error_function_call_as_int_value() {
 
     let mut analyzer = SemanticAnalyzer::new();
     let err = analyzer.analyze(&program).expect_err("Should fail");
-    assert!(
-        err.message().contains("cannot be used as a value"),
-        "Expected 'cannot be used as a value' in error: {}",
-        err.message()
+    assert_eq!(
+        err.message(),
+        "Function call 'some_func' cannot be used as a value (functions returning values not yet supported)"
     );
 }
 
@@ -197,11 +194,9 @@ fn test_error_int_literal_as_statement() {
 
     let mut analyzer = SemanticAnalyzer::new();
     let err = analyzer.analyze(&program).expect_err("Should fail");
-    assert!(
-        err.message()
-            .contains("Integer literal as a statement has no effect"),
-        "Expected 'Integer literal as a statement has no effect' in error: {}",
-        err.message()
+    assert_eq!(
+        err.message(),
+        "Integer literal as a statement has no effect. Did you mean to assign it to a variable?"
     );
 }
 
@@ -237,10 +232,9 @@ fn test_error_identifier_as_statement() {
 
     let mut analyzer = SemanticAnalyzer::new();
     let err = analyzer.analyze(&program).expect_err("Should fail");
-    assert!(
-        err.message().contains("used as a statement has no effect"),
-        "Expected 'used as a statement has no effect' in error: {}",
-        err.message()
+    assert_eq!(
+        err.message(),
+        "Variable 'x' used as a statement has no effect. Did you mean to use it in an expression?"
     );
 }
 
@@ -266,11 +260,9 @@ fn test_error_string_literal_as_statement() {
 
     let mut analyzer = SemanticAnalyzer::new();
     let err = analyzer.analyze(&program).expect_err("Should fail");
-    assert!(
-        err.message()
-            .contains("String literal as a statement has no effect"),
-        "Expected 'String literal as a statement has no effect' in error: {}",
-        err.message()
+    assert_eq!(
+        err.message(),
+        "String literal as a statement has no effect. Did you mean to pass it to a function?"
     );
 }
 
@@ -299,9 +291,8 @@ fn test_error_i32_underflow_via_ast() {
 
     let mut analyzer = SemanticAnalyzer::new();
     let err = analyzer.analyze(&program).expect_err("Should fail");
-    assert!(
-        err.message().contains("out of range for i32"),
-        "Expected 'out of range for i32' in error: {}",
-        err.message()
+    assert_eq!(
+        err.message(),
+        "Integer literal '-2147483649' is out of range for i32 (valid range: -2147483648 to 2147483647)"
     );
 }

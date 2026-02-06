@@ -18,11 +18,7 @@ fn test_compile_error_unknown_function() {
         stage,
         msg
     );
-    assert!(
-        msg.contains("Undefined function"),
-        "Expected 'Undefined function' in error: {}",
-        msg
-    );
+    assert_eq!(msg, "Undefined function: 'unknown_func'");
     assert_eq!(
         kind,
         CompileErrorKind::Semantic(SemanticErrorKind::UndefinedFunction),
@@ -40,10 +36,9 @@ fn test_compile_error_missing_main() {
         stage,
         msg
     );
-    assert!(
-        msg.contains("No main function"),
-        "Expected 'No main function' in error: {}",
-        msg
+    assert_eq!(
+        msg,
+        "No main function found: program contains no function definitions"
     );
     assert_eq!(
         kind,
@@ -62,16 +57,7 @@ fn test_compile_error_missing_main_with_other_functions() {
         stage,
         msg
     );
-    assert!(
-        msg.contains("No main function"),
-        "Expected 'No main function' in error: {}",
-        msg
-    );
-    assert!(
-        msg.contains("hoge"),
-        "Expected defined function name 'hoge' in error: {}",
-        msg
-    );
+    assert_eq!(msg, "No main function found. Defined functions: [\"hoge\"]");
     assert_eq!(
         kind,
         CompileErrorKind::Semantic(SemanticErrorKind::MissingMainFunction),
@@ -89,10 +75,9 @@ fn test_compile_error_main_wrong_return_type() {
         stage,
         msg
     );
-    assert!(
-        msg.contains("must return void"),
-        "Expected 'must return void' in error: {}",
-        msg
+    assert_eq!(
+        msg,
+        "main function must return void, but found return type 'int'"
     );
     assert_eq!(
         kind,
@@ -116,11 +101,7 @@ fn test_compile_error_duplicate_variable() {
         stage,
         msg
     );
-    assert!(
-        msg.contains("already defined"),
-        "Expected 'already defined' in error: {}",
-        msg
-    );
+    assert_eq!(msg, "Variable 'x' is already defined at 2:5");
     assert_eq!(
         kind,
         CompileErrorKind::Semantic(SemanticErrorKind::DuplicateVariable),
@@ -142,11 +123,7 @@ fn test_compile_error_undefined_variable() {
         stage,
         msg
     );
-    assert!(
-        msg.contains("Undefined variable"),
-        "Expected 'Undefined variable' in error: {}",
-        msg
-    );
+    assert_eq!(msg, "Undefined variable: 'undefined_var'");
     assert_eq!(
         kind,
         CompileErrorKind::Semantic(SemanticErrorKind::UndefinedVariable),
@@ -169,10 +146,9 @@ fn test_compile_error_type_mismatch() {
         stage,
         msg
     );
-    assert!(
-        msg.contains("Type mismatch"),
-        "Expected 'Type mismatch' in error: {}",
-        msg
+    assert_eq!(
+        msg,
+        "Type mismatch: variable 'x' has type 'i32', expected 'i64'"
     );
     assert_eq!(
         kind,
@@ -196,10 +172,9 @@ fn test_compile_error_i32_overflow() {
         stage,
         msg
     );
-    assert!(
-        msg.contains("out of range for i32"),
-        "Expected 'out of range for i32' in error: {}",
-        msg
+    assert_eq!(
+        msg,
+        "Integer literal '2147483648' is out of range for i32 (valid range: -2147483648 to 2147483647)"
     );
     assert_eq!(
         kind,
@@ -224,10 +199,9 @@ fn test_compile_error_i32_large_value_overflow() {
         stage,
         msg
     );
-    assert!(
-        msg.contains("out of range for i32"),
-        "Expected 'out of range for i32' in error: {}",
-        msg
+    assert_eq!(
+        msg,
+        "Integer literal '9223372036854775807' is out of range for i32 (valid range: -2147483648 to 2147483647)"
     );
     assert_eq!(
         kind,
@@ -252,11 +226,7 @@ fn test_compile_error_duplicate_variable_different_type() {
         stage,
         msg
     );
-    assert!(
-        msg.contains("already defined"),
-        "Expected 'already defined' in error: {}",
-        msg
-    );
+    assert_eq!(msg, "Variable 'x' is already defined at 2:5");
     assert_eq!(
         kind,
         CompileErrorKind::Semantic(SemanticErrorKind::DuplicateVariable),
@@ -280,11 +250,7 @@ fn test_compile_error_forward_reference() {
         stage,
         msg
     );
-    assert!(
-        msg.contains("Undefined variable"),
-        "Expected 'Undefined variable' in error: {}",
-        msg
-    );
+    assert_eq!(msg, "Undefined variable: 'y'");
     assert_eq!(
         kind,
         CompileErrorKind::Semantic(SemanticErrorKind::UndefinedVariable),
@@ -307,10 +273,9 @@ fn test_compile_error_string_literal_to_int() {
         stage,
         msg
     );
-    assert!(
-        msg.contains("string literal cannot be assigned to type 'i32'"),
-        "Expected type mismatch error: {}",
-        msg
+    assert_eq!(
+        msg,
+        "Type mismatch: string literal cannot be assigned to type 'i32'"
     );
     assert_eq!(
         kind,
@@ -334,10 +299,9 @@ fn test_compile_error_int_literal_to_string() {
         stage,
         msg
     );
-    assert!(
-        msg.contains("integer literal '42' cannot be assigned to type 'string'"),
-        "Expected type mismatch error: {}",
-        msg
+    assert_eq!(
+        msg,
+        "Type mismatch: integer literal '42' cannot be assigned to type 'string'"
     );
     assert_eq!(
         kind,
@@ -348,7 +312,6 @@ fn test_compile_error_int_literal_to_string() {
 
 #[test]
 fn test_compile_error_duplicate_function() {
-    // Duplicate function definition (issues/1.md)
     let result = compile_error_with_kind(
         r#"fn main() -> void {}
 fn main() -> void {}"#,
@@ -360,11 +323,7 @@ fn main() -> void {}"#,
         stage,
         msg
     );
-    assert!(
-        msg.contains("already defined"),
-        "Expected 'already defined' in error: {}",
-        msg
-    );
+    assert_eq!(msg, "Function 'main' is already defined at 1:1");
     assert_eq!(
         kind,
         CompileErrorKind::Semantic(SemanticErrorKind::DuplicateFunction),
@@ -393,11 +352,7 @@ fn main() -> void {
         stage,
         msg
     );
-    assert!(
-        msg.contains("expects 0 arguments"),
-        "Expected 'expects 0 arguments' in error: {}",
-        msg
-    );
+    assert_eq!(msg, "Function 'helper' expects 0 arguments, but got 1");
     assert_eq!(
         kind,
         CompileErrorKind::Semantic(SemanticErrorKind::InvalidArgument),
@@ -426,11 +381,7 @@ fn main() -> void {
         stage,
         msg
     );
-    assert!(
-        msg.contains("expects 0 arguments") && msg.contains("3"),
-        "Expected 'expects 0 arguments...3' in error: {}",
-        msg
-    );
+    assert_eq!(msg, "Function 'helper' expects 0 arguments, but got 3");
     assert_eq!(
         kind,
         CompileErrorKind::Semantic(SemanticErrorKind::InvalidArgument),
@@ -459,11 +410,7 @@ fn main() -> void {
         stage,
         msg
     );
-    assert!(
-        msg.contains("Cannot call 'main'"),
-        "Expected 'Cannot call main' in error: {}",
-        msg
-    );
+    assert_eq!(msg, "Cannot call 'main' function directly");
     assert_eq!(
         kind,
         CompileErrorKind::Semantic(SemanticErrorKind::InvalidArgument),
@@ -488,11 +435,7 @@ fn main() -> void {
         stage,
         msg
     );
-    assert!(
-        msg.contains("Cannot call 'main'"),
-        "Expected 'Cannot call main' in error: {}",
-        msg
-    );
+    assert_eq!(msg, "Cannot call 'main' function directly");
     assert_eq!(
         kind,
         CompileErrorKind::Semantic(SemanticErrorKind::InvalidArgument),
@@ -516,10 +459,9 @@ fn test_compile_error_int_variable_to_string() {
         stage,
         msg
     );
-    assert!(
-        msg.contains("Type mismatch"),
-        "Expected 'Type mismatch' in error: {}",
-        msg
+    assert_eq!(
+        msg,
+        "Type mismatch: variable 'x' has type 'i32', expected 'string'"
     );
     assert_eq!(
         kind,
@@ -544,10 +486,9 @@ fn test_compile_error_string_variable_as_statement() {
         stage,
         msg
     );
-    assert!(
-        msg.contains("used as a statement has no effect"),
-        "Expected 'used as a statement has no effect' in error: {}",
-        msg
+    assert_eq!(
+        msg,
+        "Variable 's' used as a statement has no effect. Did you mean to use it in an expression?"
     );
     assert_eq!(
         kind,

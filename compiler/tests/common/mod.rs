@@ -114,13 +114,13 @@ pub fn compile_error(source: &str) -> Option<(CompileStage, String)> {
     let mut lexer = Lexer::new(source);
     let tokens = match lexer.tokenize() {
         Ok(t) => t,
-        Err(e) => return Some((CompileStage::Lex, e.to_string())),
+        Err(e) => return Some((CompileStage::Lex, e.message().to_string())),
     };
 
     let mut parser = Parser::new(tokens);
     let program = match parser.parse() {
         Ok(p) => p,
-        Err(e) => return Some((CompileStage::Parse, e.to_string())),
+        Err(e) => return Some((CompileStage::Parse, e.message().to_string())),
     };
 
     let mut analyzer = SemanticAnalyzer::new();
@@ -145,7 +145,7 @@ pub fn compile_error_with_kind(source: &str) -> Option<(CompileStage, String, Co
         Err(e) => {
             return Some((
                 CompileStage::Lex,
-                e.to_string(),
+                e.message().to_string(),
                 CompileErrorKind::Lex(e.kind()),
             ));
         }
@@ -157,7 +157,7 @@ pub fn compile_error_with_kind(source: &str) -> Option<(CompileStage, String, Co
         Err(e) => {
             return Some((
                 CompileStage::Parse,
-                e.to_string(),
+                e.message().to_string(),
                 CompileErrorKind::Parse(e.kind()),
             ));
         }
