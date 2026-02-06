@@ -136,8 +136,8 @@ fn test_error_string_literal_as_int_value() {
     let err = analyzer.analyze(&program).expect_err("Should fail");
     assert!(
         err.message()
-            .contains("String literals cannot be used as integer values"),
-        "Expected 'String literals cannot be used as integer values' in error: {}",
+            .contains("string literal cannot be assigned to type 'i32'"),
+        "Expected 'string literal cannot be assigned to type' in error: {}",
         err.message()
     );
 }

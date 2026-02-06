@@ -58,7 +58,7 @@ fn test_string_literal_as_integer() {
     assert!(result.is_err());
     let err = result.unwrap_err();
     assert_eq!(err.kind(), SemanticErrorKind::TypeMismatch);
-    assert!(err.message().contains("String literals cannot be used"));
+    assert!(err.message().contains("string literal cannot be assigned"));
 }
 
 // ============================================================================
@@ -248,12 +248,15 @@ fn test_println_non_string_argument() {
     assert!(result.is_err());
     let err = result.unwrap_err();
     assert_eq!(err.kind(), SemanticErrorKind::InvalidArgument);
-    assert!(err.message().contains("string literal"));
+    assert!(
+        err.message()
+            .contains("must be a string literal or string variable")
+    );
 }
 
 #[test]
 fn test_println_with_variable_argument() {
-    // Variable reference as println argument should fail (println requires string literal)
+    // i32 variable reference as println argument should fail (println requires string)
     let program = program_with_main(vec![
         Stmt::new(
             StmtKind::Let {
@@ -283,7 +286,7 @@ fn test_println_with_variable_argument() {
     assert!(result.is_err());
     let err = result.unwrap_err();
     assert_eq!(err.kind(), SemanticErrorKind::InvalidArgument);
-    assert!(err.message().contains("string literal"));
+    assert!(err.message().contains("println requires a string argument"));
 }
 
 // ============================================================================

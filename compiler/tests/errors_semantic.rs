@@ -238,7 +238,7 @@ fn test_compile_error_forward_reference() {
 
 #[test]
 fn test_compile_error_variable_in_println() {
-    // Passing a variable to println should error (println only accepts string literals)
+    // Passing an i32 variable to println should error (println requires string)
     let result = compile_error(
         r#"fn main() -> void {
     let x: i32 = 42
@@ -253,8 +253,8 @@ fn test_compile_error_variable_in_println() {
         msg
     );
     assert!(
-        msg.contains("string literal"),
-        "Expected 'string literal' in error: {}",
+        msg.contains("println requires a string argument"),
+        "Expected 'println requires a string argument' in error: {}",
         msg
     );
 }
@@ -275,8 +275,52 @@ fn test_compile_error_println_int_literal() {
         msg
     );
     assert!(
-        msg.contains("string literal"),
-        "Expected 'string literal' in error: {}",
+        msg.contains("must be a string literal or string variable"),
+        "Expected 'must be a string literal or string variable' in error: {}",
+        msg
+    );
+}
+
+#[test]
+fn test_compile_error_string_literal_to_int() {
+    // String literal cannot be assigned to i32 variable
+    let result = compile_error(
+        r#"fn main() -> void {
+    let x: i32 = "hello"
+}"#,
+    );
+    let (stage, msg) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert!(
+        msg.contains("string literal cannot be assigned to type 'i32'"),
+        "Expected type mismatch error: {}",
+        msg
+    );
+}
+
+#[test]
+fn test_compile_error_int_literal_to_string() {
+    // Integer literal cannot be assigned to string variable
+    let result = compile_error(
+        r#"fn main() -> void {
+    let s: string = 42
+}"#,
+    );
+    let (stage, msg) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert!(
+        msg.contains("integer literal 42 cannot be assigned to type 'string'"),
+        "Expected type mismatch error: {}",
         msg
     );
 }
@@ -406,6 +450,52 @@ fn main() -> void {
     assert!(
         msg.contains("Cannot call 'main'"),
         "Expected 'Cannot call main' in error: {}",
+        msg
+    );
+}
+
+#[test]
+fn test_compile_error_int_variable_to_string() {
+    // Int variable cannot be assigned to string variable
+    let result = compile_error(
+        r#"fn main() -> void {
+    let x: i32 = 42
+    let s: string = x
+}"#,
+    );
+    let (stage, msg) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert!(
+        msg.contains("Type mismatch"),
+        "Expected 'Type mismatch' in error: {}",
+        msg
+    );
+}
+
+#[test]
+fn test_compile_error_string_variable_as_statement() {
+    // String variable used as standalone statement should error (no effect)
+    let result = compile_error(
+        r#"fn main() -> void {
+    let s: string = "hello"
+    s
+}"#,
+    );
+    let (stage, msg) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert!(
+        msg.contains("used as a statement has no effect"),
+        "Expected 'used as a statement has no effect' in error: {}",
         msg
     );
 }

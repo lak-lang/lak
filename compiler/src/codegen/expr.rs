@@ -104,13 +104,27 @@ impl<'ctx> Codegen<'ctx> {
     ) -> Result<BasicValueEnum<'ctx>, CodegenError> {
         match &expr.kind {
             ExprKind::IntLiteral(value) => {
-                // Semantic analysis guarantees the value fits in the expected type
-                let llvm_type = self.get_llvm_type(expected_ty);
-                // Cast to u64 for the LLVM API. For const_int, LLVM takes the bottom N bits
-                // where N is the type's bit width. The sign_extend parameter controls whether
-                // those bits are sign-extended when the value is loaded to a wider register.
-                let llvm_value = llvm_type.const_int(*value as u64, true);
-                Ok(llvm_value.into())
+                // Semantic analysis guarantees the value fits in the expected type.
+                // Use match to handle integer types explicitly and reject string type.
+                match expected_ty {
+                    Type::I32 | Type::I64 => {
+                        let llvm_type = self.get_llvm_type(expected_ty).into_int_type();
+                        // Cast to u64 for the LLVM API. For const_int, LLVM takes the bottom N bits
+                        // where N is the type's bit width. The sign_extend parameter controls whether
+                        // those bits are sign-extended when the value is loaded to a wider register.
+                        let llvm_value = llvm_type.const_int(*value as u64, true);
+                        Ok(llvm_value.into())
+                    }
+                    Type::String => Err(CodegenError::new(
+                        CodegenErrorKind::InternalError,
+                        format!(
+                            "Internal error: integer literal {} used as 'string' value in codegen. \
+                             Semantic analysis should have caught this. This is a compiler bug.",
+                            value
+                        ),
+                        expr.span,
+                    )),
+                }
             }
             ExprKind::Identifier(name) => {
                 // Semantic analysis guarantees the variable exists and has the correct type
@@ -158,12 +172,35 @@ impl<'ctx> Codegen<'ctx> {
 
                 Ok(loaded)
             }
-            ExprKind::StringLiteral(_) => Err(CodegenError::new(
-                CodegenErrorKind::InternalError,
-                "Internal error: string literal used as integer value in codegen. \
-                 Semantic analysis should have caught this. This is a compiler bug.",
-                expr.span,
-            )),
+            ExprKind::StringLiteral(s) => {
+                if *expected_ty != Type::String {
+                    return Err(CodegenError::new(
+                        CodegenErrorKind::InternalError,
+                        format!(
+                            "Internal error: string literal used as '{}' value in codegen. \
+                             Semantic analysis should have caught this. This is a compiler bug.",
+                            expected_ty
+                        ),
+                        expr.span,
+                    ));
+                }
+                // Create a global constant string in read-only memory.
+                // The pointer remains valid for the program's lifetime.
+                let str_ptr = self
+                    .builder
+                    .build_global_string_ptr(s, "str")
+                    .map_err(|e| {
+                        CodegenError::new(
+                            CodegenErrorKind::InternalError,
+                            format!(
+                                "Internal error: failed to create string literal. This is a compiler bug: {}",
+                                e
+                            ),
+                            expr.span,
+                        )
+                    })?;
+                Ok(str_ptr.as_pointer_value().into())
+            }
             ExprKind::Call { callee, .. } => Err(CodegenError::new(
                 CodegenErrorKind::InternalError,
                 format!(

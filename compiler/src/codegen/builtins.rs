@@ -38,7 +38,7 @@ impl<'ctx> Codegen<'ctx> {
     ///
     /// Returns an internal error if semantic validation was bypassed (wrong argument
     /// count or type). Semantic analysis guarantees println receives exactly one
-    /// string literal.
+    /// string literal or string variable.
     pub(super) fn generate_println(
         &mut self,
         args: &[Expr],
@@ -58,12 +58,55 @@ impl<'ctx> Codegen<'ctx> {
         }
 
         let arg = &args[0];
-        let string_value = match &arg.kind {
-            ExprKind::StringLiteral(s) => s,
+
+        // Get string pointer from string literal or string variable
+        let string_ptr = match &arg.kind {
+            ExprKind::StringLiteral(s) => self
+                .builder
+                .build_global_string_ptr(s, "str")
+                .map_err(|e| {
+                    CodegenError::new(
+                        CodegenErrorKind::InternalError,
+                        format!(
+                            "Internal error: failed to create string literal. This is a compiler bug: {}",
+                            e
+                        ),
+                        arg.span,
+                    )
+                })?
+                .as_pointer_value(),
+            ExprKind::Identifier(name) => {
+                let binding = self.variables.get(name).ok_or_else(|| {
+                    CodegenError::new(
+                        CodegenErrorKind::InternalError,
+                        format!(
+                            "Internal error: undefined variable '{}' in codegen. \
+                             Semantic analysis should have caught this. This is a compiler bug.",
+                            name
+                        ),
+                        arg.span,
+                    )
+                })?;
+
+                let ptr_type = self.context.ptr_type(AddressSpace::default());
+                self.builder
+                    .build_load(ptr_type, binding.alloca(), &format!("{}_load", name))
+                    .map_err(|e| {
+                        CodegenError::new(
+                            CodegenErrorKind::InternalError,
+                            format!(
+                                "Internal error: failed to load string variable '{}'. This is a compiler bug: {}",
+                                name, e
+                            ),
+                            arg.span,
+                        )
+                    })?
+                    .into_pointer_value()
+            }
             _ => {
                 return Err(CodegenError::new(
                     CodegenErrorKind::InternalError,
-                    "Internal error: println argument is not a string literal in codegen. \
+                    "Internal error: println argument is not a string literal or string variable. \
                      Semantic analysis should have caught this. This is a compiler bug.",
                     arg.span,
                 ));
@@ -77,26 +120,10 @@ impl<'ctx> Codegen<'ctx> {
             )
         })?;
 
-        let str_value = self
-            .builder
-            .build_global_string_ptr(string_value, "str")
-            .map_err(|e| {
-                CodegenError::new(
-                    CodegenErrorKind::InternalError,
-                    format!(
-                        "Internal error: failed to create string literal. This is a compiler bug: {}",
-                        e
-                    ),
-                    arg.span,
-                )
-            })?;
-
         self.builder
             .build_call(
                 lak_println,
-                &[BasicMetadataValueEnum::PointerValue(
-                    str_value.as_pointer_value(),
-                )],
+                &[BasicMetadataValueEnum::PointerValue(string_ptr)],
                 "",
             )
             .map_err(|e| {

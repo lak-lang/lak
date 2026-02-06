@@ -87,7 +87,9 @@ pub use error::{CodegenError, CodegenErrorKind};
 
 use crate::ast::{FnDef, Program, Type};
 use binding::VarBinding;
+use inkwell::AddressSpace;
 use inkwell::context::Context;
+use inkwell::types::BasicTypeEnum;
 use std::collections::HashMap;
 
 /// LLVM code generator for Lak programs.
@@ -290,10 +292,12 @@ impl<'ctx> Codegen<'ctx> {
     ///
     /// - `Type::I32` → LLVM `i32`
     /// - `Type::I64` → LLVM `i64`
-    fn get_llvm_type(&self, ty: &Type) -> inkwell::types::IntType<'ctx> {
+    /// - `Type::String` → LLVM `ptr` (i8*)
+    fn get_llvm_type(&self, ty: &Type) -> BasicTypeEnum<'ctx> {
         match ty {
-            Type::I32 => self.context.i32_type(),
-            Type::I64 => self.context.i64_type(),
+            Type::I32 => self.context.i32_type().into(),
+            Type::I64 => self.context.i64_type().into(),
+            Type::String => self.context.ptr_type(AddressSpace::default()).into(),
         }
     }
 }

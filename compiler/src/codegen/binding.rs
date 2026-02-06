@@ -4,7 +4,9 @@
 //! allocation and type information during code generation.
 
 use crate::ast::Type;
+use inkwell::AddressSpace;
 use inkwell::context::Context;
+use inkwell::types::BasicTypeEnum;
 use inkwell::values::PointerValue;
 
 /// A variable binding in the symbol table.
@@ -17,6 +19,7 @@ use inkwell::values::PointerValue;
 /// The LLVM type of `alloca` must correspond to `ty`:
 /// - `Type::I32` → `alloca` points to an LLVM `i32`
 /// - `Type::I64` → `alloca` points to an LLVM `i64`
+/// - `Type::String` → `alloca` points to an LLVM `ptr` (pointer to string data)
 ///
 /// This invariant is enforced by creating bindings only through
 /// [`VarBinding::new`], which allocates the correct LLVM type.
@@ -51,9 +54,10 @@ impl<'ctx> VarBinding<'ctx> {
         ty: &Type,
         name: &str,
     ) -> Result<Self, String> {
-        let llvm_type = match ty {
-            Type::I32 => context.i32_type(),
-            Type::I64 => context.i64_type(),
+        let llvm_type: BasicTypeEnum = match ty {
+            Type::I32 => context.i32_type().into(),
+            Type::I64 => context.i64_type().into(),
+            Type::String => context.ptr_type(AddressSpace::default()).into(),
         };
         let alloca = builder.build_alloca(llvm_type, name).map_err(|e| {
             format!(

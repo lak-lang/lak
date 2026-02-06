@@ -10,7 +10,7 @@ impl Parser {
     /// # Grammar
     ///
     /// ```text
-    /// type → "i32" | "i64"
+    /// type → "i32" | "i64" | "string"
     /// ```
     pub(super) fn parse_type(&mut self) -> Result<Type, ParseError> {
         let type_span = self.current_span();
@@ -18,8 +18,12 @@ impl Parser {
         match name.as_str() {
             "i32" => Ok(Type::I32),
             "i64" => Ok(Type::I64),
+            "string" => Ok(Type::String),
             _ => Err(ParseError {
-                message: format!("Unknown type: '{}'. Expected 'i32' or 'i64'", name),
+                message: format!(
+                    "Unknown type: '{}'. Expected 'i32', 'i64', or 'string'",
+                    name
+                ),
                 span: type_span,
             }),
         }

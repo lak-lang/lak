@@ -216,13 +216,35 @@ impl SemanticAnalyzer {
                 ));
             }
 
-            // println only accepts string literals
-            if !matches!(args[0].kind, ExprKind::StringLiteral(_)) {
-                return Err(SemanticError::new(
-                    SemanticErrorKind::InvalidArgument,
-                    "println argument must be a string literal",
-                    args[0].span,
-                ));
+            // println accepts string literals or string variables
+            match &args[0].kind {
+                ExprKind::StringLiteral(_) => {}
+                ExprKind::Identifier(name) => {
+                    let var_info = self.symbols.lookup_variable(name).ok_or_else(|| {
+                        SemanticError::new(
+                            SemanticErrorKind::UndefinedVariable,
+                            format!("Undefined variable: '{}'", name),
+                            args[0].span,
+                        )
+                    })?;
+                    if var_info.ty != Type::String {
+                        return Err(SemanticError::new(
+                            SemanticErrorKind::InvalidArgument,
+                            format!(
+                                "println requires a string argument, but '{}' has type '{}'",
+                                name, var_info.ty
+                            ),
+                            args[0].span,
+                        ));
+                    }
+                }
+                _ => {
+                    return Err(SemanticError::new(
+                        SemanticErrorKind::InvalidArgument,
+                        "println argument must be a string literal or string variable",
+                        args[0].span,
+                    ));
+                }
             }
 
             return Ok(());
@@ -276,7 +298,19 @@ impl SemanticAnalyzer {
 
     fn check_expr_type(&self, expr: &Expr, expected_ty: &Type) -> Result<(), SemanticError> {
         match &expr.kind {
-            ExprKind::IntLiteral(value) => self.check_integer_range(*value, expected_ty, expr.span),
+            ExprKind::IntLiteral(value) => {
+                if *expected_ty == Type::String {
+                    return Err(SemanticError::new(
+                        SemanticErrorKind::TypeMismatch,
+                        format!(
+                            "Type mismatch: integer literal {} cannot be assigned to type 'string'",
+                            value
+                        ),
+                        expr.span,
+                    ));
+                }
+                self.check_integer_range(*value, expected_ty, expr.span)
+            }
             ExprKind::Identifier(name) => {
                 let var_info = self.symbols.lookup_variable(name).ok_or_else(|| {
                     SemanticError::new(
@@ -299,11 +333,19 @@ impl SemanticAnalyzer {
 
                 Ok(())
             }
-            ExprKind::StringLiteral(_) => Err(SemanticError::new(
-                SemanticErrorKind::TypeMismatch,
-                "String literals cannot be used as integer values",
-                expr.span,
-            )),
+            ExprKind::StringLiteral(_) => {
+                if *expected_ty != Type::String {
+                    return Err(SemanticError::new(
+                        SemanticErrorKind::TypeMismatch,
+                        format!(
+                            "Type mismatch: string literal cannot be assigned to type '{}'",
+                            expected_ty
+                        ),
+                        expr.span,
+                    ));
+                }
+                Ok(())
+            }
             ExprKind::Call { callee, .. } => Err(SemanticError::new(
                 SemanticErrorKind::TypeMismatch,
                 format!(
@@ -334,6 +376,16 @@ impl SemanticAnalyzer {
             Type::I64 => {
                 // Invariant: The lexer parses integer literals into i64, so any
                 // value that made it past lexing is guaranteed to be within i64 range.
+            }
+            Type::String => {
+                // This branch should never be reached because check_expr_type
+                // handles Type::String before calling check_integer_range.
+                // Panic to signal a compiler bug if this is reached.
+                panic!(
+                    "Internal compiler bug: check_integer_range called with string type \
+                     for value {} at {}:{}. This should never happen.",
+                    value, span.line, span.column
+                );
             }
         }
         Ok(())

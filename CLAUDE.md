@@ -86,10 +86,11 @@ The compiler currently supports:
 - `main` function as the program entry point (required)
 - Variable declarations with `let name: type = value` syntax
 - Integer types: `i32` (32-bit signed), `i64` (64-bit signed)
+- String type: `string` (UTF-8 string, stored as pointer to read-only data)
 - Integer literals (e.g., `42`, `0`, `9223372036854775807`)
-- Variable references in expressions
-- `println("string")` - Print with newline (calls Lak runtime `lak_println`)
 - String literals with escape sequences (`\n`, `\t`, `\r`, `\\`, `\"`)
+- Variable references in expressions
+- `println(s)` - Print with newline (accepts string literal or string variable)
 - Line comments (`//`)
 
 ### Compilation Flow
