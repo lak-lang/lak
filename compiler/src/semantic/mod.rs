@@ -379,12 +379,16 @@ impl SemanticAnalyzer {
             Type::String => {
                 // This branch should never be reached because check_expr_type
                 // handles Type::String before calling check_integer_range.
-                // Panic to signal a compiler bug if this is reached.
-                panic!(
-                    "Internal compiler bug: check_integer_range called with string type \
-                     for value {} at {}:{}. This should never happen.",
-                    value, span.line, span.column
-                );
+                // Return an internal error to signal a compiler bug if this is reached.
+                return Err(SemanticError::new(
+                    SemanticErrorKind::InternalError,
+                    format!(
+                        "Internal compiler bug: check_integer_range called with string type \
+                         for value {}. This should never happen.",
+                        value
+                    ),
+                    span,
+                ));
             }
         }
         Ok(())

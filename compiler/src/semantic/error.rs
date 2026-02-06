@@ -12,7 +12,7 @@ use crate::token::Span;
 ///
 /// # Error Categories
 ///
-/// Error kinds fall into three categories based on their typical span behavior:
+/// Error kinds fall into four categories based on their typical span behavior:
 ///
 /// - **Name resolution errors** (have span): [`DuplicateFunction`](Self::DuplicateFunction),
 ///   [`DuplicateVariable`](Self::DuplicateVariable), [`UndefinedVariable`](Self::UndefinedVariable),
@@ -22,6 +22,7 @@ use crate::token::Span;
 ///   [`InvalidExpression`](Self::InvalidExpression)
 /// - **Structural errors** (no span): [`MissingMainFunction`](Self::MissingMainFunction),
 ///   [`InvalidMainSignature`](Self::InvalidMainSignature) (has span for return type)
+/// - **Internal errors** (have span): [`InternalError`](Self::InternalError) - indicates a compiler bug
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SemanticErrorKind {
     /// A function was defined multiple times.
@@ -44,6 +45,8 @@ pub enum SemanticErrorKind {
     MissingMainFunction,
     /// The main function has an invalid signature (e.g., wrong return type).
     InvalidMainSignature,
+    /// Internal compiler error (should never occur in normal operation).
+    InternalError,
 }
 
 /// An error that occurred during semantic analysis.
