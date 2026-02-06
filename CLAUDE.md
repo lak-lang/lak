@@ -112,3 +112,9 @@ Use the following prefixes based on the type of change:
 
 - **Affects application behavior**: `fix:`, `feat:`
 - **Does not affect application behavior**: `ci:`, `chore:`, `docs:`
+
+## Testing Philosophy
+
+- **Prefer exact matching over partial matching**: Use `assert_eq!()` instead of `assert!(contains())` for error message tests. Exact matching ensures unintended changes are detected immediately.
+- **Test brittleness is acceptable**: If tests break due to internal changes, fix them. The cost of fixing tests is lower than the cost of undetected unintended changes.
+- **E2E tests should verify ANSI codes**: ariadne outputs colored error messages. E2E tests should verify the exact output including ANSI escape codes (e.g., `\x1b[31mError:\x1b[0m ...`).
