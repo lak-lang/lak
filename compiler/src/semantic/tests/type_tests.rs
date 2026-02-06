@@ -231,7 +231,8 @@ fn test_println_too_many_arguments() {
 }
 
 #[test]
-fn test_println_non_string_argument() {
+fn test_println_with_integer_literal() {
+    // println now accepts integer literals (any type support)
     let program = program_with_main(vec![Stmt::new(
         StmtKind::Expr(Expr::new(
             ExprKind::Call {
@@ -245,18 +246,12 @@ fn test_println_non_string_argument() {
 
     let mut analyzer = SemanticAnalyzer::new();
     let result = analyzer.analyze(&program);
-    assert!(result.is_err());
-    let err = result.unwrap_err();
-    assert_eq!(err.kind(), SemanticErrorKind::InvalidArgument);
-    assert!(
-        err.message()
-            .contains("must be a string literal or string variable")
-    );
+    assert!(result.is_ok());
 }
 
 #[test]
-fn test_println_with_variable_argument() {
-    // i32 variable reference as println argument should fail (println requires string)
+fn test_println_with_i32_variable_argument() {
+    // println now accepts i32 variables (any type support)
     let program = program_with_main(vec![
         Stmt::new(
             StmtKind::Let {
@@ -283,10 +278,63 @@ fn test_println_with_variable_argument() {
 
     let mut analyzer = SemanticAnalyzer::new();
     let result = analyzer.analyze(&program);
+    assert!(result.is_ok());
+}
+
+#[test]
+fn test_println_with_i64_variable_argument() {
+    // println now accepts i64 variables (any type support)
+    let program = program_with_main(vec![
+        Stmt::new(
+            StmtKind::Let {
+                name: "y".to_string(),
+                ty: Type::I64,
+                init: Expr::new(ExprKind::IntLiteral(9223372036854775807), dummy_span()),
+            },
+            dummy_span(),
+        ),
+        Stmt::new(
+            StmtKind::Expr(Expr::new(
+                ExprKind::Call {
+                    callee: "println".to_string(),
+                    args: vec![Expr::new(
+                        ExprKind::Identifier("y".to_string()),
+                        span_at(3, 13),
+                    )],
+                },
+                span_at(3, 5),
+            )),
+            dummy_span(),
+        ),
+    ]);
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze(&program);
+    assert!(result.is_ok());
+}
+
+#[test]
+fn test_println_with_undefined_variable() {
+    // println with undefined variable should still fail
+    let program = program_with_main(vec![Stmt::new(
+        StmtKind::Expr(Expr::new(
+            ExprKind::Call {
+                callee: "println".to_string(),
+                args: vec![Expr::new(
+                    ExprKind::Identifier("undefined_var".to_string()),
+                    span_at(2, 13),
+                )],
+            },
+            span_at(2, 5),
+        )),
+        dummy_span(),
+    )]);
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze(&program);
     assert!(result.is_err());
     let err = result.unwrap_err();
-    assert_eq!(err.kind(), SemanticErrorKind::InvalidArgument);
-    assert!(err.message().contains("println requires a string argument"));
+    assert_eq!(err.kind(), SemanticErrorKind::UndefinedVariable);
 }
 
 // ============================================================================

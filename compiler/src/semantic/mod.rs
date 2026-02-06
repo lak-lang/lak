@@ -207,6 +207,7 @@ impl SemanticAnalyzer {
 
     fn analyze_call(&self, callee: &str, args: &[Expr], span: Span) -> Result<(), SemanticError> {
         // Built-in function: println
+        // println accepts any type (string, i32, i64)
         if callee == "println" {
             if args.len() != 1 {
                 return Err(SemanticError::new(
@@ -216,32 +217,30 @@ impl SemanticAnalyzer {
                 ));
             }
 
-            // println accepts string literals or string variables
+            // println accepts string literals, integer literals, or any variable
             match &args[0].kind {
                 ExprKind::StringLiteral(_) => {}
+                ExprKind::IntLiteral(_) => {}
                 ExprKind::Identifier(name) => {
-                    let var_info = self.symbols.lookup_variable(name).ok_or_else(|| {
+                    // Verify the variable exists (type doesn't matter, any type is accepted)
+                    self.symbols.lookup_variable(name).ok_or_else(|| {
                         SemanticError::new(
                             SemanticErrorKind::UndefinedVariable,
                             format!("Undefined variable: '{}'", name),
                             args[0].span,
                         )
                     })?;
-                    if var_info.ty != Type::String {
-                        return Err(SemanticError::new(
-                            SemanticErrorKind::InvalidArgument,
-                            format!(
-                                "println requires a string argument, but '{}' has type '{}'",
-                                name, var_info.ty
-                            ),
-                            args[0].span,
-                        ));
-                    }
                 }
-                _ => {
+                ExprKind::Call {
+                    callee: inner_callee,
+                    ..
+                } => {
                     return Err(SemanticError::new(
                         SemanticErrorKind::InvalidArgument,
-                        "println argument must be a string literal or string variable",
+                        format!(
+                            "Function call '{}' cannot be used as println argument (functions returning values not yet supported)",
+                            inner_callee
+                        ),
                         args[0].span,
                     ));
                 }

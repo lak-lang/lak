@@ -320,3 +320,110 @@ fn test_codegen_error_kinds() {
         CodegenErrorKind::TargetError
     );
 }
+
+// ====================
+// get_expr_type tests
+// ====================
+
+#[test]
+fn test_get_expr_type_int_literal() {
+    let context = Context::create();
+    let codegen = Codegen::new(&context, "test");
+
+    let expr = Expr::new(ExprKind::IntLiteral(42), dummy_span());
+    let result = codegen.get_expr_type(&expr);
+    assert_eq!(result, Ok(Type::I64));
+}
+
+#[test]
+fn test_get_expr_type_string_literal() {
+    let context = Context::create();
+    let codegen = Codegen::new(&context, "test");
+
+    let expr = Expr::new(ExprKind::StringLiteral("hello".to_string()), dummy_span());
+    let result = codegen.get_expr_type(&expr);
+    assert_eq!(result, Ok(Type::String));
+}
+
+#[test]
+fn test_get_expr_type_undefined_identifier() {
+    let context = Context::create();
+    let codegen = Codegen::new(&context, "test");
+
+    let expr = Expr::new(
+        ExprKind::Identifier("undefined_var".to_string()),
+        dummy_span(),
+    );
+    let result = codegen.get_expr_type(&expr);
+    assert!(result.is_err());
+    assert!(result.unwrap_err().contains("undefined variable"));
+}
+
+#[test]
+fn test_get_expr_type_function_call() {
+    let context = Context::create();
+    let codegen = Codegen::new(&context, "test");
+
+    let expr = Expr::new(
+        ExprKind::Call {
+            callee: "some_function".to_string(),
+            args: vec![],
+        },
+        dummy_span(),
+    );
+    let result = codegen.get_expr_type(&expr);
+    assert!(result.is_err());
+    let err_msg = result.unwrap_err();
+    assert!(err_msg.contains("function call"));
+    assert!(err_msg.contains("some_function"));
+    assert!(err_msg.contains("cannot be used as println argument"));
+}
+
+#[test]
+fn test_get_expr_type_defined_i32_variable() {
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "test");
+
+    // Compile a program that defines an i32 variable
+    let program = make_program(vec![let_stmt("x", Type::I32, ExprKind::IntLiteral(42))]);
+    codegen.compile(&program).unwrap();
+
+    // Now test get_expr_type with the defined variable
+    let expr = Expr::new(ExprKind::Identifier("x".to_string()), dummy_span());
+    let result = codegen.get_expr_type(&expr);
+    assert_eq!(result, Ok(Type::I32));
+}
+
+#[test]
+fn test_get_expr_type_defined_i64_variable() {
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "test");
+
+    // Compile a program that defines an i64 variable
+    let program = make_program(vec![let_stmt("y", Type::I64, ExprKind::IntLiteral(100))]);
+    codegen.compile(&program).unwrap();
+
+    // Now test get_expr_type with the defined variable
+    let expr = Expr::new(ExprKind::Identifier("y".to_string()), dummy_span());
+    let result = codegen.get_expr_type(&expr);
+    assert_eq!(result, Ok(Type::I64));
+}
+
+#[test]
+fn test_get_expr_type_defined_string_variable() {
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "test");
+
+    // Compile a program that defines a string variable
+    let program = make_program(vec![let_stmt(
+        "s",
+        Type::String,
+        ExprKind::StringLiteral("hello".to_string()),
+    )]);
+    codegen.compile(&program).unwrap();
+
+    // Now test get_expr_type with the defined variable
+    let expr = Expr::new(ExprKind::Identifier("s".to_string()), dummy_span());
+    let result = codegen.get_expr_type(&expr);
+    assert_eq!(result, Ok(Type::String));
+}

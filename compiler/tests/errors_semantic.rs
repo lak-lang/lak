@@ -237,51 +237,6 @@ fn test_compile_error_forward_reference() {
 }
 
 #[test]
-fn test_compile_error_variable_in_println() {
-    // Passing an i32 variable to println should error (println requires string)
-    let result = compile_error(
-        r#"fn main() -> void {
-    let x: i32 = 42
-    println(x)
-}"#,
-    );
-    let (stage, msg) = result.expect("Expected compilation to fail");
-    assert!(
-        matches!(stage, CompileStage::Semantic),
-        "Expected Semantic error, got {:?}: {}",
-        stage,
-        msg
-    );
-    assert!(
-        msg.contains("println requires a string argument"),
-        "Expected 'println requires a string argument' in error: {}",
-        msg
-    );
-}
-
-#[test]
-fn test_compile_error_println_int_literal() {
-    // Passing an integer literal directly to println should error
-    let result = compile_error(
-        r#"fn main() -> void {
-    println(42)
-}"#,
-    );
-    let (stage, msg) = result.expect("Expected compilation to fail");
-    assert!(
-        matches!(stage, CompileStage::Semantic),
-        "Expected Semantic error, got {:?}: {}",
-        stage,
-        msg
-    );
-    assert!(
-        msg.contains("must be a string literal or string variable"),
-        "Expected 'must be a string literal or string variable' in error: {}",
-        msg
-    );
-}
-
-#[test]
 fn test_compile_error_string_literal_to_int() {
     // String literal cannot be assigned to i32 variable
     let result = compile_error(

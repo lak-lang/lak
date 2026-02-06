@@ -49,9 +49,10 @@ This document tracks the implementation status of Lak language features as defin
   - [x] Escape sequences (`\n`, `\t`, `\r`, `\\`, `\"`)
   - [ ] String concatenation with `+`
 - [ ] `byte` (alias for `u8`)
-- [ ] `any` type (for generic output functions)
-  - [ ] Implicit conversion from any type to `any`
-  - [ ] Default format for all types
+- [x] `any` type (for generic output functions)
+  - [x] Implicit conversion from any type to `any` (compile-time dispatch)
+  - [x] Default format for integer types (i32, i64)
+  - [ ] Default format for other types
   - [ ] Stringer interface priority
 - [ ] `never` type (for functions that don't return)
 - [x] `void` type
@@ -190,7 +191,7 @@ This document tracks the implementation status of Lak language features as defin
 
 - [x] `println(value: any)` - print any value with newline
   - [x] String argument support
-  - [ ] Integer argument support (i32, i64)
+  - [x] Integer argument support (i32, i64)
   - [ ] Bool argument support
   - [ ] Float argument support (f32, f64)
   - [ ] Struct argument support (default format)
@@ -372,7 +373,7 @@ This document tracks the implementation status of Lak language features as defin
 
 ### 15.2 Prelude Functions
 
-- [x] `println(value: any)` available (via runtime, string only currently)
+- [x] `println(value: any)` available (string, i32, i64)
 - [ ] `print(value: any)` available
 - [ ] `panic(message: string)` available
 
@@ -458,7 +459,9 @@ This document tracks the implementation status of Lak language features as defin
 
 ### 18.5 Runtime Library
 
-- [x] `lak_println` function
+- [x] `lak_println` function (string)
+- [x] `lak_println_i32` function
+- [x] `lak_println_i64` function
 - [ ] `lak_print` function
 - [ ] `lak_panic` function
 - [ ] Memory allocation functions
@@ -536,10 +539,10 @@ This document tracks the implementation status of Lak language features as defin
 
 | Category | Implemented | Total | Progress |
 |----------|-------------|-------|----------|
-| Types | 4 | 25 | 16% |
+| Types | 5 | 26 | 19% |
 | Variables | 3 | 8 | 38% |
 | Operators | 1 | 16 | 6% |
-| Functions | 6 | 18 | 33% |
+| Functions | 7 | 18 | 39% |
 | Structs | 0 | 12 | 0% |
 | Interfaces | 0 | 7 | 0% |
 | Enums | 0 | 12 | 0% |
@@ -550,7 +553,7 @@ This document tracks the implementation status of Lak language features as defin
 | Modules | 0 | 12 | 0% |
 | Entry Point | 5 | 5 | 100% |
 
-**Overall Progress: ~15%**
+**Overall Progress: ~17%**
 
 ---
 

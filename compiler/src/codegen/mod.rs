@@ -167,6 +167,8 @@ impl<'ctx> Codegen<'ctx> {
     pub fn compile(&mut self, program: &Program) -> Result<(), CodegenError> {
         // Declare built-in functions
         self.declare_lak_println();
+        self.declare_lak_println_i32();
+        self.declare_lak_println_i64();
 
         // Pass 1: Declare all user-defined functions (except main, which has a special signature)
         for function in &program.functions {

@@ -36,6 +36,18 @@ pub unsafe extern "C" fn lak_println(s: *const c_char) {
     }
 }
 
+/// Prints a 32-bit signed integer followed by a newline to stdout.
+#[unsafe(no_mangle)]
+pub extern "C" fn lak_println_i32(value: i32) {
+    println!("{}", value);
+}
+
+/// Prints a 64-bit signed integer followed by a newline to stdout.
+#[unsafe(no_mangle)]
+pub extern "C" fn lak_println_i64(value: i64) {
+    println!("{}", value);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -69,5 +81,21 @@ mod tests {
     fn test_escape_sequences() {
         let s = CString::new("hello\tworld\n").unwrap();
         unsafe { lak_println(s.as_ptr()) };
+    }
+
+    #[test]
+    fn test_println_i32() {
+        lak_println_i32(42);
+        lak_println_i32(-1);
+        lak_println_i32(i32::MAX);
+        lak_println_i32(i32::MIN);
+    }
+
+    #[test]
+    fn test_println_i64() {
+        lak_println_i64(42);
+        lak_println_i64(-1);
+        lak_println_i64(i64::MAX);
+        lak_println_i64(i64::MIN);
     }
 }
