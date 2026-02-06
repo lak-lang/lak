@@ -35,6 +35,14 @@ cargo test --test e2e_basic
 cargo test --test e2e_strings
 cargo test --test e2e_variables
 cargo test --test e2e_run
+cargo test --test e2e_any
+cargo test --test e2e_functions
+
+# Run error tests only
+cargo test --test errors_lex
+cargo test --test errors_parse
+cargo test --test errors_semantic
+cargo test --test pipeline
 
 # Format code
 cargo fmt
@@ -50,6 +58,7 @@ lak/
 ├── .context/          # Language specification documents
 │   ├── SPEC.md        # Lak language specification (for AI agents)
 │   └── IMPLEMENTATION_STATUS.md  # Feature implementation checklist
+├── .github/           # GitHub Actions workflows
 ├── compiler/          # Main compiler crate (see compiler/CLAUDE.md)
 ├── runtime/           # Lak runtime library (see runtime/CLAUDE.md)
 └── examples/          # Example .lak programs
@@ -82,20 +91,6 @@ Source (.lak) → Lexer → Parser → Semantic Analyzer → Codegen → LLVM �
 - **clap** - Command-line argument parsing
 - **tempfile** - Temporary file handling for compilation pipeline
 
-### Current Language Features
-
-The compiler currently supports:
-- Function definitions with `fn name() -> void { ... }` syntax
-- `main` function as the program entry point (required)
-- Variable declarations with `let name: type = value` syntax
-- Integer types: `i32` (32-bit signed), `i64` (64-bit signed)
-- String type: `string` (UTF-8 string, stored as pointer to read-only data)
-- Integer literals (e.g., `42`, `0`, `9223372036854775807`)
-- String literals with escape sequences (`\n`, `\t`, `\r`, `\\`, `\"`)
-- Variable references in expressions
-- `println(value)` - Print with newline (accepts string, i32, or i64)
-- Line comments (`//`)
-
 ### Compilation Flow
 
 1. `build()` in main.rs reads source file
@@ -108,7 +103,7 @@ The compiler currently supports:
 
 ### Development Tools
 
-- **lefthook** - Git hooks for pre-commit checks (cargo fmt --check, cargo clippy)
+- **lefthook** - Git hooks for pre-commit checks (cargo fmt --check, cargo clippy, actionlint, zizmor, ghalint)
 - **mise** - Tool version management
 
 ## Commit Message Convention
