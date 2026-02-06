@@ -185,7 +185,7 @@ impl<'a> Lexer<'a> {
                         Some(c) => {
                             return Err(LexError::new(
                                 LexErrorKind::UnknownEscapeSequence,
-                                format!("Unknown escape sequence: \\{}", c),
+                                format!("Unknown escape sequence: '\\{}'", c),
                                 Span::new(
                                     self.pos - 1,
                                     self.pos + c.len_utf8(),
@@ -313,12 +313,12 @@ impl<'a> Lexer<'a> {
         let value_str = &self.input[start_pos..self.pos];
         let span = Span::new(start_pos, self.pos, start_line, start_column);
 
-        let value: i64 = value_str.parse().map_err(|e: std::num::ParseIntError| {
+        let value: i64 = value_str.parse().map_err(|_: std::num::ParseIntError| {
             LexError::new(
                 LexErrorKind::IntegerOverflow,
                 format!(
-                    "Integer literal '{}' is out of range for i64: {}",
-                    value_str, e
+                    "Integer literal '{}' is out of range for i64 (exceeds maximum value)",
+                    value_str
                 ),
                 span,
             )

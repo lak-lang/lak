@@ -249,7 +249,7 @@ impl SemanticAnalyzer {
         let func_info = self.symbols.lookup_function(callee).ok_or_else(|| {
             SemanticError::new(
                 SemanticErrorKind::UndefinedFunction,
-                format!("Unknown function: {}", callee),
+                format!("Undefined function: '{}'", callee),
                 span,
             )
         })?;
@@ -298,7 +298,7 @@ impl SemanticAnalyzer {
                     return Err(SemanticError::new(
                         SemanticErrorKind::TypeMismatch,
                         format!(
-                            "Type mismatch: integer literal {} cannot be assigned to type 'string'",
+                            "Type mismatch: integer literal '{}' cannot be assigned to type 'string'",
                             value
                         ),
                         expr.span,
@@ -359,7 +359,7 @@ impl SemanticAnalyzer {
                     return Err(SemanticError::new(
                         SemanticErrorKind::IntegerOverflow,
                         format!(
-                            "Integer literal {} is out of range for i32 (valid range: {} to {})",
+                            "Integer literal '{}' is out of range for i32 (valid range: {} to {})",
                             value,
                             i32::MIN,
                             i32::MAX
@@ -379,8 +379,8 @@ impl SemanticAnalyzer {
                 return Err(SemanticError::new(
                     SemanticErrorKind::InternalError,
                     format!(
-                        "Internal compiler bug: check_integer_range called with string type \
-                         for value {}. This should never happen.",
+                        "Internal error: check_integer_range called with string type \
+                         for value '{}'. This is a compiler bug.",
                         value
                     ),
                     span,

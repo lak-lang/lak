@@ -161,7 +161,7 @@ fn test_undefined_function() {
     assert!(result.is_err());
     let err = result.unwrap_err();
     assert_eq!(err.kind(), SemanticErrorKind::UndefinedFunction);
-    assert!(err.message().contains("Unknown function"));
+    assert!(err.message().contains("Undefined function"));
 }
 
 // ============================================================================

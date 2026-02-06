@@ -120,7 +120,7 @@ impl SymbolTable {
                 SemanticErrorKind::InternalError,
                 format!(
                     "Internal error: attempted to define variable '{}' outside a scope. \
-                     This is a compiler bug - please report it.",
+                     This is a compiler bug.",
                     info.name
                 ),
                 definition_span,

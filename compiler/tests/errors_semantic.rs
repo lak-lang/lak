@@ -19,8 +19,8 @@ fn test_compile_error_unknown_function() {
         msg
     );
     assert!(
-        msg.contains("Unknown function"),
-        "Expected 'Unknown function' in error: {}",
+        msg.contains("Undefined function"),
+        "Expected 'Undefined function' in error: {}",
         msg
     );
     assert_eq!(
@@ -335,7 +335,7 @@ fn test_compile_error_int_literal_to_string() {
         msg
     );
     assert!(
-        msg.contains("integer literal 42 cannot be assigned to type 'string'"),
+        msg.contains("integer literal '42' cannot be assigned to type 'string'"),
         "Expected type mismatch error: {}",
         msg
     );
