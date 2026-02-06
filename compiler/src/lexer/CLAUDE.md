@@ -68,7 +68,6 @@ Errors occur for:
 - Unterminated string literals
 - Unknown escape sequences
 - Integer overflow (exceeds `i64::MAX`)
-- Invalid `-` usage (only `->` is valid)
 
 ## Lifetime `'a`
 

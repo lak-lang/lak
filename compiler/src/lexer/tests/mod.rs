@@ -91,13 +91,6 @@ fn test_lex_error_invalid_whitespace_constructor() {
 }
 
 #[test]
-fn test_lex_error_incomplete_arrow_constructor() {
-    let err = LexError::incomplete_arrow(span_at(2, 15));
-    assert_eq!(err.kind(), LexErrorKind::IncompleteArrow);
-    assert_eq!(err.message(), "Expected '>' after '-'");
-}
-
-#[test]
 fn test_lex_error_unknown_escape_sequence_constructor() {
     let err = LexError::unknown_escape_sequence('q', dummy_span());
     assert_eq!(err.kind(), LexErrorKind::UnknownEscapeSequence);
@@ -164,12 +157,6 @@ fn test_lex_error_short_message_invalid_identifier_character() {
 fn test_lex_error_short_message_invalid_whitespace() {
     let err = LexError::invalid_whitespace('\u{00A0}', dummy_span());
     assert_eq!(err.short_message(), "Invalid whitespace");
-}
-
-#[test]
-fn test_lex_error_short_message_incomplete_arrow() {
-    let err = LexError::incomplete_arrow(dummy_span());
-    assert_eq!(err.short_message(), "Incomplete arrow");
 }
 
 #[test]

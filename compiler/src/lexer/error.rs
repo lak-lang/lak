@@ -14,7 +14,6 @@
 //! - **Character errors**: [`unexpected_character()`](LexError::unexpected_character),
 //!   [`invalid_identifier_character()`](LexError::invalid_identifier_character),
 //!   [`invalid_whitespace()`](LexError::invalid_whitespace)
-//! - **Arrow errors**: [`incomplete_arrow()`](LexError::incomplete_arrow)
 //! - **String errors**: [`unknown_escape_sequence()`](LexError::unknown_escape_sequence),
 //!   [`unterminated_string()`](LexError::unterminated_string),
 //!   [`unterminated_string_newline()`](LexError::unterminated_string_newline)
@@ -36,8 +35,6 @@ pub enum LexErrorKind {
     InvalidIdentifierCharacter,
     /// Non-ASCII whitespace character.
     InvalidWhitespace,
-    /// Incomplete arrow operator (found '-' without '>').
-    IncompleteArrow,
     /// Unknown escape sequence in string literal.
     UnknownEscapeSequence,
     /// String literal not closed before end of line or file.
@@ -108,7 +105,6 @@ impl LexError {
             LexErrorKind::UnexpectedCharacter => "Unexpected character",
             LexErrorKind::InvalidIdentifierCharacter => "Invalid identifier character",
             LexErrorKind::InvalidWhitespace => "Invalid whitespace",
-            LexErrorKind::IncompleteArrow => "Incomplete arrow",
             LexErrorKind::UnknownEscapeSequence => "Unknown escape sequence",
             LexErrorKind::UnterminatedString => "Unterminated string",
             LexErrorKind::IntegerOverflow => "Integer overflow",
@@ -157,19 +153,6 @@ impl LexError {
                 "Invalid whitespace character '{}' (U+{:04X}). Only space, tab, carriage return, and newline are allowed",
                 ch, ch as u32
             ),
-            span,
-        )
-    }
-
-    // =========================================================================
-    // Arrow errors
-    // =========================================================================
-
-    /// Creates an "incomplete arrow" error.
-    pub fn incomplete_arrow(span: Span) -> Self {
-        Self::new(
-            LexErrorKind::IncompleteArrow,
-            "Expected '>' after '-'",
             span,
         )
     }
