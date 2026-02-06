@@ -48,7 +48,10 @@ fn test_build_custom_output() {
 
 #[test]
 fn test_build_nonexistent_file() {
+    let temp = tempdir().unwrap();
+
     let output = Command::new(lak_binary())
+        .current_dir(temp.path())
         .args(["build", "nonexistent.lak"])
         .output()
         .unwrap();
@@ -71,7 +74,8 @@ fn test_build_lexer_error() {
     .unwrap();
 
     let output = Command::new(lak_binary())
-        .args(["build", source_path.to_str().unwrap()])
+        .current_dir(temp.path())
+        .args(["build", "lex_error.lak"])
         .output()
         .unwrap();
 
@@ -89,7 +93,8 @@ fn test_build_parser_error() {
     fs::write(&source_path, "fn main( -> void {}").unwrap();
 
     let output = Command::new(lak_binary())
-        .args(["build", source_path.to_str().unwrap()])
+        .current_dir(temp.path())
+        .args(["build", "parse_error.lak"])
         .output()
         .unwrap();
 
@@ -107,7 +112,8 @@ fn test_build_semantic_error_missing_main() {
     fs::write(&source_path, "fn helper() -> void {}").unwrap();
 
     let output = Command::new(lak_binary())
-        .args(["build", source_path.to_str().unwrap()])
+        .current_dir(temp.path())
+        .args(["build", "no_main.lak"])
         .output()
         .unwrap();
 
@@ -169,9 +175,11 @@ fn test_build_path_with_spaces() {
     fs::write(&source_path, r#"fn main() -> void { println("ok") }"#).unwrap();
 
     let output = Command::new(lak_binary())
-        .args(["build", source_path.to_str().unwrap()])
+        .current_dir(temp.path())
+        .args(["build", "hello world.lak"])
         .output()
         .unwrap();
 
     assert!(output.status.success());
+    assert!(temp.path().join("hello world").exists());
 }
