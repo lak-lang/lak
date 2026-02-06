@@ -48,7 +48,8 @@ cargo clippy
 ```
 lak/
 ├── .context/          # Language specification documents
-│   └── SPEC.md        # Lak language specification (for AI agents)
+│   ├── SPEC.md        # Lak language specification (for AI agents)
+│   └── IMPLEMENTATION_STATUS.md  # Feature implementation checklist
 ├── compiler/          # Main compiler crate (see compiler/CLAUDE.md)
 ├── runtime/           # Lak runtime library (see runtime/CLAUDE.md)
 └── examples/          # Example .lak programs
@@ -63,6 +64,8 @@ The complete Lak language specification is documented in `.context/SPEC.md`. Ref
 - Control flow (if, for, while, match)
 - Error handling (Option, Result, panic)
 - Module system
+
+The implementation status of each feature is tracked in `.context/IMPLEMENTATION_STATUS.md`.
 
 ## Architecture
 
