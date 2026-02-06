@@ -2,6 +2,24 @@
 //!
 //! This module defines [`SemanticError`], which represents errors that can occur
 //! during semantic analysis (name resolution, type checking, etc.).
+//!
+//! # Helper Constructors
+//!
+//! This module provides specialized constructor methods for common error cases,
+//! ensuring consistent error messaging across the compiler. Prefer using these
+//! helpers over constructing errors manually with [`SemanticError::new()`].
+//!
+//! Available helper methods are organized by category:
+//! - **Name resolution**: [`undefined_variable()`](SemanticError::undefined_variable),
+//!   [`undefined_function()`](SemanticError::undefined_function),
+//!   [`duplicate_variable()`](SemanticError::duplicate_variable),
+//!   [`duplicate_function()`](SemanticError::duplicate_function)
+//! - **Type errors**: [`type_mismatch_int_to_string()`](SemanticError::type_mismatch_int_to_string),
+//!   [`type_mismatch_variable()`](SemanticError::type_mismatch_variable), etc.
+//! - **Argument errors**: [`invalid_argument_println_count()`](SemanticError::invalid_argument_println_count), etc.
+//! - **Expression errors**: [`invalid_expression_string_literal()`](SemanticError::invalid_expression_string_literal), etc.
+//! - **Structural errors**: [`invalid_main_signature()`](SemanticError::invalid_main_signature)
+//! - **Internal errors**: [`internal_check_integer_range_string()`](SemanticError::internal_check_integer_range_string), etc.
 
 use crate::token::Span;
 
@@ -20,8 +38,8 @@ use crate::token::Span;
 /// - **Type errors** (have span): [`TypeMismatch`](Self::TypeMismatch),
 ///   [`IntegerOverflow`](Self::IntegerOverflow), [`InvalidArgument`](Self::InvalidArgument),
 ///   [`InvalidExpression`](Self::InvalidExpression)
-/// - **Structural errors** (no span): [`MissingMainFunction`](Self::MissingMainFunction),
-///   [`InvalidMainSignature`](Self::InvalidMainSignature) (has span for return type)
+/// - **Structural errors**: [`MissingMainFunction`](Self::MissingMainFunction) (no span),
+///   [`InvalidMainSignature`](Self::InvalidMainSignature) (has span pointing to return type)
 /// - **Internal errors** (have span): [`InternalError`](Self::InternalError) - indicates a compiler bug
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SemanticErrorKind {
@@ -122,6 +140,263 @@ impl SemanticError {
     /// Returns the kind of error.
     pub fn kind(&self) -> SemanticErrorKind {
         self.kind
+    }
+
+    // =========================================================================
+    // Name resolution errors
+    // =========================================================================
+
+    /// Creates an "undefined variable" error.
+    pub fn undefined_variable(name: &str, span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::UndefinedVariable,
+            format!("Undefined variable: '{}'", name),
+            span,
+        )
+    }
+
+    /// Creates an "undefined function" error.
+    pub fn undefined_function(name: &str, span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::UndefinedFunction,
+            format!("Undefined function: '{}'", name),
+            span,
+        )
+    }
+
+    /// Creates a "duplicate variable" error.
+    pub fn duplicate_variable(name: &str, first_line: usize, first_col: usize, span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::DuplicateVariable,
+            format!(
+                "Variable '{}' is already defined at {}:{}",
+                name, first_line, first_col
+            ),
+            span,
+        )
+    }
+
+    /// Creates a "duplicate function" error.
+    pub fn duplicate_function(name: &str, first_line: usize, first_col: usize, span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::DuplicateFunction,
+            format!(
+                "Function '{}' is already defined at {}:{}",
+                name, first_line, first_col
+            ),
+            span,
+        )
+    }
+
+    // =========================================================================
+    // Type errors
+    // =========================================================================
+
+    /// Creates a type mismatch error for assigning integer to string.
+    pub fn type_mismatch_int_to_string(value: i64, span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::TypeMismatch,
+            format!(
+                "Type mismatch: integer literal '{}' cannot be assigned to type 'string'",
+                value
+            ),
+            span,
+        )
+    }
+
+    /// Creates a type mismatch error for variable type.
+    pub fn type_mismatch_variable(
+        name: &str,
+        actual_ty: &str,
+        expected_ty: &str,
+        span: Span,
+    ) -> Self {
+        Self::new(
+            SemanticErrorKind::TypeMismatch,
+            format!(
+                "Type mismatch: variable '{}' has type '{}', expected '{}'",
+                name, actual_ty, expected_ty
+            ),
+            span,
+        )
+    }
+
+    /// Creates a type mismatch error for assigning string to non-string type.
+    pub fn type_mismatch_string_to_type(expected_ty: &str, span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::TypeMismatch,
+            format!(
+                "Type mismatch: string literal cannot be assigned to type '{}'",
+                expected_ty
+            ),
+            span,
+        )
+    }
+
+    /// Creates a type mismatch error for calling non-void function as statement.
+    pub fn type_mismatch_non_void_fn_as_stmt(fn_name: &str, return_type: &str, span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::TypeMismatch,
+            format!(
+                "Function '{}' returns '{}', but only void functions can be called as statements",
+                fn_name, return_type
+            ),
+            span,
+        )
+    }
+
+    /// Creates a type mismatch error for using function call as a value.
+    pub fn type_mismatch_call_as_value(callee: &str, span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::TypeMismatch,
+            format!(
+                "Function call '{}' cannot be used as a value (functions returning values not yet supported)",
+                callee
+            ),
+            span,
+        )
+    }
+
+    // =========================================================================
+    // Argument errors
+    // =========================================================================
+
+    /// Creates an error for println with wrong argument count.
+    pub fn invalid_argument_println_count(span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::InvalidArgument,
+            "println expects exactly 1 argument",
+            span,
+        )
+    }
+
+    /// Creates an error for using function call as println argument.
+    pub fn invalid_argument_call_not_supported(callee: &str, span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::InvalidArgument,
+            format!(
+                "Function call '{}' cannot be used as println argument (functions returning values not yet supported)",
+                callee
+            ),
+            span,
+        )
+    }
+
+    /// Creates an error for calling main function directly.
+    pub fn invalid_argument_cannot_call_main(span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::InvalidArgument,
+            "Cannot call 'main' function directly",
+            span,
+        )
+    }
+
+    /// Creates an error for calling function with arguments when it expects none.
+    pub fn invalid_argument_fn_expects_no_args(fn_name: &str, got: usize, span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::InvalidArgument,
+            format!(
+                "Function '{}' expects 0 arguments, but got {}",
+                fn_name, got
+            ),
+            span,
+        )
+    }
+
+    // =========================================================================
+    // Expression errors
+    // =========================================================================
+
+    /// Creates an error for string literal used as statement.
+    pub fn invalid_expression_string_literal(span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::InvalidExpression,
+            "String literal as a statement has no effect. Did you mean to pass it to a function?",
+            span,
+        )
+    }
+
+    /// Creates an error for integer literal used as statement.
+    pub fn invalid_expression_int_literal(span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::InvalidExpression,
+            "Integer literal as a statement has no effect. Did you mean to assign it to a variable?",
+            span,
+        )
+    }
+
+    /// Creates an error for identifier used as statement.
+    pub fn invalid_expression_identifier(name: &str, span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::InvalidExpression,
+            format!(
+                "Variable '{}' used as a statement has no effect. Did you mean to use it in an expression?",
+                name
+            ),
+            span,
+        )
+    }
+
+    // =========================================================================
+    // Structural errors
+    // =========================================================================
+
+    /// Creates an error for invalid main function signature.
+    pub fn invalid_main_signature(return_type: &str, span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::InvalidMainSignature,
+            format!(
+                "main function must return void, but found return type '{}'",
+                return_type
+            ),
+            span,
+        )
+    }
+
+    // =========================================================================
+    // Integer overflow
+    // =========================================================================
+
+    /// Creates an integer overflow error for i32 range.
+    pub fn integer_overflow_i32(value: i64, span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::IntegerOverflow,
+            format!(
+                "Integer literal '{}' is out of range for i32 (valid range: {} to {})",
+                value,
+                i32::MIN,
+                i32::MAX
+            ),
+            span,
+        )
+    }
+
+    // =========================================================================
+    // Internal errors
+    // =========================================================================
+
+    /// Creates an internal error for check_integer_range called with string type.
+    pub fn internal_check_integer_range_string(value: i64, span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::InternalError,
+            format!(
+                "Internal error: check_integer_range called with string type for value '{}'. This is a compiler bug.",
+                value
+            ),
+            span,
+        )
+    }
+
+    /// Creates an internal error for defining variable outside a scope.
+    pub fn internal_no_scope(name: &str, span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::InternalError,
+            format!(
+                "Internal error: attempted to define variable '{}' outside a scope. This is a compiler bug.",
+                name
+            ),
+            span,
+        )
     }
 }
 

@@ -3,7 +3,7 @@
 //! This module provides [`SymbolTable`] for tracking function and variable
 //! definitions during semantic analysis, with support for scoped variable lookup.
 
-use super::error::{SemanticError, SemanticErrorKind};
+use super::error::SemanticError;
 use crate::ast::Type;
 use crate::token::Span;
 use std::collections::HashMap;
@@ -74,12 +74,10 @@ impl SymbolTable {
     /// Defines a new function. Returns error if already defined.
     pub fn define_function(&mut self, info: FunctionInfo) -> Result<(), SemanticError> {
         if let Some(existing) = self.functions.get(&info.name) {
-            return Err(SemanticError::new(
-                SemanticErrorKind::DuplicateFunction,
-                format!(
-                    "Function '{}' is already defined at {}:{}",
-                    info.name, existing.definition_span.line, existing.definition_span.column
-                ),
+            return Err(SemanticError::duplicate_function(
+                &info.name,
+                existing.definition_span.line,
+                existing.definition_span.column,
                 info.definition_span,
             ));
         }
@@ -115,25 +113,16 @@ impl SymbolTable {
     /// - The variable is already defined in the current scope
     pub fn define_variable(&mut self, info: VariableInfo) -> Result<(), SemanticError> {
         let definition_span = info.definition_span;
-        let current_scope = self.scopes.last_mut().ok_or_else(|| {
-            SemanticError::new(
-                SemanticErrorKind::InternalError,
-                format!(
-                    "Internal error: attempted to define variable '{}' outside a scope. \
-                     This is a compiler bug.",
-                    info.name
-                ),
-                definition_span,
-            )
-        })?;
+        let current_scope = self
+            .scopes
+            .last_mut()
+            .ok_or_else(|| SemanticError::internal_no_scope(&info.name, definition_span))?;
 
         if let Some(existing) = current_scope.variables.get(&info.name) {
-            return Err(SemanticError::new(
-                SemanticErrorKind::DuplicateVariable,
-                format!(
-                    "Variable '{}' is already defined at {}:{}",
-                    info.name, existing.definition_span.line, existing.definition_span.column
-                ),
+            return Err(SemanticError::duplicate_variable(
+                &info.name,
+                existing.definition_span.line,
+                existing.definition_span.column,
                 info.definition_span,
             ));
         }

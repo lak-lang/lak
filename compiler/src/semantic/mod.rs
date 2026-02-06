@@ -122,12 +122,8 @@ impl SemanticAnalyzer {
 
         // Validate signature
         if main_fn.return_type != "void" {
-            return Err(SemanticError::new(
-                SemanticErrorKind::InvalidMainSignature,
-                format!(
-                    "main function must return void, but found return type '{}'",
-                    main_fn.return_type
-                ),
+            return Err(SemanticError::invalid_main_signature(
+                &main_fn.return_type,
                 main_fn.return_type_span,
             ));
         }
@@ -180,23 +176,14 @@ impl SemanticAnalyzer {
     fn analyze_expr_stmt(&self, expr: &Expr) -> Result<(), SemanticError> {
         match &expr.kind {
             ExprKind::Call { callee, args } => self.analyze_call(callee, args, expr.span),
-            ExprKind::StringLiteral(_) => Err(SemanticError::new(
-                SemanticErrorKind::InvalidExpression,
-                "String literal as a statement has no effect. Did you mean to pass it to a function?",
-                expr.span,
-            )),
-            ExprKind::IntLiteral(_) => Err(SemanticError::new(
-                SemanticErrorKind::InvalidExpression,
-                "Integer literal as a statement has no effect. Did you mean to assign it to a variable?",
-                expr.span,
-            )),
-            ExprKind::Identifier(name) => Err(SemanticError::new(
-                SemanticErrorKind::InvalidExpression,
-                format!(
-                    "Variable '{}' used as a statement has no effect. Did you mean to use it in an expression?",
-                    name
-                ),
-                expr.span,
+            ExprKind::StringLiteral(_) => {
+                Err(SemanticError::invalid_expression_string_literal(expr.span))
+            }
+            ExprKind::IntLiteral(_) => {
+                Err(SemanticError::invalid_expression_int_literal(expr.span))
+            }
+            ExprKind::Identifier(name) => Err(SemanticError::invalid_expression_identifier(
+                name, expr.span,
             )),
         }
     }
@@ -206,11 +193,7 @@ impl SemanticAnalyzer {
         // println accepts any type (string, i32, i64)
         if callee == "println" {
             if args.len() != 1 {
-                return Err(SemanticError::new(
-                    SemanticErrorKind::InvalidArgument,
-                    "println expects exactly 1 argument",
-                    span,
-                ));
+                return Err(SemanticError::invalid_argument_println_count(span));
             }
 
             // println accepts string literals, integer literals, or any variable
@@ -219,24 +202,16 @@ impl SemanticAnalyzer {
                 ExprKind::IntLiteral(_) => {}
                 ExprKind::Identifier(name) => {
                     // Verify the variable exists (type doesn't matter, any type is accepted)
-                    self.symbols.lookup_variable(name).ok_or_else(|| {
-                        SemanticError::new(
-                            SemanticErrorKind::UndefinedVariable,
-                            format!("Undefined variable: '{}'", name),
-                            args[0].span,
-                        )
-                    })?;
+                    self.symbols
+                        .lookup_variable(name)
+                        .ok_or_else(|| SemanticError::undefined_variable(name, args[0].span))?;
                 }
                 ExprKind::Call {
                     callee: inner_callee,
                     ..
                 } => {
-                    return Err(SemanticError::new(
-                        SemanticErrorKind::InvalidArgument,
-                        format!(
-                            "Function call '{}' cannot be used as println argument (functions returning values not yet supported)",
-                            inner_callee
-                        ),
+                    return Err(SemanticError::invalid_argument_call_not_supported(
+                        inner_callee,
                         args[0].span,
                     ));
                 }
@@ -246,44 +221,30 @@ impl SemanticAnalyzer {
         }
 
         // Check if function is defined
-        let func_info = self.symbols.lookup_function(callee).ok_or_else(|| {
-            SemanticError::new(
-                SemanticErrorKind::UndefinedFunction,
-                format!("Undefined function: '{}'", callee),
-                span,
-            )
-        })?;
+        let func_info = self
+            .symbols
+            .lookup_function(callee)
+            .ok_or_else(|| SemanticError::undefined_function(callee, span))?;
 
         // Disallow calling main function directly
         if callee == "main" {
-            return Err(SemanticError::new(
-                SemanticErrorKind::InvalidArgument,
-                "Cannot call 'main' function directly",
-                span,
-            ));
+            return Err(SemanticError::invalid_argument_cannot_call_main(span));
         }
 
         // Check argument count (currently only parameterless functions are supported)
         if !args.is_empty() {
-            return Err(SemanticError::new(
-                SemanticErrorKind::InvalidArgument,
-                format!(
-                    "Function '{}' expects 0 arguments, but got {}",
-                    callee,
-                    args.len()
-                ),
+            return Err(SemanticError::invalid_argument_fn_expects_no_args(
+                callee,
+                args.len(),
                 span,
             ));
         }
 
         // Check that the function returns void (only void functions can be called as statements)
         if func_info.return_type != "void" {
-            return Err(SemanticError::new(
-                SemanticErrorKind::TypeMismatch,
-                format!(
-                    "Function '{}' returns '{}', but only void functions can be called as statements",
-                    callee, func_info.return_type
-                ),
+            return Err(SemanticError::type_mismatch_non_void_fn_as_stmt(
+                callee,
+                &func_info.return_type,
                 span,
             ));
         }
@@ -295,33 +256,23 @@ impl SemanticAnalyzer {
         match &expr.kind {
             ExprKind::IntLiteral(value) => {
                 if *expected_ty == Type::String {
-                    return Err(SemanticError::new(
-                        SemanticErrorKind::TypeMismatch,
-                        format!(
-                            "Type mismatch: integer literal '{}' cannot be assigned to type 'string'",
-                            value
-                        ),
-                        expr.span,
+                    return Err(SemanticError::type_mismatch_int_to_string(
+                        *value, expr.span,
                     ));
                 }
                 self.check_integer_range(*value, expected_ty, expr.span)
             }
             ExprKind::Identifier(name) => {
-                let var_info = self.symbols.lookup_variable(name).ok_or_else(|| {
-                    SemanticError::new(
-                        SemanticErrorKind::UndefinedVariable,
-                        format!("Undefined variable: '{}'", name),
-                        expr.span,
-                    )
-                })?;
+                let var_info = self
+                    .symbols
+                    .lookup_variable(name)
+                    .ok_or_else(|| SemanticError::undefined_variable(name, expr.span))?;
 
                 if var_info.ty != *expected_ty {
-                    return Err(SemanticError::new(
-                        SemanticErrorKind::TypeMismatch,
-                        format!(
-                            "Type mismatch: variable '{}' has type '{}', expected '{}'",
-                            name, var_info.ty, expected_ty
-                        ),
+                    return Err(SemanticError::type_mismatch_variable(
+                        name,
+                        &var_info.ty.to_string(),
+                        &expected_ty.to_string(),
                         expr.span,
                     ));
                 }
@@ -330,24 +281,15 @@ impl SemanticAnalyzer {
             }
             ExprKind::StringLiteral(_) => {
                 if *expected_ty != Type::String {
-                    return Err(SemanticError::new(
-                        SemanticErrorKind::TypeMismatch,
-                        format!(
-                            "Type mismatch: string literal cannot be assigned to type '{}'",
-                            expected_ty
-                        ),
+                    return Err(SemanticError::type_mismatch_string_to_type(
+                        &expected_ty.to_string(),
                         expr.span,
                     ));
                 }
                 Ok(())
             }
-            ExprKind::Call { callee, .. } => Err(SemanticError::new(
-                SemanticErrorKind::TypeMismatch,
-                format!(
-                    "Function call '{}' cannot be used as a value (functions returning values not yet supported)",
-                    callee
-                ),
-                expr.span,
+            ExprKind::Call { callee, .. } => Err(SemanticError::type_mismatch_call_as_value(
+                callee, expr.span,
             )),
         }
     }
@@ -356,16 +298,7 @@ impl SemanticAnalyzer {
         match ty {
             Type::I32 => {
                 if value < i32::MIN as i64 || value > i32::MAX as i64 {
-                    return Err(SemanticError::new(
-                        SemanticErrorKind::IntegerOverflow,
-                        format!(
-                            "Integer literal '{}' is out of range for i32 (valid range: {} to {})",
-                            value,
-                            i32::MIN,
-                            i32::MAX
-                        ),
-                        span,
-                    ));
+                    return Err(SemanticError::integer_overflow_i32(value, span));
                 }
             }
             Type::I64 => {
@@ -376,14 +309,8 @@ impl SemanticAnalyzer {
                 // This branch should never be reached because check_expr_type
                 // handles Type::String before calling check_integer_range.
                 // Return an internal error to signal a compiler bug if this is reached.
-                return Err(SemanticError::new(
-                    SemanticErrorKind::InternalError,
-                    format!(
-                        "Internal error: check_integer_range called with string type \
-                         for value '{}'. This is a compiler bug.",
-                        value
-                    ),
-                    span,
+                return Err(SemanticError::internal_check_integer_range_string(
+                    value, span,
                 ));
             }
         }

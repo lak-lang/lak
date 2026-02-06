@@ -2,6 +2,23 @@
 //!
 //! This module defines [`LexError`], which represents errors that can occur
 //! during tokenization.
+//!
+//! # Helper Constructors
+//!
+//! This module provides specialized constructor methods for common error cases,
+//! ensuring consistent error messaging across the compiler. Prefer using these
+//! helpers over constructing errors manually with [`LexError::new()`].
+//!
+//! Available helper methods are organized by category:
+//! - **EOF errors**: [`unexpected_eof()`](LexError::unexpected_eof)
+//! - **Character errors**: [`unexpected_character()`](LexError::unexpected_character),
+//!   [`invalid_identifier_character()`](LexError::invalid_identifier_character),
+//!   [`invalid_whitespace()`](LexError::invalid_whitespace)
+//! - **Arrow errors**: [`incomplete_arrow()`](LexError::incomplete_arrow)
+//! - **String errors**: [`unknown_escape_sequence()`](LexError::unknown_escape_sequence),
+//!   [`unterminated_string()`](LexError::unterminated_string),
+//!   [`unterminated_string_newline()`](LexError::unterminated_string_newline)
+//! - **Integer errors**: [`integer_overflow()`](LexError::integer_overflow)
 
 use crate::token::Span;
 
@@ -79,6 +96,112 @@ impl LexError {
     /// Returns the kind of error.
     pub fn kind(&self) -> LexErrorKind {
         self.kind
+    }
+
+    // =========================================================================
+    // EOF errors
+    // =========================================================================
+
+    /// Creates an "unexpected end of input" error.
+    pub fn unexpected_eof(span: Span) -> Self {
+        Self::new(LexErrorKind::UnexpectedEof, "Unexpected end of input", span)
+    }
+
+    // =========================================================================
+    // Character errors
+    // =========================================================================
+
+    /// Creates an "unexpected character" error.
+    pub fn unexpected_character(ch: char, span: Span) -> Self {
+        Self::new(
+            LexErrorKind::UnexpectedCharacter,
+            format!("Unexpected character: '{}'", ch),
+            span,
+        )
+    }
+
+    /// Creates an "invalid identifier character" error.
+    pub fn invalid_identifier_character(ch: char, span: Span) -> Self {
+        Self::new(
+            LexErrorKind::InvalidIdentifierCharacter,
+            format!(
+                "Invalid character '{}' in identifier. Only ASCII letters (a-z, A-Z), digits (0-9), and underscores (_) are allowed",
+                ch
+            ),
+            span,
+        )
+    }
+
+    /// Creates an "invalid whitespace" error.
+    pub fn invalid_whitespace(ch: char, span: Span) -> Self {
+        Self::new(
+            LexErrorKind::InvalidWhitespace,
+            format!(
+                "Invalid whitespace character '{}' (U+{:04X}). Only space, tab, carriage return, and newline are allowed",
+                ch, ch as u32
+            ),
+            span,
+        )
+    }
+
+    // =========================================================================
+    // Arrow errors
+    // =========================================================================
+
+    /// Creates an "incomplete arrow" error.
+    pub fn incomplete_arrow(span: Span) -> Self {
+        Self::new(
+            LexErrorKind::IncompleteArrow,
+            "Expected '>' after '-'",
+            span,
+        )
+    }
+
+    // =========================================================================
+    // String errors
+    // =========================================================================
+
+    /// Creates an "unknown escape sequence" error.
+    pub fn unknown_escape_sequence(ch: char, span: Span) -> Self {
+        Self::new(
+            LexErrorKind::UnknownEscapeSequence,
+            format!("Unknown escape sequence: '\\{}'", ch),
+            span,
+        )
+    }
+
+    /// Creates an "unterminated string" error.
+    pub fn unterminated_string(span: Span) -> Self {
+        Self::new(
+            LexErrorKind::UnterminatedString,
+            "Unterminated string literal",
+            span,
+        )
+    }
+
+    /// Creates an "unterminated string (newline)" error.
+    pub fn unterminated_string_newline(span: Span) -> Self {
+        Self::new(
+            LexErrorKind::UnterminatedString,
+            "Unterminated string literal (newline in string)",
+            span,
+        )
+    }
+
+    // =========================================================================
+    // Integer errors
+    // =========================================================================
+
+    /// Creates an "integer overflow" error.
+    pub fn integer_overflow(value_str: &str, span: Span) -> Self {
+        Self::new(
+            LexErrorKind::IntegerOverflow,
+            format!(
+                "Integer literal '{}' is out of range for i64 (exceeds maximum value)",
+                value_str
+            ),
+            span,
+        )
     }
 }
 

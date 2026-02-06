@@ -1,7 +1,7 @@
 //! Parser helper methods for token navigation and basic operations.
 
 use super::Parser;
-use super::error::{ParseError, ParseErrorKind};
+use super::error::ParseError;
 use crate::token::{Span, Token, TokenKind};
 
 impl Parser {
@@ -95,12 +95,8 @@ impl Parser {
         }
 
         if !matches!(self.current_kind(), TokenKind::Newline) {
-            return Err(ParseError::new(
-                ParseErrorKind::MissingStatementTerminator,
-                format!(
-                    "Expected newline after statement, found {}",
-                    Self::token_kind_display(self.current_kind())
-                ),
+            return Err(ParseError::missing_statement_terminator(
+                &Self::token_kind_display(self.current_kind()),
                 self.current_span(),
             ));
         }
@@ -124,13 +120,9 @@ impl Parser {
             self.advance();
             Ok(())
         } else {
-            Err(ParseError::new(
-                ParseErrorKind::UnexpectedToken,
-                format!(
-                    "Expected {}, found {}",
-                    Self::token_kind_display(expected),
-                    Self::token_kind_display(self.current_kind())
-                ),
+            Err(ParseError::unexpected_token(
+                &Self::token_kind_display(expected),
+                &Self::token_kind_display(self.current_kind()),
                 self.current_span(),
             ))
         }
@@ -143,12 +135,8 @@ impl Parser {
             self.advance();
             Ok(name)
         } else {
-            Err(ParseError::new(
-                ParseErrorKind::ExpectedIdentifier,
-                format!(
-                    "Expected identifier, found {}",
-                    Self::token_kind_display(self.current_kind())
-                ),
+            Err(ParseError::expected_identifier(
+                &Self::token_kind_display(self.current_kind()),
                 self.current_span(),
             ))
         }

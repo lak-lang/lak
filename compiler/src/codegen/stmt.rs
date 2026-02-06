@@ -47,15 +47,7 @@ impl<'ctx> Codegen<'ctx> {
     ) -> Result<(), CodegenError> {
         // Semantic analysis guarantees no duplicate variables
         if self.variables.contains_key(name) {
-            return Err(CodegenError::new(
-                CodegenErrorKind::InternalError,
-                format!(
-                    "Internal error: duplicate variable '{}' in codegen. \
-                     Semantic analysis should have caught this. This is a compiler bug.",
-                    name
-                ),
-                span,
-            ));
+            return Err(CodegenError::internal_duplicate_variable(name, span));
         }
 
         let binding = VarBinding::new(&self.builder, self.context, ty, name)
@@ -66,15 +58,7 @@ impl<'ctx> Codegen<'ctx> {
         self.builder
             .build_store(binding.alloca(), init_value)
             .map_err(|e| {
-                CodegenError::new(
-                    CodegenErrorKind::InternalError,
-                    format!(
-                        "Internal error: failed to store initial value for '{}'. \
-                         This is a compiler bug: {}",
-                        name, e
-                    ),
-                    span,
-                )
+                CodegenError::internal_variable_store_failed(name, &e.to_string(), span)
             })?;
 
         self.variables.insert(name.to_string(), binding);

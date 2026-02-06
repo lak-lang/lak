@@ -321,6 +321,105 @@ fn test_codegen_error_kinds() {
     );
 }
 
+// =================================
+// Error constructor tests (target)
+// =================================
+
+#[test]
+fn test_target_init_failed_constructor() {
+    let err = CodegenError::target_init_failed("initialization error");
+    assert_eq!(err.kind(), CodegenErrorKind::TargetError);
+    assert!(err.span().is_none());
+    assert!(err.message().contains("initialization error"));
+    assert!(err.message().contains("native target"));
+}
+
+#[test]
+fn test_target_from_triple_failed_constructor() {
+    let err = CodegenError::target_from_triple_failed("x86_64-unknown-linux", "unsupported");
+    assert_eq!(err.kind(), CodegenErrorKind::TargetError);
+    assert!(err.span().is_none());
+    assert!(err.message().contains("x86_64-unknown-linux"));
+    assert!(err.message().contains("unsupported"));
+}
+
+#[test]
+fn test_target_cpu_invalid_utf8_constructor() {
+    let err = CodegenError::target_cpu_invalid_utf8();
+    assert_eq!(err.kind(), CodegenErrorKind::TargetError);
+    assert!(err.span().is_none());
+    assert!(err.message().contains("CPU name"));
+    assert!(err.message().contains("UTF-8"));
+}
+
+#[test]
+fn test_target_machine_creation_failed_constructor() {
+    let err = CodegenError::target_machine_creation_failed("x86_64", "generic");
+    assert_eq!(err.kind(), CodegenErrorKind::TargetError);
+    assert!(err.span().is_none());
+    assert!(err.message().contains("x86_64"));
+    assert!(err.message().contains("generic"));
+}
+
+// ===================================
+// Error constructor tests (internal)
+// ===================================
+
+#[test]
+fn test_internal_variable_not_found_constructor() {
+    let err = CodegenError::internal_variable_not_found("x", dummy_span());
+    assert_eq!(err.kind(), CodegenErrorKind::InternalError);
+    assert!(err.span().is_some());
+    assert!(err.message().contains("x"));
+    assert!(err.message().contains("compiler bug"));
+}
+
+#[test]
+fn test_internal_function_not_found_constructor() {
+    let err = CodegenError::internal_function_not_found("foo", dummy_span());
+    assert_eq!(err.kind(), CodegenErrorKind::InternalError);
+    assert!(err.span().is_some());
+    assert!(err.message().contains("foo"));
+    assert!(err.message().contains("compiler bug"));
+}
+
+#[test]
+fn test_internal_println_arg_count_constructor() {
+    let err = CodegenError::internal_println_arg_count(3, dummy_span());
+    assert_eq!(err.kind(), CodegenErrorKind::InternalError);
+    assert!(err.span().is_some());
+    assert!(err.message().contains("3"));
+    assert!(err.message().contains("compiler bug"));
+}
+
+#[test]
+fn test_internal_variable_type_mismatch_constructor() {
+    let err = CodegenError::internal_variable_type_mismatch("x", "i32", "string", dummy_span());
+    assert_eq!(err.kind(), CodegenErrorKind::InternalError);
+    assert!(err.span().is_some());
+    assert!(err.message().contains("x"));
+    assert!(err.message().contains("i32"));
+    assert!(err.message().contains("string"));
+}
+
+#[test]
+fn test_internal_builtin_not_found_constructor() {
+    let err = CodegenError::internal_builtin_not_found("lak_println");
+    assert_eq!(err.kind(), CodegenErrorKind::InternalError);
+    assert!(err.span().is_none());
+    assert!(err.message().contains("lak_println"));
+    assert!(err.message().contains("compiler bug"));
+}
+
+#[test]
+fn test_internal_return_build_failed_constructor() {
+    let err = CodegenError::internal_return_build_failed("main", "LLVM error");
+    assert_eq!(err.kind(), CodegenErrorKind::InternalError);
+    assert!(err.span().is_none());
+    assert!(err.message().contains("main"));
+    assert!(err.message().contains("LLVM error"));
+}
+
 // ====================
 // get_expr_type tests
 // ====================

@@ -3,7 +3,7 @@
 //! This module handles LLVM target initialization and object file output.
 
 use super::Codegen;
-use super::error::{CodegenError, CodegenErrorKind};
+use super::error::CodegenError;
 use inkwell::OptimizationLevel;
 use inkwell::targets::{
     CodeModel, FileType, InitializationConfig, RelocMode, Target, TargetMachine,
@@ -38,36 +38,23 @@ impl<'ctx> Codegen<'ctx> {
     ///
     /// Cross-compilation is not currently supported.
     pub fn write_object_file(&self, path: &Path) -> Result<(), CodegenError> {
-        Target::initialize_native(&InitializationConfig::default()).map_err(|e| {
-            CodegenError::without_span(
-                CodegenErrorKind::TargetError,
-                format!("Failed to initialize native target: {}", e),
-            )
-        })?;
+        Target::initialize_native(&InitializationConfig::default())
+            .map_err(|e| CodegenError::target_init_failed(&e))?;
 
         let triple = TargetMachine::get_default_triple();
         let target = Target::from_triple(&triple).map_err(|e| {
-            CodegenError::without_span(
-                CodegenErrorKind::TargetError,
-                format!("Failed to get target for triple '{}': {}", triple, e),
-            )
+            CodegenError::target_from_triple_failed(&triple.to_string(), &e.to_string())
         })?;
 
         let cpu = TargetMachine::get_host_cpu_name();
         let features = TargetMachine::get_host_cpu_features();
 
-        let cpu_str = cpu.to_str().map_err(|_| {
-            CodegenError::without_span(
-                CodegenErrorKind::TargetError,
-                "CPU name contains invalid UTF-8",
-            )
-        })?;
-        let features_str = features.to_str().map_err(|_| {
-            CodegenError::without_span(
-                CodegenErrorKind::TargetError,
-                "CPU features contain invalid UTF-8",
-            )
-        })?;
+        let cpu_str = cpu
+            .to_str()
+            .map_err(|_| CodegenError::target_cpu_invalid_utf8())?;
+        let features_str = features
+            .to_str()
+            .map_err(|_| CodegenError::target_features_invalid_utf8())?;
 
         let target_machine = target
             .create_target_machine(
@@ -79,24 +66,12 @@ impl<'ctx> Codegen<'ctx> {
                 CodeModel::Default,
             )
             .ok_or_else(|| {
-                CodegenError::without_span(
-                    CodegenErrorKind::TargetError,
-                    format!(
-                        "Failed to create target machine for triple '{}', CPU '{}'. \
-                         This may indicate an unsupported platform or LLVM configuration issue.",
-                        triple, cpu_str
-                    ),
-                )
+                CodegenError::target_machine_creation_failed(&triple.to_string(), cpu_str)
             })?;
 
         target_machine
             .write_to_file(&self.module, FileType::Object, path)
-            .map_err(|e| {
-                CodegenError::without_span(
-                    CodegenErrorKind::TargetError,
-                    format!("Failed to write object file to '{}': {}", path.display(), e),
-                )
-            })?;
+            .map_err(|e| CodegenError::target_write_failed(path, &e.to_string()))?;
 
         Ok(())
     }

@@ -1,4 +1,23 @@
 //! Parse error types.
+//!
+//! This module defines [`ParseError`], which represents errors that can occur
+//! during parsing.
+//!
+//! # Helper Constructors
+//!
+//! This module provides specialized constructor methods for common error cases,
+//! ensuring consistent error messaging across the compiler. Prefer using these
+//! helpers over constructing errors manually with [`ParseError::new()`].
+//!
+//! Available helper methods are organized by category:
+//! - **Statement termination**: [`missing_statement_terminator()`](ParseError::missing_statement_terminator)
+//! - **Token expectation**: [`unexpected_token()`](ParseError::unexpected_token),
+//!   [`expected_identifier()`](ParseError::expected_identifier),
+//!   [`unknown_type()`](ParseError::unknown_type)
+//! - **Function call syntax**: [`missing_fn_call_parens_string()`](ParseError::missing_fn_call_parens_string),
+//!   [`missing_fn_call_parens_int()`](ParseError::missing_fn_call_parens_int),
+//!   [`missing_fn_call_parens_ident()`](ParseError::missing_fn_call_parens_ident)
+//! - **Expression errors**: [`unexpected_expression_start()`](ParseError::unexpected_expression_start)
 
 use crate::token::Span;
 
@@ -71,6 +90,106 @@ impl ParseError {
     /// Returns the kind of error.
     pub fn kind(&self) -> ParseErrorKind {
         self.kind
+    }
+
+    // =========================================================================
+    // Statement termination errors
+    // =========================================================================
+
+    /// Creates an error for missing statement terminator.
+    pub fn missing_statement_terminator(found: &str, span: Span) -> Self {
+        Self::new(
+            ParseErrorKind::MissingStatementTerminator,
+            format!("Expected newline after statement, found {}", found),
+            span,
+        )
+    }
+
+    // =========================================================================
+    // Token expectation errors
+    // =========================================================================
+
+    /// Creates an error for unexpected token.
+    pub fn unexpected_token(expected: &str, found: &str, span: Span) -> Self {
+        Self::new(
+            ParseErrorKind::UnexpectedToken,
+            format!("Expected {}, found {}", expected, found),
+            span,
+        )
+    }
+
+    /// Creates an error for expected identifier.
+    pub fn expected_identifier(found: &str, span: Span) -> Self {
+        Self::new(
+            ParseErrorKind::ExpectedIdentifier,
+            format!("Expected identifier, found {}", found),
+            span,
+        )
+    }
+
+    /// Creates an error for unknown type.
+    pub fn unknown_type(name: &str, span: Span) -> Self {
+        Self::new(
+            ParseErrorKind::ExpectedType,
+            format!(
+                "Unknown type: '{}'. Expected 'i32', 'i64', or 'string'",
+                name
+            ),
+            span,
+        )
+    }
+
+    // =========================================================================
+    // Function call syntax errors
+    // =========================================================================
+
+    /// Creates an error for missing function call parentheses (followed by string).
+    pub fn missing_fn_call_parens_string(fn_name: &str, span: Span) -> Self {
+        Self::new(
+            ParseErrorKind::MissingFunctionCallParentheses,
+            format!(
+                "Unexpected string literal after '{}'. If this is a function call, add parentheses: {}(...)",
+                fn_name, fn_name
+            ),
+            span,
+        )
+    }
+
+    /// Creates an error for missing function call parentheses (followed by integer).
+    pub fn missing_fn_call_parens_int(fn_name: &str, span: Span) -> Self {
+        Self::new(
+            ParseErrorKind::MissingFunctionCallParentheses,
+            format!(
+                "Unexpected integer literal after '{}'. If this is a function call, add parentheses: {}(...)",
+                fn_name, fn_name
+            ),
+            span,
+        )
+    }
+
+    /// Creates an error for missing function call parentheses (followed by identifier).
+    pub fn missing_fn_call_parens_ident(fn_name: &str, next: &str, span: Span) -> Self {
+        Self::new(
+            ParseErrorKind::MissingFunctionCallParentheses,
+            format!(
+                "Unexpected identifier '{}' after '{}'. If this is a function call, add parentheses: {}(...)",
+                next, fn_name, fn_name
+            ),
+            span,
+        )
+    }
+
+    // =========================================================================
+    // Expression errors
+    // =========================================================================
+
+    /// Creates an error for unexpected token at expression start.
+    pub fn unexpected_expression_start(found: &str, span: Span) -> Self {
+        Self::new(
+            ParseErrorKind::UnexpectedToken,
+            format!("Unexpected token: {}", found),
+            span,
+        )
     }
 }
 

@@ -4,7 +4,7 @@
 //! such as `println`.
 
 use super::Codegen;
-use super::error::{CodegenError, CodegenErrorKind};
+use super::error::CodegenError;
 use crate::ast::{Expr, ExprKind, Type};
 use crate::token::Span;
 use inkwell::AddressSpace;
@@ -77,26 +77,10 @@ impl<'ctx> Codegen<'ctx> {
                 .variables
                 .get(name)
                 .map(|b| b.ty().clone())
-                .ok_or_else(|| {
-                    CodegenError::new(
-                        CodegenErrorKind::InternalError,
-                        format!(
-                            "Internal error: undefined variable '{}' in codegen. \
-                             Semantic analysis should have caught this. This is a compiler bug.",
-                            name
-                        ),
-                        expr.span,
-                    )
-                }),
-            ExprKind::Call { callee, .. } => Err(CodegenError::new(
-                CodegenErrorKind::InternalError,
-                format!(
-                    "Internal error: function call '{}()' cannot be used as println argument. \
-                     Semantic analysis should have caught this. This is a compiler bug.",
-                    callee
-                ),
-                expr.span,
-            )),
+                .ok_or_else(|| CodegenError::internal_variable_not_found(name, expr.span)),
+            ExprKind::Call { callee, .. } => {
+                Err(CodegenError::internal_println_call_arg(callee, expr.span))
+            }
         }
     }
 
@@ -135,15 +119,7 @@ impl<'ctx> Codegen<'ctx> {
     ) -> Result<(), CodegenError> {
         // Semantic analysis guarantees exactly one argument
         if args.len() != 1 {
-            return Err(CodegenError::new(
-                CodegenErrorKind::InternalError,
-                format!(
-                    "Internal error: println expects 1 argument, but got {} in codegen. \
-                     Semantic analysis should have caught this. This is a compiler bug.",
-                    args.len()
-                ),
-                span,
-            ));
+            return Err(CodegenError::internal_println_arg_count(args.len(), span));
         }
 
         let arg = &args[0];
@@ -164,61 +140,31 @@ impl<'ctx> Codegen<'ctx> {
             ExprKind::StringLiteral(s) => self
                 .builder
                 .build_global_string_ptr(s, "str")
-                .map_err(|e| {
-                    CodegenError::new(
-                        CodegenErrorKind::InternalError,
-                        format!(
-                            "Internal error: failed to create string literal. This is a compiler bug: {}",
-                            e
-                        ),
-                        arg.span,
-                    )
-                })?
+                .map_err(|e| CodegenError::internal_string_ptr_failed(&e.to_string(), arg.span))?
                 .as_pointer_value(),
             ExprKind::Identifier(name) => {
-                let binding = self.variables.get(name).ok_or_else(|| {
-                    CodegenError::new(
-                        CodegenErrorKind::InternalError,
-                        format!(
-                            "Internal error: undefined variable '{}' in codegen. \
-                             Semantic analysis should have caught this. This is a compiler bug.",
-                            name
-                        ),
-                        arg.span,
-                    )
-                })?;
+                let binding = self
+                    .variables
+                    .get(name)
+                    .ok_or_else(|| CodegenError::internal_variable_not_found(name, arg.span))?;
 
                 let ptr_type = self.context.ptr_type(AddressSpace::default());
                 self.builder
                     .build_load(ptr_type, binding.alloca(), &format!("{}_load", name))
                     .map_err(|e| {
-                        CodegenError::new(
-                            CodegenErrorKind::InternalError,
-                            format!(
-                                "Internal error: failed to load string variable '{}'. This is a compiler bug: {}",
-                                name, e
-                            ),
-                            arg.span,
-                        )
+                        CodegenError::internal_variable_load_failed(name, &e.to_string(), arg.span)
                     })?
                     .into_pointer_value()
             }
             _ => {
-                return Err(CodegenError::new(
-                    CodegenErrorKind::InternalError,
-                    "Internal error: println string argument is not a string literal or string variable. \
-                     This is a compiler bug.",
-                    arg.span,
-                ));
+                return Err(CodegenError::internal_println_invalid_string_arg(arg.span));
             }
         };
 
-        let lak_println = self.module.get_function("lak_println").ok_or_else(|| {
-            CodegenError::without_span(
-                CodegenErrorKind::InternalError,
-                "Internal error: lak_println function not found. This is a compiler bug.",
-            )
-        })?;
+        let lak_println = self
+            .module
+            .get_function("lak_println")
+            .ok_or_else(|| CodegenError::internal_builtin_not_found("lak_println"))?;
 
         self.builder
             .build_call(
@@ -226,16 +172,7 @@ impl<'ctx> Codegen<'ctx> {
                 &[BasicMetadataValueEnum::PointerValue(string_ptr)],
                 "",
             )
-            .map_err(|e| {
-                CodegenError::new(
-                    CodegenErrorKind::InternalError,
-                    format!(
-                        "Internal error: failed to generate println call. This is a compiler bug: {}",
-                        e
-                    ),
-                    span,
-                )
-            })?;
+            .map_err(|e| CodegenError::internal_println_call_failed(&e.to_string(), span))?;
 
         Ok(())
     }
@@ -247,28 +184,17 @@ impl<'ctx> Codegen<'ctx> {
     fn generate_println_i32(&mut self, arg: &Expr, span: Span) -> Result<(), CodegenError> {
         let i32_value = match &arg.kind {
             ExprKind::Identifier(name) => {
-                let binding = self.variables.get(name).ok_or_else(|| {
-                    CodegenError::new(
-                        CodegenErrorKind::InternalError,
-                        format!(
-                            "Internal error: undefined variable '{}' in codegen. \
-                             Semantic analysis should have caught this. This is a compiler bug.",
-                            name
-                        ),
-                        arg.span,
-                    )
-                })?;
+                let binding = self
+                    .variables
+                    .get(name)
+                    .ok_or_else(|| CodegenError::internal_variable_not_found(name, arg.span))?;
 
                 // Defensive type check: verify the variable is actually i32
                 if binding.ty() != &Type::I32 {
-                    return Err(CodegenError::new(
-                        CodegenErrorKind::InternalError,
-                        format!(
-                            "Internal error: variable '{}' has type '{}' but was expected to be i32. \
-                             This indicates a bug in type inference or get_expr_type(). This is a compiler bug.",
-                            name,
-                            binding.ty()
-                        ),
+                    return Err(CodegenError::internal_println_type_mismatch(
+                        name,
+                        "i32",
+                        &binding.ty().to_string(),
                         arg.span,
                     ));
                 }
@@ -277,35 +203,21 @@ impl<'ctx> Codegen<'ctx> {
                 self.builder
                     .build_load(i32_type, binding.alloca(), &format!("{}_load", name))
                     .map_err(|e| {
-                        CodegenError::new(
-                            CodegenErrorKind::InternalError,
-                            format!(
-                                "Internal error: failed to load i32 variable '{}'. This is a compiler bug: {}",
-                                name, e
-                            ),
-                            arg.span,
-                        )
+                        CodegenError::internal_variable_load_failed(name, &e.to_string(), arg.span)
                     })?
                     .into_int_value()
             }
             // This branch is currently unreachable: integer literals are always typed as i64
             // by get_expr_type() and routed to generate_println_i64().
             _ => {
-                return Err(CodegenError::new(
-                    CodegenErrorKind::InternalError,
-                    "Internal error: generate_println_i32 received a non-identifier expression. \
-                     Integer literals should be routed to generate_println_i64. This is a compiler bug.",
-                    arg.span,
-                ));
+                return Err(CodegenError::internal_println_invalid_i32_arg(arg.span));
             }
         };
 
-        let lak_println_i32 = self.module.get_function("lak_println_i32").ok_or_else(|| {
-            CodegenError::without_span(
-                CodegenErrorKind::InternalError,
-                "Internal error: lak_println_i32 function not found. This is a compiler bug.",
-            )
-        })?;
+        let lak_println_i32 = self
+            .module
+            .get_function("lak_println_i32")
+            .ok_or_else(|| CodegenError::internal_builtin_not_found("lak_println_i32"))?;
 
         self.builder
             .build_call(
@@ -313,16 +225,7 @@ impl<'ctx> Codegen<'ctx> {
                 &[BasicMetadataValueEnum::IntValue(i32_value)],
                 "",
             )
-            .map_err(|e| {
-                CodegenError::new(
-                    CodegenErrorKind::InternalError,
-                    format!(
-                        "Internal error: failed to generate println_i32 call. This is a compiler bug: {}",
-                        e
-                    ),
-                    span,
-                )
-            })?;
+            .map_err(|e| CodegenError::internal_println_call_failed(&e.to_string(), span))?;
 
         Ok(())
     }
@@ -335,28 +238,17 @@ impl<'ctx> Codegen<'ctx> {
         let i64_value = match &arg.kind {
             ExprKind::IntLiteral(value) => self.context.i64_type().const_int(*value as u64, true),
             ExprKind::Identifier(name) => {
-                let binding = self.variables.get(name).ok_or_else(|| {
-                    CodegenError::new(
-                        CodegenErrorKind::InternalError,
-                        format!(
-                            "Internal error: undefined variable '{}' in codegen. \
-                             Semantic analysis should have caught this. This is a compiler bug.",
-                            name
-                        ),
-                        arg.span,
-                    )
-                })?;
+                let binding = self
+                    .variables
+                    .get(name)
+                    .ok_or_else(|| CodegenError::internal_variable_not_found(name, arg.span))?;
 
                 // Defensive type check: verify the variable is actually i64
                 if binding.ty() != &Type::I64 {
-                    return Err(CodegenError::new(
-                        CodegenErrorKind::InternalError,
-                        format!(
-                            "Internal error: variable '{}' has type '{}' but was expected to be i64. \
-                             This indicates a bug in type inference or get_expr_type(). This is a compiler bug.",
-                            name,
-                            binding.ty()
-                        ),
+                    return Err(CodegenError::internal_println_type_mismatch(
+                        name,
+                        "i64",
+                        &binding.ty().to_string(),
                         arg.span,
                     ));
                 }
@@ -365,32 +257,19 @@ impl<'ctx> Codegen<'ctx> {
                 self.builder
                     .build_load(i64_type, binding.alloca(), &format!("{}_load", name))
                     .map_err(|e| {
-                        CodegenError::new(
-                            CodegenErrorKind::InternalError,
-                            format!(
-                                "Internal error: failed to load i64 variable '{}'. This is a compiler bug: {}",
-                                name, e
-                            ),
-                            arg.span,
-                        )
+                        CodegenError::internal_variable_load_failed(name, &e.to_string(), arg.span)
                     })?
                     .into_int_value()
             }
             _ => {
-                return Err(CodegenError::new(
-                    CodegenErrorKind::InternalError,
-                    "Internal error: println i64 argument is not an integer literal or i64 variable. This is a compiler bug.",
-                    arg.span,
-                ));
+                return Err(CodegenError::internal_println_invalid_i64_arg(arg.span));
             }
         };
 
-        let lak_println_i64 = self.module.get_function("lak_println_i64").ok_or_else(|| {
-            CodegenError::without_span(
-                CodegenErrorKind::InternalError,
-                "Internal error: lak_println_i64 function not found. This is a compiler bug.",
-            )
-        })?;
+        let lak_println_i64 = self
+            .module
+            .get_function("lak_println_i64")
+            .ok_or_else(|| CodegenError::internal_builtin_not_found("lak_println_i64"))?;
 
         self.builder
             .build_call(
@@ -398,16 +277,7 @@ impl<'ctx> Codegen<'ctx> {
                 &[BasicMetadataValueEnum::IntValue(i64_value)],
                 "",
             )
-            .map_err(|e| {
-                CodegenError::new(
-                    CodegenErrorKind::InternalError,
-                    format!(
-                        "Internal error: failed to generate println_i64 call. This is a compiler bug: {}",
-                        e
-                    ),
-                    span,
-                )
-            })?;
+            .map_err(|e| CodegenError::internal_println_call_failed(&e.to_string(), span))?;
 
         Ok(())
     }

@@ -4,7 +4,7 @@
 //! function calls, literals, and variable references.
 
 use super::Codegen;
-use super::error::{CodegenError, CodegenErrorKind};
+use super::error::CodegenError;
 use crate::ast::{Expr, ExprKind, Type};
 use inkwell::values::BasicValueEnum;
 
@@ -29,12 +29,7 @@ impl<'ctx> Codegen<'ctx> {
                 }
             }
             ExprKind::StringLiteral(_) | ExprKind::IntLiteral(_) | ExprKind::Identifier(_) => {
-                return Err(CodegenError::new(
-                    CodegenErrorKind::InternalError,
-                    "Internal error: invalid expression statement in codegen. \
-                     Semantic analysis should have rejected this. This is a compiler bug.",
-                    expr.span,
-                ));
+                return Err(CodegenError::internal_invalid_expr_stmt(expr.span));
             }
         }
         Ok(())
@@ -56,28 +51,14 @@ impl<'ctx> Codegen<'ctx> {
         callee: &str,
         span: crate::token::Span,
     ) -> Result<(), CodegenError> {
-        let function = self.module.get_function(callee).ok_or_else(|| {
-            CodegenError::new(
-                CodegenErrorKind::InternalError,
-                format!(
-                    "Internal error: undefined function '{}' in codegen. \
-                     Semantic analysis should have caught this. This is a compiler bug.",
-                    callee
-                ),
-                span,
-            )
-        })?;
+        let function = self
+            .module
+            .get_function(callee)
+            .ok_or_else(|| CodegenError::internal_function_not_found(callee, span))?;
 
-        self.builder.build_call(function, &[], "").map_err(|e| {
-            CodegenError::new(
-                CodegenErrorKind::InternalError,
-                format!(
-                    "Internal error: failed to generate call to '{}'. This is a compiler bug: {}",
-                    callee, e
-                ),
-                span,
-            )
-        })?;
+        self.builder
+            .build_call(function, &[], "")
+            .map_err(|e| CodegenError::internal_call_failed(callee, &e.to_string(), span))?;
 
         Ok(())
     }
@@ -115,42 +96,21 @@ impl<'ctx> Codegen<'ctx> {
                         let llvm_value = llvm_type.const_int(*value as u64, true);
                         Ok(llvm_value.into())
                     }
-                    Type::String => Err(CodegenError::new(
-                        CodegenErrorKind::InternalError,
-                        format!(
-                            "Internal error: integer literal {} used as 'string' value in codegen. \
-                             Semantic analysis should have caught this. This is a compiler bug.",
-                            value
-                        ),
-                        expr.span,
-                    )),
+                    Type::String => Err(CodegenError::internal_int_as_string(*value, expr.span)),
                 }
             }
             ExprKind::Identifier(name) => {
                 // Semantic analysis guarantees the variable exists and has the correct type
-                let binding = self.variables.get(name).ok_or_else(|| {
-                    CodegenError::new(
-                        CodegenErrorKind::InternalError,
-                        format!(
-                            "Internal error: undefined variable '{}' in codegen. \
-                             Semantic analysis should have caught this. This is a compiler bug.",
-                            name
-                        ),
-                        expr.span,
-                    )
-                })?;
+                let binding = self
+                    .variables
+                    .get(name)
+                    .ok_or_else(|| CodegenError::internal_variable_not_found(name, expr.span))?;
 
                 if *binding.ty() != *expected_ty {
-                    return Err(CodegenError::new(
-                        CodegenErrorKind::InternalError,
-                        format!(
-                            "Internal error: type mismatch for variable '{}' in codegen. \
-                             Expected '{}', but variable has type '{}'. \
-                             Semantic analysis should have caught this. This is a compiler bug.",
-                            name,
-                            expected_ty,
-                            binding.ty()
-                        ),
+                    return Err(CodegenError::internal_variable_type_mismatch(
+                        name,
+                        &expected_ty.to_string(),
+                        &binding.ty().to_string(),
                         expr.span,
                     ));
                 }
@@ -160,27 +120,15 @@ impl<'ctx> Codegen<'ctx> {
                     .builder
                     .build_load(llvm_type, binding.alloca(), &format!("{}_load", name))
                     .map_err(|e| {
-                        CodegenError::new(
-                            CodegenErrorKind::InternalError,
-                            format!(
-                                "Internal error: failed to load variable '{}'. This is a compiler bug: {}",
-                                name, e
-                            ),
-                            expr.span,
-                        )
+                        CodegenError::internal_variable_load_failed(name, &e.to_string(), expr.span)
                     })?;
 
                 Ok(loaded)
             }
             ExprKind::StringLiteral(s) => {
                 if *expected_ty != Type::String {
-                    return Err(CodegenError::new(
-                        CodegenErrorKind::InternalError,
-                        format!(
-                            "Internal error: string literal used as '{}' value in codegen. \
-                             Semantic analysis should have caught this. This is a compiler bug.",
-                            expected_ty
-                        ),
+                    return Err(CodegenError::internal_string_as_type(
+                        &expected_ty.to_string(),
                         expr.span,
                     ));
                 }
@@ -190,26 +138,13 @@ impl<'ctx> Codegen<'ctx> {
                     .builder
                     .build_global_string_ptr(s, "str")
                     .map_err(|e| {
-                        CodegenError::new(
-                            CodegenErrorKind::InternalError,
-                            format!(
-                                "Internal error: failed to create string literal. This is a compiler bug: {}",
-                                e
-                            ),
-                            expr.span,
-                        )
+                        CodegenError::internal_string_ptr_failed(&e.to_string(), expr.span)
                     })?;
                 Ok(str_ptr.as_pointer_value().into())
             }
-            ExprKind::Call { callee, .. } => Err(CodegenError::new(
-                CodegenErrorKind::InternalError,
-                format!(
-                    "Internal error: function call '{}' used as value in codegen. \
-                     Semantic analysis should have caught this. This is a compiler bug.",
-                    callee
-                ),
-                expr.span,
-            )),
+            ExprKind::Call { callee, .. } => {
+                Err(CodegenError::internal_call_as_value(callee, expr.span))
+            }
         }
     }
 }

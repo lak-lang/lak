@@ -219,15 +219,10 @@ impl<'ctx> Codegen<'ctx> {
         self.variables.clear();
 
         // Get the function declaration created in Pass 1
-        let function = self.module.get_function(&fn_def.name).ok_or_else(|| {
-            CodegenError::without_span(
-                CodegenErrorKind::InternalError,
-                format!(
-                    "Internal error: function '{}' not found in module. This is a compiler bug.",
-                    fn_def.name
-                ),
-            )
-        })?;
+        let function = self
+            .module
+            .get_function(&fn_def.name)
+            .ok_or_else(|| CodegenError::internal_function_not_found_no_span(&fn_def.name))?;
 
         // Create entry block
         let entry = self.context.append_basic_block(function, "entry");
@@ -240,13 +235,7 @@ impl<'ctx> Codegen<'ctx> {
 
         // Add void return
         self.builder.build_return(None).map_err(|e| {
-            CodegenError::without_span(
-                CodegenErrorKind::InternalError,
-                format!(
-                    "Internal error: failed to build return for function '{}'. This is a compiler bug: {}",
-                    fn_def.name, e
-                ),
-            )
+            CodegenError::internal_return_build_failed(&fn_def.name, &e.to_string())
         })?;
 
         Ok(())
@@ -275,15 +264,9 @@ impl<'ctx> Codegen<'ctx> {
         }
 
         let zero = i32_type.const_int(0, false);
-        self.builder.build_return(Some(&zero)).map_err(|e| {
-            CodegenError::without_span(
-                CodegenErrorKind::InternalError,
-                format!(
-                    "Internal error: failed to build return instruction. This is a compiler bug: {}",
-                    e
-                ),
-            )
-        })?;
+        self.builder
+            .build_return(Some(&zero))
+            .map_err(|e| CodegenError::internal_main_return_build_failed(&e.to_string()))?;
 
         Ok(())
     }
