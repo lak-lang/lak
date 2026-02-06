@@ -134,3 +134,75 @@ fn test_i32_max_value_valid() {
     .unwrap();
     assert_eq!(output, "2147483647\n");
 }
+
+// ========================================
+// Unary minus with variables tests
+// ========================================
+
+#[test]
+fn test_let_statement_negative_value() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = -42
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "-42\n");
+}
+
+#[test]
+fn test_let_with_negated_variable_reference() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = 100
+    let y: i32 = -x
+    println(x)
+    println(y)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "100\n-100\n");
+}
+
+#[test]
+fn test_let_i64_negative_large_value() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let big: i64 = -9223372036854775807
+    println(big)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "-9223372036854775807\n");
+}
+
+#[test]
+fn test_let_chain_with_negation() {
+    // Chain of negations: a -> -a -> --a
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let a: i32 = 10
+    let b: i32 = -a
+    let c: i32 = -b
+    println(a)
+    println(b)
+    println(c)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "10\n-10\n10\n");
+}
+
+#[test]
+fn test_i32_min_value_valid() {
+    // i32::MIN = -2147483648 should be valid for i32
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = -2147483648
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "-2147483648\n");
+}

@@ -239,3 +239,75 @@ fn main() -> void {
     .unwrap();
     assert_eq!(output, "42\n100\n200\n42\n");
 }
+
+// ========================================
+// Unary minus with functions tests
+// ========================================
+
+#[test]
+fn test_function_with_negative_local_variables() {
+    let output = compile_and_run(
+        r#"
+fn setup() -> void {
+    let x: i32 = -42
+    println(x)
+}
+
+fn main() -> void {
+    setup()
+    let y: i32 = -100
+    println(y)
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "-42\n-100\n");
+}
+
+#[test]
+fn test_negated_variable_in_function() {
+    let output = compile_and_run(
+        r#"
+fn process() -> void {
+    let value: i32 = 50
+    let negated: i32 = -value
+    println(value)
+    println(negated)
+}
+
+fn main() -> void {
+    process()
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "50\n-50\n");
+}
+
+#[test]
+fn test_variable_isolation_with_negative_values() {
+    // Verify positive and negative values are isolated across functions
+    let output = compile_and_run(
+        r#"
+fn set_x_to_neg_100() -> void {
+    let x: i32 = -100
+    println(x)
+}
+
+fn set_x_to_pos_200() -> void {
+    let x: i32 = 200
+    println(x)
+}
+
+fn main() -> void {
+    let x: i32 = 42
+    println(x)
+    set_x_to_neg_100()
+    set_x_to_pos_200()
+    println(x)
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "42\n-100\n200\n42\n");
+}

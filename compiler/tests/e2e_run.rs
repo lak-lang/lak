@@ -240,3 +240,60 @@ fn test_run_path_with_spaces() {
     assert!(output.status.success());
     assert_eq!(String::from_utf8_lossy(&output.stdout), "ok\n");
 }
+
+// ========================================
+// Unary minus tests
+// ========================================
+
+#[test]
+fn test_run_with_negative_values() {
+    let temp = tempdir().unwrap();
+    let source_path = temp.path().join("negative.lak");
+
+    fs::write(
+        &source_path,
+        r#"fn main() -> void {
+    let x: i32 = -42
+    let y: i64 = -1000
+    let z: i32 = --10
+    println(x)
+    println(y)
+    println(z)
+}"#,
+    )
+    .unwrap();
+
+    let output = Command::new(lak_binary())
+        .args(["run", source_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "-42\n-1000\n10\n");
+}
+
+#[test]
+fn test_run_unary_minus_in_expressions() {
+    let temp = tempdir().unwrap();
+    let source_path = temp.path().join("unary_expr.lak");
+
+    fs::write(
+        &source_path,
+        r#"fn main() -> void {
+    let a: i32 = 10
+    let b: i32 = -a + 5
+    let c: i32 = -(a * 2)
+    println(b)
+    println(c)
+}"#,
+    )
+    .unwrap();
+
+    let output = Command::new(lak_binary())
+        .args(["run", source_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "-5\n-20\n");
+}

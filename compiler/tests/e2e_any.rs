@@ -6,10 +6,6 @@
 //! - Integer literals passed directly to println are always treated as i64.
 //! - To print an i32, assign the literal to an i32 variable first.
 //!
-//! Note on negative integers:
-//! - Negative integer literals (e.g., `-42`) are not yet supported by the lexer.
-//! - Once supported, negative values will work through variables.
-
 mod common;
 
 use common::compile_and_run;
@@ -105,7 +101,6 @@ fn test_println_mixed_types() {
 
 #[test]
 fn test_println_i32_max_value() {
-    // Note: negative literals are not yet supported
     let output = compile_and_run(
         r#"fn main() -> void {
     let max: i32 = 2147483647
@@ -129,4 +124,54 @@ fn test_println_zero() {
     )
     .unwrap();
     assert_eq!(output, "0\n0\n0\n");
+}
+
+// ========================================
+// Negative number tests
+// ========================================
+
+#[test]
+fn test_println_negative_i32() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = -42
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "-42\n");
+}
+
+#[test]
+fn test_println_negative_i64() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let y: i64 = -1000000000
+    println(y)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "-1000000000\n");
+}
+
+#[test]
+fn test_println_unary_minus_expression() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    println(-(100 + 50))
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "-150\n");
+}
+
+#[test]
+fn test_println_negative_literal() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    println(-42)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "-42\n");
 }
