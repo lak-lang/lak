@@ -36,7 +36,7 @@ fn test_duplicate_variable() {
     assert!(result.is_err());
     let err = result.unwrap_err();
     assert_eq!(err.kind(), SemanticErrorKind::DuplicateVariable);
-    assert!(err.message().contains("already defined"));
+    assert_eq!(err.message(), "Variable 'x' is already defined at 2:5");
 }
 
 // ============================================================================
@@ -59,6 +59,5 @@ fn test_undefined_variable() {
     assert!(result.is_err());
     let err = result.unwrap_err();
     assert_eq!(err.kind(), SemanticErrorKind::UndefinedVariable);
-    assert!(err.message().contains("Undefined variable"));
-    assert!(err.message().contains("'y'"));
+    assert_eq!(err.message(), "Undefined variable: 'y'");
 }

@@ -299,8 +299,7 @@ fn test_codegen_error_with_span() {
     assert_eq!(err.span().unwrap().column, 5);
     assert_eq!(err.kind(), CodegenErrorKind::InternalError);
     let display = format!("{}", err);
-    assert!(display.contains("3:5"));
-    assert!(display.contains("test error"));
+    assert_eq!(display, "3:5: test error");
 }
 
 #[test]
@@ -330,8 +329,10 @@ fn test_target_init_failed_constructor() {
     let err = CodegenError::target_init_failed("initialization error");
     assert_eq!(err.kind(), CodegenErrorKind::TargetError);
     assert!(err.span().is_none());
-    assert!(err.message().contains("initialization error"));
-    assert!(err.message().contains("native target"));
+    assert_eq!(
+        err.message(),
+        "Failed to initialize native target: initialization error"
+    );
 }
 
 #[test]
@@ -339,8 +340,10 @@ fn test_target_from_triple_failed_constructor() {
     let err = CodegenError::target_from_triple_failed("x86_64-unknown-linux", "unsupported");
     assert_eq!(err.kind(), CodegenErrorKind::TargetError);
     assert!(err.span().is_none());
-    assert!(err.message().contains("x86_64-unknown-linux"));
-    assert!(err.message().contains("unsupported"));
+    assert_eq!(
+        err.message(),
+        "Failed to get target for triple 'x86_64-unknown-linux': unsupported"
+    );
 }
 
 #[test]
@@ -348,8 +351,7 @@ fn test_target_cpu_invalid_utf8_constructor() {
     let err = CodegenError::target_cpu_invalid_utf8();
     assert_eq!(err.kind(), CodegenErrorKind::TargetError);
     assert!(err.span().is_none());
-    assert!(err.message().contains("CPU name"));
-    assert!(err.message().contains("UTF-8"));
+    assert_eq!(err.message(), "CPU name contains invalid UTF-8");
 }
 
 #[test]
@@ -357,8 +359,10 @@ fn test_target_machine_creation_failed_constructor() {
     let err = CodegenError::target_machine_creation_failed("x86_64", "generic");
     assert_eq!(err.kind(), CodegenErrorKind::TargetError);
     assert!(err.span().is_none());
-    assert!(err.message().contains("x86_64"));
-    assert!(err.message().contains("generic"));
+    assert_eq!(
+        err.message(),
+        "Failed to create target machine for triple 'x86_64', CPU 'generic'. This may indicate an unsupported platform or LLVM configuration issue."
+    );
 }
 
 // ===================================
@@ -370,8 +374,10 @@ fn test_internal_variable_not_found_constructor() {
     let err = CodegenError::internal_variable_not_found("x", dummy_span());
     assert_eq!(err.kind(), CodegenErrorKind::InternalError);
     assert!(err.span().is_some());
-    assert!(err.message().contains("x"));
-    assert!(err.message().contains("compiler bug"));
+    assert_eq!(
+        err.message(),
+        "Internal error: undefined variable 'x' in codegen. Semantic analysis should have caught this. This is a compiler bug."
+    );
 }
 
 #[test]
@@ -379,8 +385,10 @@ fn test_internal_function_not_found_constructor() {
     let err = CodegenError::internal_function_not_found("foo", dummy_span());
     assert_eq!(err.kind(), CodegenErrorKind::InternalError);
     assert!(err.span().is_some());
-    assert!(err.message().contains("foo"));
-    assert!(err.message().contains("compiler bug"));
+    assert_eq!(
+        err.message(),
+        "Internal error: undefined function 'foo' in codegen. Semantic analysis should have caught this. This is a compiler bug."
+    );
 }
 
 #[test]
@@ -388,8 +396,10 @@ fn test_internal_println_arg_count_constructor() {
     let err = CodegenError::internal_println_arg_count(3, dummy_span());
     assert_eq!(err.kind(), CodegenErrorKind::InternalError);
     assert!(err.span().is_some());
-    assert!(err.message().contains("3"));
-    assert!(err.message().contains("compiler bug"));
+    assert_eq!(
+        err.message(),
+        "Internal error: println expects 1 argument, but got 3 in codegen. Semantic analysis should have caught this. This is a compiler bug."
+    );
 }
 
 #[test]
@@ -397,9 +407,10 @@ fn test_internal_variable_type_mismatch_constructor() {
     let err = CodegenError::internal_variable_type_mismatch("x", "i32", "string", dummy_span());
     assert_eq!(err.kind(), CodegenErrorKind::InternalError);
     assert!(err.span().is_some());
-    assert!(err.message().contains("x"));
-    assert!(err.message().contains("i32"));
-    assert!(err.message().contains("string"));
+    assert_eq!(
+        err.message(),
+        "Internal error: type mismatch for variable 'x' in codegen. Expected 'i32', but variable has type 'string'. Semantic analysis should have caught this. This is a compiler bug."
+    );
 }
 
 #[test]
@@ -407,8 +418,10 @@ fn test_internal_builtin_not_found_constructor() {
     let err = CodegenError::internal_builtin_not_found("lak_println");
     assert_eq!(err.kind(), CodegenErrorKind::InternalError);
     assert!(err.span().is_none());
-    assert!(err.message().contains("lak_println"));
-    assert!(err.message().contains("compiler bug"));
+    assert_eq!(
+        err.message(),
+        "Internal error: lak_println function not found. This is a compiler bug."
+    );
 }
 
 #[test]
@@ -416,8 +429,10 @@ fn test_internal_return_build_failed_constructor() {
     let err = CodegenError::internal_return_build_failed("main", "LLVM error");
     assert_eq!(err.kind(), CodegenErrorKind::InternalError);
     assert!(err.span().is_none());
-    assert!(err.message().contains("main"));
-    assert!(err.message().contains("LLVM error"));
+    assert_eq!(
+        err.message(),
+        "Internal error: failed to build return for function 'main'. This is a compiler bug: LLVM error"
+    );
 }
 
 // ====================
@@ -458,8 +473,11 @@ fn test_get_expr_type_undefined_identifier() {
     let result = codegen.get_expr_type(&expr);
     assert!(result.is_err());
     let err = result.unwrap_err();
-    assert!(err.message().contains("undefined variable"));
     assert_eq!(err.kind(), CodegenErrorKind::InternalError);
+    assert_eq!(
+        err.message(),
+        "Internal error: undefined variable 'undefined_var' in codegen. Semantic analysis should have caught this. This is a compiler bug."
+    );
 }
 
 #[test]
@@ -477,10 +495,11 @@ fn test_get_expr_type_function_call() {
     let result = codegen.get_expr_type(&expr);
     assert!(result.is_err());
     let err = result.unwrap_err();
-    assert!(err.message().contains("function call"));
-    assert!(err.message().contains("some_function"));
-    assert!(err.message().contains("cannot be used as println argument"));
     assert_eq!(err.kind(), CodegenErrorKind::InternalError);
+    assert_eq!(
+        err.message(),
+        "Internal error: function call 'some_function()' cannot be used as println argument. Semantic analysis should have caught this. This is a compiler bug."
+    );
 }
 
 #[test]

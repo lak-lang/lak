@@ -40,7 +40,7 @@ fn test_duplicate_function_error() {
     assert!(result.is_err());
     let err = result.unwrap_err();
     assert_eq!(err.kind(), SemanticErrorKind::DuplicateFunction);
-    assert!(err.message().contains("already defined"));
+    assert_eq!(err.message(), "Function 'main' is already defined at 1:1");
 }
 
 #[test]
@@ -76,7 +76,7 @@ fn test_duplicate_non_main_function_error() {
     assert!(result.is_err());
     let err = result.unwrap_err();
     assert_eq!(err.kind(), SemanticErrorKind::DuplicateFunction);
-    assert!(err.message().contains("helper"));
+    assert_eq!(err.message(), "Function 'helper' is already defined at 5:1");
 }
 
 // ============================================================================
@@ -92,7 +92,10 @@ fn test_missing_main_function_empty_program() {
     assert!(result.is_err());
     let err = result.unwrap_err();
     assert_eq!(err.kind(), SemanticErrorKind::MissingMainFunction);
-    assert!(err.message().contains("No main function found"));
+    assert_eq!(
+        err.message(),
+        "No main function found: program contains no function definitions"
+    );
 }
 
 #[test]
@@ -112,7 +115,10 @@ fn test_missing_main_function_with_other_functions() {
     assert!(result.is_err());
     let err = result.unwrap_err();
     assert_eq!(err.kind(), SemanticErrorKind::MissingMainFunction);
-    assert!(err.message().contains("Defined functions"));
+    assert_eq!(
+        err.message(),
+        "No main function found. Defined functions: [\"helper\"]"
+    );
 }
 
 // ============================================================================
@@ -136,7 +142,10 @@ fn test_invalid_main_signature() {
     assert!(result.is_err());
     let err = result.unwrap_err();
     assert_eq!(err.kind(), SemanticErrorKind::InvalidMainSignature);
-    assert!(err.message().contains("must return void"));
+    assert_eq!(
+        err.message(),
+        "main function must return void, but found return type 'int'"
+    );
 }
 
 // ============================================================================
@@ -161,7 +170,7 @@ fn test_undefined_function() {
     assert!(result.is_err());
     let err = result.unwrap_err();
     assert_eq!(err.kind(), SemanticErrorKind::UndefinedFunction);
-    assert!(err.message().contains("Undefined function"));
+    assert_eq!(err.message(), "Undefined function: 'unknown'");
 }
 
 // ============================================================================

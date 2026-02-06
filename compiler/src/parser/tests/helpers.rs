@@ -57,8 +57,7 @@ fn test_parse_error_display() {
         Span::new(0, 1, 2, 3),
     );
     let display = format!("{}", err);
-    assert!(display.contains("2:3"));
-    assert!(display.contains("Test error"));
+    assert_eq!(display, "2:3: Test error");
 }
 
 // ===================

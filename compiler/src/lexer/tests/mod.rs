@@ -58,7 +58,7 @@ fn span_at(line: usize, column: usize) -> Span {
 fn test_lex_error_unexpected_eof_constructor() {
     let err = LexError::unexpected_eof(span_at(5, 10));
     assert_eq!(err.kind(), LexErrorKind::UnexpectedEof);
-    assert!(err.message().contains("Unexpected end of input"));
+    assert_eq!(err.message(), "Unexpected end of input");
     assert_eq!(err.span().line, 5);
     assert_eq!(err.span().column, 10);
 }
@@ -67,66 +67,73 @@ fn test_lex_error_unexpected_eof_constructor() {
 fn test_lex_error_unexpected_character_constructor() {
     let err = LexError::unexpected_character('@', span_at(3, 7));
     assert_eq!(err.kind(), LexErrorKind::UnexpectedCharacter);
-    assert!(err.message().contains("@"));
-    assert!(err.message().contains("Unexpected character"));
+    assert_eq!(err.message(), "Unexpected character: '@'");
 }
 
 #[test]
 fn test_lex_error_invalid_identifier_character_constructor() {
     let err = LexError::invalid_identifier_character('日', span_at(1, 5));
     assert_eq!(err.kind(), LexErrorKind::InvalidIdentifierCharacter);
-    assert!(err.message().contains("日"));
-    assert!(err.message().contains("ASCII"));
+    assert_eq!(
+        err.message(),
+        "Invalid character '日' in identifier. Only ASCII letters (a-z, A-Z), digits (0-9), and underscores (_) are allowed"
+    );
 }
 
 #[test]
 fn test_lex_error_invalid_whitespace_constructor() {
     let err = LexError::invalid_whitespace('\u{00A0}', dummy_span());
     assert_eq!(err.kind(), LexErrorKind::InvalidWhitespace);
-    assert!(err.message().contains("00A0"));
+    assert_eq!(
+        err.message(),
+        "Invalid whitespace character '\u{00A0}' (U+00A0). Only space, tab, carriage return, and newline are allowed"
+    );
 }
 
 #[test]
 fn test_lex_error_incomplete_arrow_constructor() {
     let err = LexError::incomplete_arrow(span_at(2, 15));
     assert_eq!(err.kind(), LexErrorKind::IncompleteArrow);
-    assert!(err.message().contains(">"));
-    assert!(err.message().contains("-"));
+    assert_eq!(err.message(), "Expected '>' after '-'");
 }
 
 #[test]
 fn test_lex_error_unknown_escape_sequence_constructor() {
     let err = LexError::unknown_escape_sequence('q', dummy_span());
     assert_eq!(err.kind(), LexErrorKind::UnknownEscapeSequence);
-    assert!(err.message().contains("\\q"));
+    assert_eq!(err.message(), "Unknown escape sequence: '\\q'");
 }
 
 #[test]
 fn test_lex_error_unterminated_string_constructor() {
     let err = LexError::unterminated_string(dummy_span());
     assert_eq!(err.kind(), LexErrorKind::UnterminatedString);
-    assert!(err.message().contains("Unterminated string"));
+    assert_eq!(err.message(), "Unterminated string literal");
 }
 
 #[test]
 fn test_lex_error_unterminated_string_newline_constructor() {
     let err = LexError::unterminated_string_newline(dummy_span());
     assert_eq!(err.kind(), LexErrorKind::UnterminatedString);
-    assert!(err.message().contains("newline"));
+    assert_eq!(
+        err.message(),
+        "Unterminated string literal (newline in string)"
+    );
 }
 
 #[test]
 fn test_lex_error_integer_overflow_constructor() {
     let err = LexError::integer_overflow("99999999999999999999", dummy_span());
     assert_eq!(err.kind(), LexErrorKind::IntegerOverflow);
-    assert!(err.message().contains("99999999999999999999"));
-    assert!(err.message().contains("i64"));
+    assert_eq!(
+        err.message(),
+        "Integer literal '99999999999999999999' is out of range for i64 (exceeds maximum value)"
+    );
 }
 
 #[test]
 fn test_lex_error_display() {
     let err = LexError::unexpected_character('#', span_at(10, 20));
     let display = format!("{}", err);
-    assert!(display.contains("10:20"));
-    assert!(display.contains("#"));
+    assert_eq!(display, "10:20: Unexpected character: '#'");
 }

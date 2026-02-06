@@ -111,7 +111,7 @@ fn test_run_nonexistent_file() {
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("Failed to read file"));
+    assert!(stderr.contains("Error: Failed to read file 'nonexistent.lak'"));
 }
 
 #[test]
@@ -129,7 +129,15 @@ fn test_run_compile_error_missing_main() {
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("No main function"));
+    assert!(
+        stderr.contains(
+            "\x1b[31mError:\x1b[0m No main function found. Defined functions: [\"helper\"]"
+        )
+    );
+    assert!(
+        stderr
+            .contains("\x1b[38;5;115mHelp\x1b[0m: add a main function: fn main() -> void { ... }")
+    );
 }
 
 #[test]
@@ -193,7 +201,7 @@ fn test_run_lexer_error() {
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("Unterminated string literal"));
+    assert!(stderr.contains("\x1b[31mError:\x1b[0m Unterminated string literal"));
 }
 
 #[test]
@@ -211,7 +219,7 @@ fn test_run_parser_error() {
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("Expected ')', found '->'"));
+    assert!(stderr.contains("\x1b[31mError:\x1b[0m Expected ')', found '->'"));
 }
 
 #[test]

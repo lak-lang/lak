@@ -474,8 +474,10 @@ fn compile_to_executable(
 fn build(file: &str, output: Option<&str>) -> Result<(), Box<CompileErrorWithContext>> {
     let source = std::fs::read_to_string(file).map_err(|e| {
         Box::new(
-            CompileContext::new(file, "")
-                .with_error(CompileError::Io(format!("Failed to read file: {}", e))),
+            CompileContext::new(file, "").with_error(CompileError::Io(format!(
+                "Failed to read file '{}': {}",
+                file, e
+            ))),
         )
     })?;
 
@@ -541,8 +543,10 @@ fn build(file: &str, output: Option<&str>) -> Result<(), Box<CompileErrorWithCon
 fn run(file: &str) -> Result<i32, Box<CompileErrorWithContext>> {
     let source = std::fs::read_to_string(file).map_err(|e| {
         Box::new(
-            CompileContext::new(file, "")
-                .with_error(CompileError::Io(format!("Failed to read file: {}", e))),
+            CompileContext::new(file, "").with_error(CompileError::Io(format!(
+                "Failed to read file '{}': {}",
+                file, e
+            ))),
         )
     })?;
 

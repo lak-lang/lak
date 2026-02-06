@@ -39,7 +39,10 @@ fn test_type_mismatch() {
     assert!(result.is_err());
     let err = result.unwrap_err();
     assert_eq!(err.kind(), SemanticErrorKind::TypeMismatch);
-    assert!(err.message().contains("Type mismatch"));
+    assert_eq!(
+        err.message(),
+        "Type mismatch: variable 'x' has type 'i32', expected 'i64'"
+    );
 }
 
 #[test]
@@ -58,7 +61,10 @@ fn test_string_literal_as_integer() {
     assert!(result.is_err());
     let err = result.unwrap_err();
     assert_eq!(err.kind(), SemanticErrorKind::TypeMismatch);
-    assert!(err.message().contains("string literal cannot be assigned"));
+    assert_eq!(
+        err.message(),
+        "Type mismatch: string literal cannot be assigned to type 'i32'"
+    );
 }
 
 // ============================================================================
@@ -81,7 +87,10 @@ fn test_integer_overflow_i32() {
     assert!(result.is_err());
     let err = result.unwrap_err();
     assert_eq!(err.kind(), SemanticErrorKind::IntegerOverflow);
-    assert!(err.message().contains("out of range for i32"));
+    assert_eq!(
+        err.message(),
+        "Integer literal '2147483648' is out of range for i32 (valid range: -2147483648 to 2147483647)"
+    );
 }
 
 #[test]
@@ -138,7 +147,10 @@ fn test_string_literal_as_statement() {
     assert!(result.is_err());
     let err = result.unwrap_err();
     assert_eq!(err.kind(), SemanticErrorKind::InvalidExpression);
-    assert!(err.message().contains("no effect"));
+    assert_eq!(
+        err.message(),
+        "String literal as a statement has no effect. Did you mean to pass it to a function?"
+    );
 }
 
 #[test]
@@ -204,7 +216,7 @@ fn test_println_no_arguments() {
     assert!(result.is_err());
     let err = result.unwrap_err();
     assert_eq!(err.kind(), SemanticErrorKind::InvalidArgument);
-    assert!(err.message().contains("1 argument"));
+    assert_eq!(err.message(), "println expects exactly 1 argument");
 }
 
 #[test]

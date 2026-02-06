@@ -57,8 +57,8 @@ fn test_duplicate_function_error() {
     let result = table.define_function(info2);
     assert!(result.is_err());
     let err = result.unwrap_err();
-    assert!(err.message().contains("already defined"));
     assert_eq!(err.kind(), SemanticErrorKind::DuplicateFunction);
+    assert_eq!(err.message(), "Function 'dup' is already defined at 1:1");
 }
 
 #[test]
@@ -90,9 +90,11 @@ fn test_define_variable_outside_scope_error() {
     let result = table.define_variable(info);
     assert!(result.is_err());
     let err = result.unwrap_err();
-    assert!(err.message().contains("Internal error"));
-    assert!(err.message().contains("orphan"));
     assert_eq!(err.kind(), SemanticErrorKind::InternalError);
+    assert_eq!(
+        err.message(),
+        "Internal error: attempted to define variable 'orphan' outside a scope. This is a compiler bug."
+    );
 }
 
 #[test]
@@ -115,8 +117,8 @@ fn test_duplicate_variable_in_same_scope() {
     let result = table.define_variable(info2);
     assert!(result.is_err());
     let err = result.unwrap_err();
-    assert!(err.message().contains("already defined"));
     assert_eq!(err.kind(), SemanticErrorKind::DuplicateVariable);
+    assert_eq!(err.message(), "Variable 'x' is already defined at 1:1");
 }
 
 #[test]

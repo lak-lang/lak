@@ -7,57 +7,60 @@ use crate::token::Span;
 #[test]
 fn test_error_unterminated_string() {
     let err = tokenize_error(r#""hello"#);
-    assert!(err.message().contains("Unterminated string"));
     assert_eq!(err.kind(), LexErrorKind::UnterminatedString);
+    assert_eq!(err.message(), "Unterminated string literal");
 }
 
 #[test]
 fn test_error_newline_in_string() {
     let err = tokenize_error("\"hello\nworld\"");
-    assert!(err.message().contains("newline in string"));
     assert_eq!(err.kind(), LexErrorKind::UnterminatedString);
+    assert_eq!(
+        err.message(),
+        "Unterminated string literal (newline in string)"
+    );
 }
 
 #[test]
 fn test_error_unknown_escape() {
     let err = tokenize_error(r#""\x""#);
-    assert!(err.message().contains("Unknown escape sequence"));
     assert_eq!(err.kind(), LexErrorKind::UnknownEscapeSequence);
+    assert_eq!(err.message(), "Unknown escape sequence: '\\x'");
 }
 
 #[test]
 fn test_error_unexpected_char_at() {
     let err = tokenize_error("@");
-    assert!(err.message().contains("Unexpected character"));
     assert_eq!(err.kind(), LexErrorKind::UnexpectedCharacter);
+    assert_eq!(err.message(), "Unexpected character: '@'");
 }
 
 #[test]
 fn test_error_unexpected_char_hash() {
     let err = tokenize_error("#");
-    assert!(err.message().contains("Unexpected character"));
     assert_eq!(err.kind(), LexErrorKind::UnexpectedCharacter);
+    assert_eq!(err.message(), "Unexpected character: '#'");
 }
 
 #[test]
 fn test_error_unexpected_char_dollar() {
     let err = tokenize_error("$");
-    assert!(err.message().contains("Unexpected character"));
     assert_eq!(err.kind(), LexErrorKind::UnexpectedCharacter);
+    assert_eq!(err.message(), "Unexpected character: '$'");
 }
 
 #[test]
 fn test_error_minus_without_arrow() {
     let err = tokenize_error("-");
-    assert!(err.message().contains("Expected '>' after '-'"));
     assert_eq!(err.kind(), LexErrorKind::IncompleteArrow);
+    assert_eq!(err.message(), "Expected '>' after '-'");
 }
 
 #[test]
 fn test_error_minus_with_other_char() {
     let err = tokenize_error("-x");
-    assert!(err.message().contains("Expected '>' after '-'"));
     assert_eq!(err.kind(), LexErrorKind::IncompleteArrow);
+    assert_eq!(err.message(), "Expected '>' after '-'");
 }
 
 #[test]
@@ -75,6 +78,5 @@ fn test_lex_error_display() {
         Span::new(0, 1, 2, 3),
     );
     let display = format!("{}", err);
-    assert!(display.contains("2:3"));
-    assert!(display.contains("Test error"));
+    assert_eq!(display, "2:3: Test error");
 }

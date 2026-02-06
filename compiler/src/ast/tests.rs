@@ -304,8 +304,10 @@ fn test_stmt_clone() {
 fn test_expr_debug() {
     let expr = Expr::new(ExprKind::StringLiteral("hello".to_string()), dummy_span());
     let debug_str = format!("{:?}", expr);
-    assert!(debug_str.contains("StringLiteral"));
-    assert!(debug_str.contains("hello"));
+    assert_eq!(
+        debug_str,
+        "Expr { kind: StringLiteral(\"hello\"), span: Span { start: 0, end: 0, line: 1, column: 1 } }"
+    );
 }
 
 #[test]
@@ -321,9 +323,10 @@ fn test_stmt_debug() {
         dummy_span(),
     );
     let debug_str = format!("{:?}", stmt);
-    assert!(debug_str.contains("Expr"));
-    assert!(debug_str.contains("Call"));
-    assert!(debug_str.contains("func"));
+    assert_eq!(
+        debug_str,
+        "Stmt { kind: Expr(Expr { kind: Call { callee: \"func\", args: [] }, span: Span { start: 0, end: 0, line: 1, column: 1 } }), span: Span { start: 0, end: 0, line: 1, column: 1 } }"
+    );
 }
 
 #[test]
@@ -344,8 +347,10 @@ fn test_program_debug() {
         }],
     };
     let debug_str = format!("{:?}", program);
-    assert!(debug_str.contains("Program"));
-    assert!(debug_str.contains("functions"));
+    assert_eq!(
+        debug_str,
+        "Program { functions: [FnDef { name: \"main\", return_type: \"void\", return_type_span: Span { start: 0, end: 0, line: 1, column: 1 }, body: [Stmt { kind: Expr(Expr { kind: StringLiteral(\"test\"), span: Span { start: 0, end: 0, line: 1, column: 1 } }), span: Span { start: 0, end: 0, line: 1, column: 1 } }], span: Span { start: 0, end: 0, line: 1, column: 1 } }] }"
+    );
 }
 
 #[test]

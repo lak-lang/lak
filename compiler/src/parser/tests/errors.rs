@@ -31,35 +31,22 @@ fn test_error_top_level_statement() {
 #[test]
 fn test_error_missing_function_name() {
     let err = parse_error("fn () -> void {}");
-    assert!(
-        err.message().contains("identifier"),
-        "Expected error about 'identifier', got: {}",
-        err.message()
-    );
     assert_eq!(err.kind(), ParseErrorKind::ExpectedIdentifier);
+    assert_eq!(err.message(), "Expected identifier, found '('");
 }
 
 #[test]
 fn test_error_missing_arrow() {
     let err = parse_error("fn main() void {}");
-    assert!(
-        err.message().contains("'->'"),
-        "Expected error about '->', got: {}",
-        err.message()
-    );
     assert_eq!(err.kind(), ParseErrorKind::UnexpectedToken);
+    assert_eq!(err.message(), "Expected '->', found identifier 'void'");
 }
 
 #[test]
 fn test_error_missing_return_type() {
     let err = parse_error("fn main() -> {}");
-    assert!(
-        err.message().contains("identifier"),
-        "Expected error about 'identifier', got: {}",
-        err.message()
-    );
-    // Return type parsing expects an identifier (type name), so this is ExpectedIdentifier
     assert_eq!(err.kind(), ParseErrorKind::ExpectedIdentifier);
+    assert_eq!(err.message(), "Expected identifier, found '{'");
 }
 
 #[test]
@@ -126,22 +113,22 @@ fn test_error_missing_right_paren_in_call() {
 #[test]
 fn test_error_double_comma() {
     let err = parse_error(r#"fn main() -> void { f("a",,"b") }"#);
-    assert!(err.message().contains("Unexpected token"));
     assert_eq!(err.kind(), ParseErrorKind::UnexpectedToken);
+    assert_eq!(err.message(), "Unexpected token: ','");
 }
 
 #[test]
 fn test_error_leading_comma() {
     let err = parse_error(r#"fn main() -> void { f(,"a") }"#);
-    assert!(err.message().contains("Unexpected token"));
     assert_eq!(err.kind(), ParseErrorKind::UnexpectedToken);
+    assert_eq!(err.message(), "Unexpected token: ','");
 }
 
 #[test]
 fn test_error_trailing_comma() {
     let err = parse_error(r#"fn main() -> void { f("a",) }"#);
-    assert!(err.message().contains("Unexpected token"));
     assert_eq!(err.kind(), ParseErrorKind::UnexpectedToken);
+    assert_eq!(err.message(), "Unexpected token: ')'");
 }
 
 // ===================
