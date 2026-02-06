@@ -431,6 +431,53 @@ impl CodegenError {
         )
     }
 
+    /// Creates an internal error for panic argument count mismatch.
+    pub fn internal_panic_arg_count(count: usize, span: Span) -> Self {
+        Self::new(
+            CodegenErrorKind::InternalError,
+            format!(
+                "Internal error: panic expects 1 argument, but got {} in codegen. \
+                 Semantic analysis should have caught this. This is a compiler bug.",
+                count
+            ),
+            span,
+        )
+    }
+
+    /// Creates an internal error for invalid panic argument.
+    pub fn internal_panic_invalid_arg(span: Span) -> Self {
+        Self::new(
+            CodegenErrorKind::InternalError,
+            "Internal error: panic argument is not a string literal or string variable. \
+             Semantic analysis should have caught this. This is a compiler bug.",
+            span,
+        )
+    }
+
+    /// Creates an internal error for failed panic call.
+    pub fn internal_panic_call_failed(error: &str, span: Span) -> Self {
+        Self::new(
+            CodegenErrorKind::InternalError,
+            format!(
+                "Internal error: failed to generate panic call. This is a compiler bug: {}",
+                error
+            ),
+            span,
+        )
+    }
+
+    /// Creates an internal error for failed unreachable instruction.
+    pub fn internal_unreachable_failed(error: &str, span: Span) -> Self {
+        Self::new(
+            CodegenErrorKind::InternalError,
+            format!(
+                "Internal error: failed to build unreachable instruction. This is a compiler bug: {}",
+                error
+            ),
+            span,
+        )
+    }
+
     /// Creates an internal error for binary operation on string type.
     pub fn internal_binary_op_string(op: crate::ast::BinaryOperator, span: Span) -> Self {
         Self::new(

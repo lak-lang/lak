@@ -330,6 +330,25 @@ impl SemanticError {
         )
     }
 
+    /// Creates an error for panic with wrong argument count.
+    pub fn invalid_argument_panic_count(span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::InvalidArgument,
+            "panic expects exactly 1 argument",
+            span,
+        )
+    }
+
+    /// Creates an error for panic with non-string argument type.
+    pub fn invalid_argument_panic_type(actual_ty: &str, span: Span) -> Self {
+        Self::new_with_help(
+            SemanticErrorKind::InvalidArgument,
+            format!("panic requires a string argument, but got '{}'", actual_ty),
+            span,
+            "panic only accepts string literals or string variables",
+        )
+    }
+
     // =========================================================================
     // Expression errors
     // =========================================================================

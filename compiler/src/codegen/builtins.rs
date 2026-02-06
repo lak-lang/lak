@@ -51,6 +51,29 @@ impl<'ctx> Codegen<'ctx> {
             .add_function("lak_println_i64", println_type, Some(Linkage::External));
     }
 
+    /// Declares the Lak runtime `lak_panic` function for use in generated code.
+    ///
+    /// This creates an external function declaration with the signature:
+    /// `void lak_panic(const char* message)` with noreturn attribute.
+    ///
+    /// The noreturn attribute tells LLVM that this function never returns,
+    /// allowing for proper control flow analysis and optimization.
+    pub(super) fn declare_lak_panic(&self) {
+        let void_type = self.context.void_type();
+        let i8_ptr_type = self.context.ptr_type(AddressSpace::default());
+
+        let panic_type = void_type.fn_type(&[i8_ptr_type.into()], false);
+        let panic_fn = self
+            .module
+            .add_function("lak_panic", panic_type, Some(Linkage::External));
+
+        // Add noreturn attribute to the function
+        let noreturn_kind_id = inkwell::attributes::Attribute::get_named_enum_kind_id("noreturn");
+        // create_enum_attribute(kind_id, value): value is 0 for boolean attributes like noreturn
+        let noreturn_attr = self.context.create_enum_attribute(noreturn_kind_id, 0);
+        panic_fn.add_attribute(inkwell::attributes::AttributeLoc::Function, noreturn_attr);
+    }
+
     /// Returns the type of an expression for println dispatch.
     ///
     /// This is used to determine which println runtime function to call.
@@ -290,6 +313,83 @@ impl<'ctx> Codegen<'ctx> {
                 "",
             )
             .map_err(|e| CodegenError::internal_println_call_failed(&e.to_string(), span))?;
+
+        Ok(())
+    }
+
+    /// Generates LLVM IR for a `panic` call.
+    ///
+    /// Implements `panic(message)` by:
+    /// 1. Calling the Lak runtime `lak_panic` function with the message
+    /// 2. Inserting an `unreachable` instruction after the call
+    ///
+    /// The `unreachable` instruction tells LLVM that execution never reaches
+    /// this point, which is guaranteed by the `noreturn` attribute on `lak_panic`.
+    ///
+    /// # Arguments
+    ///
+    /// * `args` - The arguments passed to `panic` (must contain exactly 1 string)
+    /// * `span` - The source location of the panic call
+    ///
+    /// # Errors
+    ///
+    /// Returns an internal error if:
+    /// - Argument count is not 1 (semantic analysis should have caught this)
+    /// - Argument is not a string literal or string variable
+    pub(super) fn generate_panic(&mut self, args: &[Expr], span: Span) -> Result<(), CodegenError> {
+        // Semantic analysis guarantees exactly one argument of Type::String.
+        // This can be a string literal or a string variable.
+        if args.len() != 1 {
+            return Err(CodegenError::internal_panic_arg_count(args.len(), span));
+        }
+
+        let arg = &args[0];
+
+        // Get the string pointer (literal or variable)
+        let string_ptr = match &arg.kind {
+            ExprKind::StringLiteral(s) => self
+                .builder
+                .build_global_string_ptr(s, "panic_str")
+                .map_err(|e| CodegenError::internal_string_ptr_failed(&e.to_string(), arg.span))?
+                .as_pointer_value(),
+            ExprKind::Identifier(name) => {
+                let binding = self
+                    .variables
+                    .get(name)
+                    .ok_or_else(|| CodegenError::internal_variable_not_found(name, arg.span))?;
+
+                let ptr_type = self.context.ptr_type(AddressSpace::default());
+                self.builder
+                    .build_load(ptr_type, binding.alloca(), &format!("{}_load", name))
+                    .map_err(|e| {
+                        CodegenError::internal_variable_load_failed(name, &e.to_string(), arg.span)
+                    })?
+                    .into_pointer_value()
+            }
+            _ => {
+                return Err(CodegenError::internal_panic_invalid_arg(arg.span));
+            }
+        };
+
+        // Call lak_panic
+        let lak_panic = self
+            .module
+            .get_function("lak_panic")
+            .ok_or_else(|| CodegenError::internal_builtin_not_found("lak_panic"))?;
+
+        self.builder
+            .build_call(
+                lak_panic,
+                &[BasicMetadataValueEnum::PointerValue(string_ptr)],
+                "",
+            )
+            .map_err(|e| CodegenError::internal_panic_call_failed(&e.to_string(), span))?;
+
+        // Insert unreachable instruction
+        // This tells LLVM that execution never reaches past this point
+        self.builder
+            .build_unreachable()
+            .map_err(|e| CodegenError::internal_unreachable_failed(&e.to_string(), span))?;
 
         Ok(())
     }

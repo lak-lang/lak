@@ -573,3 +573,179 @@ fn test_compile_error_binary_op_as_statement() {
         "Expected InvalidExpression error kind"
     );
 }
+
+// ========================================
+// panic() built-in function error tests
+// ========================================
+
+#[test]
+fn test_compile_error_panic_no_args() {
+    let result = compile_error_with_kind(r#"fn main() -> void { panic() }"#);
+    let (stage, msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(msg, "panic expects exactly 1 argument");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::InvalidArgument),
+        "Expected InvalidArgument error kind"
+    );
+}
+
+#[test]
+fn test_compile_error_panic_multiple_args() {
+    let result = compile_error_with_kind(r#"fn main() -> void { panic("a", "b") }"#);
+    let (stage, msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(msg, "panic expects exactly 1 argument");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::InvalidArgument),
+        "Expected InvalidArgument error kind"
+    );
+}
+
+#[test]
+fn test_compile_error_panic_int_arg() {
+    let result = compile_error_with_kind(r#"fn main() -> void { panic(42) }"#);
+    let (stage, msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "panic requires a string argument, but got 'integer literal'"
+    );
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::InvalidArgument),
+        "Expected InvalidArgument error kind"
+    );
+}
+
+#[test]
+fn test_compile_error_panic_i32_variable() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let x: i32 = 42
+    panic(x)
+}"#,
+    );
+    let (stage, msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(msg, "panic requires a string argument, but got 'i32'");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::InvalidArgument),
+        "Expected InvalidArgument error kind"
+    );
+}
+
+#[test]
+fn test_compile_error_panic_i64_variable() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let x: i64 = 42
+    panic(x)
+}"#,
+    );
+    let (stage, msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(msg, "panic requires a string argument, but got 'i64'");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::InvalidArgument),
+        "Expected InvalidArgument error kind"
+    );
+}
+
+#[test]
+fn test_compile_error_panic_undefined_variable() {
+    let result = compile_error_with_kind(r#"fn main() -> void { panic(unknown) }"#);
+    let (stage, msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(msg, "Undefined variable: 'unknown'");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::UndefinedVariable),
+        "Expected UndefinedVariable error kind"
+    );
+}
+
+#[test]
+fn test_compile_error_panic_binary_op() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    panic(1 + 2)
+}"#,
+    );
+    let (stage, msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "panic requires a string argument, but got 'expression'"
+    );
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::InvalidArgument),
+        "Expected InvalidArgument error kind"
+    );
+}
+
+#[test]
+fn test_compile_error_panic_function_call() {
+    let result = compile_error_with_kind(
+        r#"fn get_msg() -> void {}
+fn main() -> void {
+    panic(get_msg())
+}"#,
+    );
+    let (stage, msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Function call 'get_msg' cannot be used as println argument (functions returning values not yet supported)"
+    );
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::InvalidArgument),
+        "Expected InvalidArgument error kind"
+    );
+}

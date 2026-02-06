@@ -230,6 +230,55 @@ impl SemanticAnalyzer {
             return Ok(());
         }
 
+        // Built-in function: panic
+        if callee == "panic" {
+            if args.len() != 1 {
+                return Err(SemanticError::invalid_argument_panic_count(span));
+            }
+
+            // panic only accepts string arguments
+            match &args[0].kind {
+                ExprKind::StringLiteral(_) => {}
+                ExprKind::Identifier(name) => {
+                    // Verify the variable exists and is a string
+                    let var_info = self
+                        .symbols
+                        .lookup_variable(name)
+                        .ok_or_else(|| SemanticError::undefined_variable(name, args[0].span))?;
+
+                    if var_info.ty != Type::String {
+                        return Err(SemanticError::invalid_argument_panic_type(
+                            &var_info.ty.to_string(),
+                            args[0].span,
+                        ));
+                    }
+                }
+                ExprKind::IntLiteral(_) => {
+                    return Err(SemanticError::invalid_argument_panic_type(
+                        "integer literal",
+                        args[0].span,
+                    ));
+                }
+                ExprKind::Call {
+                    callee: inner_callee,
+                    ..
+                } => {
+                    return Err(SemanticError::invalid_argument_call_not_supported(
+                        inner_callee,
+                        args[0].span,
+                    ));
+                }
+                ExprKind::BinaryOp { .. } => {
+                    return Err(SemanticError::invalid_argument_panic_type(
+                        "expression",
+                        args[0].span,
+                    ));
+                }
+            }
+
+            return Ok(());
+        }
+
         // Check if function is defined
         let func_info = self
             .symbols

@@ -24,6 +24,8 @@ impl<'ctx> Codegen<'ctx> {
             ExprKind::Call { callee, args } => {
                 if callee == "println" {
                     self.generate_println(args, expr.span)?;
+                } else if callee == "panic" {
+                    self.generate_panic(args, expr.span)?;
                 } else {
                     self.generate_user_function_call(callee, expr.span)?;
                 }

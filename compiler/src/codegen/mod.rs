@@ -169,6 +169,7 @@ impl<'ctx> Codegen<'ctx> {
         self.declare_lak_println();
         self.declare_lak_println_i32();
         self.declare_lak_println_i64();
+        self.declare_lak_panic();
 
         // Pass 1: Declare all user-defined functions (except main, which has a special signature)
         for function in &program.functions {
