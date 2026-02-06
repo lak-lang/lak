@@ -76,6 +76,25 @@ Executable
 
 All errors include `Span` for source location. `report_error()` uses ariadne for beautiful output.
 
+### Error Type Structure
+
+Each error type follows a consistent pattern:
+- **Private fields** with accessor methods: `message()`, `span()`, `kind()`
+- **ErrorKind enum** for structured error matching: `LexErrorKind`, `ParseErrorKind`, `SemanticErrorKind`, `CodegenErrorKind`
+- **Constructor**: `Error::new(kind, message, span)` (or `without_span()` for errors without source location)
+
+```rust
+// Creating an error
+let err = LexError::new(LexErrorKind::UnterminatedString, "Unterminated string literal", span);
+
+// Matching on error kind (not fragile string matching)
+match err.kind() {
+    LexErrorKind::UnterminatedString => { /* handle */ }
+    LexErrorKind::IntegerOverflow => { /* handle */ }
+    _ => { /* other cases */ }
+}
+```
+
 ## Build Script (build.rs)
 
 Sets `LAK_RUNTIME_PATH` environment variable at compile time, pointing to `liblak_runtime.a`. This path is used by the linker to link generated programs with the runtime.

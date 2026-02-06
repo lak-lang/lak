@@ -31,16 +31,23 @@ let output = compile_and_run(r#"fn main() -> void { println("test") }"#).unwrap(
 assert_eq!(output, "test\n");
 ```
 
-### Error Tests (21 tests)
+### Error Tests (32 tests)
 
-Verify errors are detected at the correct compilation stage.
+Verify errors are detected at the correct compilation stage with correct error kind.
 
 ```rust
-let result = compile_error(source);
-let (stage, msg) = result.expect("Expected compilation to fail");
+// Preferred: Use compile_error_with_kind to verify both message and error kind
+let result = compile_error_with_kind(source);
+let (stage, msg, kind) = result.expect("Expected compilation to fail");
 assert!(matches!(stage, CompileStage::Semantic));
 assert!(msg.contains("Unknown function"));
+assert_eq!(kind, CompileErrorKind::Semantic(SemanticErrorKind::UndefinedFunction));
 ```
+
+**Best Practice**: Always verify the error kind, not just the message. This ensures:
+- Correct error categorization for programmatic error handling
+- Resilience against message wording changes
+- Type-safe error matching
 
 ### Integration Tests (9 tests)
 
@@ -52,8 +59,10 @@ Verify correct interaction between compiler phases. Direct AST construction for 
 |----------|---------|
 | `compile_and_run(source)` | Full pipeline: compile → link → execute → return stdout |
 | `compile_error(source)` | Return `Some((CompileStage, error_message))` on failure, `None` on success |
+| `compile_error_with_kind(source)` | Return `Some((CompileStage, error_message, CompileErrorKind))` on failure, including typed error kind |
 | `dummy_span()` | Create placeholder span for test AST construction |
 | `CompileStage` | Enum: `Lex`, `Parse`, `Semantic`, `Codegen` |
+| `CompileErrorKind` | Enum wrapping all error kinds: `Lex(LexErrorKind)`, `Parse(ParseErrorKind)`, `Semantic(SemanticErrorKind)`, `Codegen(CodegenErrorKind)` |
 
 ## Running Tests
 
@@ -67,7 +76,7 @@ cargo test test_hello_world   # Single test
 ## Extension Guidelines
 
 1. **New E2E test**: add to appropriate `e2e_*.rs`, use `compile_and_run()`, assert stdout
-2. **New error test**: add to `errors_*.rs` matching the stage, use `compile_error()`, verify stage and message
+2. **New error test**: add to `errors_*.rs` matching the stage, use `compile_error_with_kind()`, verify stage, message, AND error kind
 3. **New integration test**: add to `pipeline.rs`, use direct AST construction with `dummy_span()` if needed
 4. **New test file**: create `<category>_<feature>.rs`, add `mod common;`, update this CLAUDE.md
 5. **Test naming**: follow pattern `test_<descriptive_name>` or `test_<category>_<specific_case>`
