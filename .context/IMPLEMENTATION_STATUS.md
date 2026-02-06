@@ -480,6 +480,7 @@ This document tracks the implementation status of Lak language features as defin
 4. [ ] Logical operators (`&&`, `||`, `!`)
 5. [ ] Unary minus `-`
 6. [x] Parentheses for grouping
+7. [ ] `panic` built-in function
 
 ### Phase 2: Control Flow (High Priority)
 
@@ -492,7 +493,7 @@ This document tracks the implementation status of Lak language features as defin
 
 1. [ ] Function parameters
 2. [ ] Non-void return types
-3. [ ] `print` and `panic` built-ins
+3. [ ] `print` built-in function
 
 ### Phase 4: Variables Enhancement (Medium Priority)
 
