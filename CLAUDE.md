@@ -93,7 +93,7 @@ The compiler currently supports:
 - Integer literals (e.g., `42`, `0`, `9223372036854775807`)
 - String literals with escape sequences (`\n`, `\t`, `\r`, `\\`, `\"`)
 - Variable references in expressions
-- `println(s)` - Print with newline (accepts string literal or string variable)
+- `println(value)` - Print with newline (accepts string, i32, or i64)
 - Line comments (`//`)
 
 ### Compilation Flow
