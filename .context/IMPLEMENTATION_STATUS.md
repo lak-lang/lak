@@ -475,8 +475,8 @@ This document tracks the implementation status of Lak language features as defin
 ### Phase 1: Basic Expressions (High Priority)
 
 1. [x] Arithmetic operators (`+`, `-`, `*`, `/`, `%`) - i32/i64 only
-2. [ ] Comparison operators (`==`, `!=`, `<`, `>`, `<=`, `>=`)
-3. [ ] `bool` type with `true`/`false` literals
+2. [ ] `bool` type with `true`/`false` literals
+3. [ ] Comparison operators (`==`, `!=`, `<`, `>`, `<=`, `>=`)
 4. [ ] Logical operators (`&&`, `||`, `!`)
 5. [ ] Unary minus `-`
 6. [x] Parentheses for grouping
