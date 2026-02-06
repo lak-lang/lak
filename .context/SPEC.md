@@ -44,8 +44,55 @@ Lak is a programming language emphasizing simplicity, safety, and minimal syntax
 | `bool` | Boolean (`true` / `false`) |
 | `string` | UTF-8 string (immutable) |
 | `byte` | Alias for `u8` |
+| `any` | Any type (for generic output functions) |
 | `never` | Return type of functions that never return (e.g., `panic`) |
 | `void` | No return value |
+
+### any Type
+
+The `any` type represents any value and is used for functions that accept values of any type, such as `println`.
+
+```lak
+fn println(value: any) -> void   // Accepts any type
+```
+
+**Behavior:**
+- All types can be implicitly converted to `any`
+- Values of `any` type can be printed using their default format
+- Types implementing `Stringer` interface use `to_string()` for formatting
+
+**Default Format:**
+- Integers: `42`, `-10`
+- Floats: `3.14`, `-0.5`
+- Booleans: `true`, `false`
+- Strings: `hello` (no quotes)
+- Structs: `User { name: "alice", age: 30 }`
+- Enums: `Option.Some(42)`, `Color.Red`
+
+**Stringer Priority:**
+
+If a type implements the `Stringer` interface, `to_string()` is used instead of the default format.
+
+```lak
+interface Stringer {
+    fn to_string(self) -> string
+}
+
+struct User {
+    pub name: string
+
+    pub fn to_string(self) -> string {
+        return "User: " + self.name
+    }
+}
+
+let u = User { name: "alice" }
+println(u)    // "User: alice" (uses to_string())
+```
+
+**Restrictions:**
+- `any` cannot be used as a variable type: `let x: any = 1` is not allowed
+- `any` is only valid as a function parameter type for specific built-in functions
 
 ### Tuple Type
 
@@ -723,9 +770,9 @@ Can be used without import statements.
 - `Result<T, E>` - Represents success/failure
 
 **Functions:**
-- `println(s: string) -> void` - Output string (with newline)
-- `print(s: string) -> void` - Output string
-- `panic(s: string) -> never` - Terminate program
+- `println(value: any) -> void` - Output any value (with newline)
+- `print(value: any) -> void` - Output any value
+- `panic(message: string) -> never` - Terminate program
 
 ### Prelude Override
 
@@ -733,7 +780,7 @@ If a local definition has the same name, the local definition takes precedence.
 
 ```lak
 // Define custom println (overrides prelude's println)
-fn println(s: string) -> void {
+fn println(value: any) -> void {
     // Custom implementation
 }
 ```

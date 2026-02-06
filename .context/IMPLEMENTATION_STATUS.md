@@ -49,6 +49,10 @@ This document tracks the implementation status of Lak language features as defin
   - [x] Escape sequences (`\n`, `\t`, `\r`, `\\`, `\"`)
   - [ ] String concatenation with `+`
 - [ ] `byte` (alias for `u8`)
+- [ ] `any` type (for generic output functions)
+  - [ ] Implicit conversion from any type to `any`
+  - [ ] Default format for all types
+  - [ ] Stringer interface priority
 - [ ] `never` type (for functions that don't return)
 - [x] `void` type
 
@@ -184,9 +188,15 @@ This document tracks the implementation status of Lak language features as defin
 
 ### 5.5 Built-in Functions
 
-- [x] `println(s: string)` - print with newline
-- [ ] `print(s: string)` - print without newline
-- [ ] `panic(s: string) -> never` - terminate program
+- [x] `println(value: any)` - print any value with newline
+  - [x] String argument support
+  - [ ] Integer argument support (i32, i64)
+  - [ ] Bool argument support
+  - [ ] Float argument support (f32, f64)
+  - [ ] Struct argument support (default format)
+  - [ ] Stringer interface priority
+- [ ] `print(value: any)` - print any value without newline
+- [ ] `panic(message: string) -> never` - terminate program
 
 ---
 
@@ -362,9 +372,9 @@ This document tracks the implementation status of Lak language features as defin
 
 ### 15.2 Prelude Functions
 
-- [x] `println(s: string)` available (via runtime)
-- [ ] `print(s: string)` available
-- [ ] `panic(s: string)` available
+- [x] `println(value: any)` available (via runtime, string only currently)
+- [ ] `print(value: any)` available
+- [ ] `panic(message: string)` available
 
 ### 15.3 Prelude Override
 
