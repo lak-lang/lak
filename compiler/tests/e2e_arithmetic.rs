@@ -6,7 +6,10 @@
 
 mod common;
 
-use common::compile_and_run;
+use common::{compile_and_run, lak_binary};
+use std::fs;
+use std::process::Command;
+use tempfile::tempdir;
 
 // ============================================================================
 // Basic Operations
@@ -407,4 +410,260 @@ fn test_identity_operations() {
     )
     .unwrap();
     assert_eq!(output, "42\n42\n42\n");
+}
+
+// ============================================================================
+// Division by Zero Runtime Checks
+// ============================================================================
+
+#[test]
+fn test_division_by_zero_literal() {
+    let temp = tempdir().unwrap();
+    let source_path = temp.path().join("div_zero_lit.lak");
+
+    fs::write(
+        &source_path,
+        r#"fn main() -> void {
+    let x: i32 = 10 / 0
+    println(x)
+}"#,
+    )
+    .unwrap();
+
+    let output = Command::new(lak_binary())
+        .args(["run", source_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success(), "division by zero should panic");
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        "panic: division by zero\n"
+    );
+}
+
+#[test]
+fn test_division_by_zero_variable() {
+    let temp = tempdir().unwrap();
+    let source_path = temp.path().join("div_zero_var.lak");
+
+    fs::write(
+        &source_path,
+        r#"fn main() -> void {
+    let x: i32 = 10
+    let y: i32 = 0
+    let z: i32 = x / y
+    println(z)
+}"#,
+    )
+    .unwrap();
+
+    let output = Command::new(lak_binary())
+        .args(["run", source_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        "panic: division by zero\n"
+    );
+}
+
+#[test]
+fn test_modulo_by_zero_literal() {
+    let temp = tempdir().unwrap();
+    let source_path = temp.path().join("mod_zero_lit.lak");
+
+    fs::write(
+        &source_path,
+        r#"fn main() -> void {
+    let x: i32 = 10 % 0
+    println(x)
+}"#,
+    )
+    .unwrap();
+
+    let output = Command::new(lak_binary())
+        .args(["run", source_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success(), "modulo by zero should panic");
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        "panic: modulo by zero\n"
+    );
+}
+
+#[test]
+fn test_modulo_by_zero_variable() {
+    let temp = tempdir().unwrap();
+    let source_path = temp.path().join("mod_zero_var.lak");
+
+    fs::write(
+        &source_path,
+        r#"fn main() -> void {
+    let a: i32 = 17
+    let b: i32 = 5 - 5
+    let c: i32 = a % b
+    println(c)
+}"#,
+    )
+    .unwrap();
+
+    let output = Command::new(lak_binary())
+        .args(["run", source_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        "panic: modulo by zero\n"
+    );
+}
+
+#[test]
+fn test_division_by_zero_i64() {
+    let temp = tempdir().unwrap();
+    let source_path = temp.path().join("div_zero_i64.lak");
+
+    fs::write(
+        &source_path,
+        r#"fn main() -> void {
+    let x: i64 = 1000000000
+    let y: i64 = 0
+    let z: i64 = x / y
+    println(z)
+}"#,
+    )
+    .unwrap();
+
+    let output = Command::new(lak_binary())
+        .args(["run", source_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        "panic: division by zero\n"
+    );
+}
+
+#[test]
+fn test_division_by_nonzero_still_works() {
+    // Ensure we didn't break normal division
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = 0
+    let y: i32 = 5
+    let z: i32 = x / y
+    println(z)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "0\n");
+}
+
+#[test]
+fn test_nested_division_zero_check() {
+    let temp = tempdir().unwrap();
+    let source_path = temp.path().join("nested_div.lak");
+
+    fs::write(
+        &source_path,
+        r#"fn main() -> void {
+    let x: i32 = 10 + 20 / 0
+    println(x)
+}"#,
+    )
+    .unwrap();
+
+    let output = Command::new(lak_binary())
+        .args(["run", source_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        "panic: division by zero\n"
+    );
+}
+
+#[test]
+fn test_division_by_negative() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let divisor: i32 = 0 - 2
+    let x: i32 = 10 / divisor
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "-5\n");
+}
+
+#[test]
+fn test_chained_division_zero_check() {
+    let temp = tempdir().unwrap();
+    let source_path = temp.path().join("chained_div.lak");
+
+    fs::write(
+        &source_path,
+        r#"fn main() -> void {
+    let x: i32 = 100 / 10 / 0
+    println(x)
+}"#,
+    )
+    .unwrap();
+
+    let output = Command::new(lak_binary())
+        .args(["run", source_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        "panic: division by zero\n"
+    );
+}
+
+#[test]
+fn test_modulo_by_zero_i64() {
+    let temp = tempdir().unwrap();
+    let source_path = temp.path().join("mod_zero_i64.lak");
+
+    fs::write(
+        &source_path,
+        r#"fn main() -> void {
+    let x: i64 = 1000000000
+    let y: i64 = 0
+    let z: i64 = x % y
+    println(z)
+}"#,
+    )
+    .unwrap();
+
+    let output = Command::new(lak_binary())
+        .args(["run", source_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        "panic: modulo by zero\n"
+    );
 }

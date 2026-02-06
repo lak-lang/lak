@@ -3,14 +3,12 @@
 //! These tests verify that the `build` command correctly compiles Lak programs
 //! into executables and handles various error conditions.
 
+mod common;
+
+use common::lak_binary;
 use std::fs;
 use std::process::Command;
 use tempfile::tempdir;
-
-/// Path to the lak binary built by cargo.
-fn lak_binary() -> String {
-    env!("CARGO_BIN_EXE_lak").to_string()
-}
 
 #[test]
 fn test_build_basic() {

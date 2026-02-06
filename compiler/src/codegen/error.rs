@@ -518,6 +518,40 @@ impl CodegenError {
         )
     }
 
+    /// Creates an internal error for no current function.
+    pub fn internal_no_current_function(span: Span) -> Self {
+        Self::new(
+            CodegenErrorKind::InternalError,
+            "Internal error: no current function when generating division zero check. \
+             This is a compiler bug.",
+            span,
+        )
+    }
+
+    /// Creates an internal error for failed comparison.
+    pub fn internal_compare_failed(error: &str, span: Span) -> Self {
+        Self::new(
+            CodegenErrorKind::InternalError,
+            format!(
+                "Internal error: failed to generate comparison instruction. This is a compiler bug: {}",
+                error
+            ),
+            span,
+        )
+    }
+
+    /// Creates an internal error for failed branch.
+    pub fn internal_branch_failed(error: &str, span: Span) -> Self {
+        Self::new(
+            CodegenErrorKind::InternalError,
+            format!(
+                "Internal error: failed to generate branch instruction. This is a compiler bug: {}",
+                error
+            ),
+            span,
+        )
+    }
+
     // =========================================================================
     // Internal errors without span
     // =========================================================================

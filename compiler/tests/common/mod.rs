@@ -20,6 +20,14 @@ use tempfile::tempdir;
 /// Path to the Lak runtime library, set at compile time by build.rs.
 pub const LAK_RUNTIME_PATH: &str = env!("LAK_RUNTIME_PATH");
 
+/// Returns the path to the lak binary built by cargo.
+///
+/// Used for tests that need to verify panic behavior and exit codes,
+/// which the standard `compile_and_run()` helper doesn't expose.
+pub fn lak_binary() -> String {
+    env!("CARGO_BIN_EXE_lak").to_string()
+}
+
 /// Creates a dummy span for test AST construction.
 pub fn dummy_span() -> Span {
     Span::new(0, 0, 1, 1)
