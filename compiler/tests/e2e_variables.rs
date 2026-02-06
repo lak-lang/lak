@@ -9,27 +9,32 @@ use common::compile_and_run;
 
 #[test]
 fn test_let_statement_basic() {
-    // Variable definition only (no output)
+    // Variable definition with value verification
     let output = compile_and_run(
         r#"fn main() -> void {
     let x: i32 = 42
+    println(x)
 }"#,
     )
     .unwrap();
-    assert_eq!(output, "");
+    assert_eq!(output, "42\n");
 }
 
 #[test]
 fn test_multiple_let_statements() {
+    // Multiple variables with value verification
     let output = compile_and_run(
         r#"fn main() -> void {
     let a: i32 = 1
     let b: i64 = 2
     let c: i32 = 3
+    println(a)
+    println(b)
+    println(c)
 }"#,
     )
     .unwrap();
-    assert_eq!(output, "");
+    assert_eq!(output, "1\n2\n3\n");
 }
 
 #[test]
@@ -53,38 +58,42 @@ fn test_let_with_variable_reference() {
         r#"fn main() -> void {
     let x: i32 = 100
     let y: i32 = x
-    println("done")
+    println(x)
+    println(y)
 }"#,
     )
     .unwrap();
-    assert_eq!(output, "done\n");
+    assert_eq!(output, "100\n100\n");
 }
 
 #[test]
 fn test_let_i64_variable() {
+    // i64 MAX value verification
     let output = compile_and_run(
         r#"fn main() -> void {
     let big: i64 = 9223372036854775807
-    println("ok")
+    println(big)
 }"#,
     )
     .unwrap();
-    assert_eq!(output, "ok\n");
+    assert_eq!(output, "9223372036854775807\n");
 }
 
 #[test]
 fn test_let_chain_references() {
-    // Chain of variable references: a -> b -> c
+    // Chain of variable references: a -> b -> c with value verification
     let output = compile_and_run(
         r#"fn main() -> void {
     let a: i32 = 1
     let b: i32 = a
     let c: i32 = b
-    println("chain complete")
+    println(a)
+    println(b)
+    println(c)
 }"#,
     )
     .unwrap();
-    assert_eq!(output, "chain complete\n");
+    assert_eq!(output, "1\n1\n1\n");
 }
 
 #[test]
@@ -129,13 +138,13 @@ fn test_let_unicode_variable_name() {
 
 #[test]
 fn test_i32_max_value_valid() {
-    // i32::MAX = 2147483647 should be valid for i32
+    // i32::MAX = 2147483647 should be valid for i32 with value verification
     let output = compile_and_run(
         r#"fn main() -> void {
     let x: i32 = 2147483647
-    println("ok")
+    println(x)
 }"#,
     )
     .unwrap();
-    assert_eq!(output, "ok\n");
+    assert_eq!(output, "2147483647\n");
 }

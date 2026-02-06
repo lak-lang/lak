@@ -152,15 +152,17 @@ fn test_string_variable_copy() {
 
 #[test]
 fn test_mixed_string_and_int_variables() {
+    // Verify both string and integer variables are correctly stored
     let output = compile_and_run(
         r#"fn main() -> void {
     let s: string = "text"
     let n: i32 = 42
     println(s)
+    println(n)
 }"#,
     )
     .unwrap();
-    assert_eq!(output, "text\n");
+    assert_eq!(output, "text\n42\n");
 }
 
 #[test]

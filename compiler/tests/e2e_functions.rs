@@ -110,22 +110,23 @@ fn main() -> void {
 
 #[test]
 fn test_function_with_local_variables() {
+    // Verify local variables have correct values via println
     let output = compile_and_run(
         r#"
 fn setup() -> void {
     let x: i32 = 42
-    println("setup complete")
+    println(x)
 }
 
 fn main() -> void {
     setup()
     let y: i32 = 100
-    println("main done")
+    println(y)
 }
 "#,
     )
     .unwrap();
-    assert_eq!(output, "setup complete\nmain done\n");
+    assert_eq!(output, "42\n100\n");
 }
 
 #[test]
@@ -213,27 +214,28 @@ fn main() -> void {
 #[test]
 fn test_variable_isolation_across_calls() {
     // Verify that variables in one function don't interfere with variables
-    // in other functions at runtime.
+    // in other functions at runtime by printing each x value.
     let output = compile_and_run(
         r#"
 fn set_x_to_100() -> void {
     let x: i32 = 100
-    println("set x to 100")
+    println(x)
 }
 
 fn set_x_to_200() -> void {
     let x: i32 = 200
-    println("set x to 200")
+    println(x)
 }
 
 fn main() -> void {
     let x: i32 = 42
+    println(x)
     set_x_to_100()
     set_x_to_200()
-    println("main done")
+    println(x)
 }
 "#,
     )
     .unwrap();
-    assert_eq!(output, "set x to 100\nset x to 200\nmain done\n");
+    assert_eq!(output, "42\n100\n200\n42\n");
 }

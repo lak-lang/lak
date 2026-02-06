@@ -137,12 +137,14 @@ fn test_run_with_variables() {
     let temp = tempdir().unwrap();
     let source_path = temp.path().join("vars.lak");
 
+    // Verify variable values via println output
     fs::write(
         &source_path,
         r#"fn main() -> void {
     let x: i32 = 42
     let y: i64 = 100
-    println("variables work")
+    println(x)
+    println(y)
 }"#,
     )
     .unwrap();
@@ -153,7 +155,7 @@ fn test_run_with_variables() {
         .unwrap();
 
     assert!(output.status.success());
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "variables work\n");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "42\n100\n");
 }
 
 #[test]
