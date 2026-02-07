@@ -14,14 +14,16 @@
 //! The current Lak grammar:
 //!
 //! ```text
-//! program     → fn_def* EOF
-//! fn_def      → "fn" IDENTIFIER "(" ")" "->" IDENTIFIER "{" stmt* "}"
+//! program     → import* fn_def* EOF
+//! import      → "import" STRING ("as" IDENTIFIER)?
+//! fn_def      → ("pub")? "fn" IDENTIFIER "(" ")" "->" IDENTIFIER "{" stmt* "}"
 //! stmt        → let_stmt | expr_stmt
 //! let_stmt    → "let" IDENTIFIER ":" type "=" expr
 //! type        → "i32" | "i64"
 //! expr_stmt   → expr
-//! expr        → call | IDENTIFIER | STRING | INT
+//! expr        → call | member_access | IDENTIFIER | STRING | INT
 //! call        → IDENTIFIER "(" arguments? ")"
+//! member_access → IDENTIFIER "." IDENTIFIER
 //! arguments   → expr ("," expr)*
 //! ```
 //!
@@ -46,6 +48,7 @@
 //! - [`error`] - Parse error types
 //! - `helpers` - Token navigation and basic parsing operations
 //! - `fn_def` - Function definition parsing
+//! - `import` - Import declaration parsing
 //! - `stmt` - Statement parsing
 //! - `types` - Type annotation parsing
 //! - `expr` - Expression parsing
@@ -61,6 +64,7 @@ mod error;
 mod expr;
 mod fn_def;
 mod helpers;
+mod import;
 mod stmt;
 mod types;
 
@@ -70,7 +74,7 @@ mod tests;
 pub use error::{ParseError, ParseErrorKind};
 
 use crate::ast::Program;
-use crate::token::Token;
+use crate::token::{Token, TokenKind};
 
 /// A recursive descent parser for the Lak language.
 ///
@@ -101,8 +105,8 @@ impl Parser {
 
     /// Parses the entire token stream into a [`Program`].
     ///
-    /// This is the main entry point for parsing. It repeatedly parses
-    /// function definitions until the end of file is reached.
+    /// This is the main entry point for parsing. It first parses import
+    /// declarations, then function definitions until the end of file is reached.
     ///
     /// # Returns
     ///
@@ -111,13 +115,35 @@ impl Parser {
     ///
     /// # Errors
     ///
-    /// Returns an error if any function definition fails to parse. Common causes:
+    /// Returns an error if any import or function definition fails to parse.
+    /// Common causes:
     /// - Missing `fn` keyword at top level
     /// - Malformed function signature
     /// - Syntax errors in function body
+    /// - Invalid import syntax
     pub fn parse(&mut self) -> Result<Program, ParseError> {
+        let mut imports = Vec::new();
         let mut functions = Vec::new();
 
+        // Parse imports first (must come before function definitions)
+        while !self.is_eof() {
+            self.skip_newlines();
+            if self.is_eof() {
+                break;
+            }
+
+            // Check if this is an import statement
+            if matches!(self.current_kind(), TokenKind::Import) {
+                let import = self.parse_import()?;
+                imports.push(import);
+                self.expect_statement_terminator()?;
+            } else {
+                // Not an import, break to parse function definitions
+                break;
+            }
+        }
+
+        // Parse function definitions
         while !self.is_eof() {
             self.skip_newlines();
             if self.is_eof() {
@@ -128,6 +154,6 @@ impl Parser {
             self.expect_statement_terminator()?;
         }
 
-        Ok(Program { functions })
+        Ok(Program { imports, functions })
     }
 }

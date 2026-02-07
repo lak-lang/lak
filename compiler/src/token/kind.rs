@@ -29,6 +29,15 @@ pub enum TokenKind {
     /// The `let` keyword for variable declarations.
     Let,
 
+    /// The `pub` keyword for public visibility.
+    Pub,
+
+    /// The `import` keyword for module imports.
+    Import,
+
+    /// The `as` keyword for import aliases.
+    As,
+
     /// A left parenthesis `(`.
     LeftParen,
 
@@ -49,6 +58,9 @@ pub enum TokenKind {
 
     /// A colon `:` for type annotation.
     Colon,
+
+    /// A dot `.` for member access.
+    Dot,
 
     /// An equals sign `=` for variable initialization in let statements.
     Equals,

@@ -1,7 +1,7 @@
 //! Unit tests for code generation.
 
 use super::*;
-use crate::ast::{Expr, ExprKind, FnDef, Program, Stmt, StmtKind, Type, UnaryOperator};
+use crate::ast::{Expr, ExprKind, FnDef, Program, Stmt, StmtKind, Type, UnaryOperator, Visibility};
 use crate::token::Span;
 use inkwell::context::Context;
 
@@ -12,7 +12,9 @@ fn dummy_span() -> Span {
 /// Helper to create a Program with a main function
 fn make_program(body: Vec<Stmt>) -> Program {
     Program {
+        imports: vec![],
         functions: vec![FnDef {
+            visibility: Visibility::Private,
             name: "main".to_string(),
             return_type: "void".to_string(),
             return_type_span: dummy_span(),
@@ -181,8 +183,10 @@ fn test_main_function_not_first() {
     let mut codegen = Codegen::new(&context, "test");
 
     let program = Program {
+        imports: vec![],
         functions: vec![
             FnDef {
+                visibility: Visibility::Private,
                 name: "helper".to_string(),
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
@@ -190,6 +194,7 @@ fn test_main_function_not_first() {
                 span: dummy_span(),
             },
             FnDef {
+                visibility: Visibility::Private,
                 name: "main".to_string(),
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),

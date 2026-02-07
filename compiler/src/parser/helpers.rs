@@ -9,12 +9,16 @@ impl Parser {
     pub(super) fn token_kind_display(kind: &TokenKind) -> String {
         match kind {
             TokenKind::Fn => "'fn' keyword".to_string(),
+            TokenKind::Pub => "'pub' keyword".to_string(),
+            TokenKind::Import => "'import' keyword".to_string(),
+            TokenKind::As => "'as' keyword".to_string(),
             TokenKind::LeftBrace => "'{'".to_string(),
             TokenKind::RightBrace => "'}'".to_string(),
             TokenKind::LeftParen => "'('".to_string(),
             TokenKind::RightParen => "')'".to_string(),
             TokenKind::Arrow => "'->'".to_string(),
             TokenKind::Comma => "','".to_string(),
+            TokenKind::Dot => "'.'".to_string(),
             TokenKind::Identifier(s) => format!("identifier '{}'", s),
             TokenKind::StringLiteral(s) => {
                 if s.len() > 20 {
@@ -142,6 +146,20 @@ impl Parser {
             Ok(name)
         } else {
             Err(ParseError::expected_identifier(
+                &Self::token_kind_display(self.current_kind()),
+                self.current_span(),
+            ))
+        }
+    }
+
+    /// Expects a string literal token and returns its value.
+    pub(super) fn expect_string_literal(&mut self) -> Result<String, ParseError> {
+        if let TokenKind::StringLiteral(value) = self.current_kind() {
+            let value = value.clone();
+            self.advance();
+            Ok(value)
+        } else {
+            Err(ParseError::expected_string_literal(
                 &Self::token_kind_display(self.current_kind()),
                 self.current_span(),
             ))

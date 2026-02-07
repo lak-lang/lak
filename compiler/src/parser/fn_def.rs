@@ -2,7 +2,7 @@
 
 use super::Parser;
 use super::error::ParseError;
-use crate::ast::FnDef;
+use crate::ast::{FnDef, Visibility};
 use crate::token::{Span, TokenKind};
 
 impl Parser {
@@ -11,13 +11,21 @@ impl Parser {
     /// # Grammar
     ///
     /// ```text
-    /// fn_def → "fn" IDENTIFIER "(" ")" "->" IDENTIFIER "{" stmt* "}"
+    /// fn_def → ("pub")? "fn" IDENTIFIER "(" ")" "->" IDENTIFIER "{" stmt* "}"
     /// ```
     ///
     /// Currently only parameterless functions are supported.
     pub(super) fn parse_fn_def(&mut self) -> Result<FnDef, ParseError> {
-        // Record start position for span
+        // Record start position for span (could be `pub` or `fn`)
         let start_span = self.current().span;
+
+        // Check for optional `pub` keyword
+        let visibility = if matches!(self.current_kind(), TokenKind::Pub) {
+            self.advance();
+            Visibility::Public
+        } else {
+            Visibility::Private
+        };
 
         // Expect `fn` keyword
         self.expect(&TokenKind::Fn)?;
@@ -51,7 +59,7 @@ impl Parser {
 
         self.expect(&TokenKind::RightBrace)?;
 
-        // Create span from `fn` to just before `{`
+        // Create span from `pub` or `fn` to just before `{`
         let span = Span {
             start: start_span.start,
             end: end_span.start,
@@ -60,6 +68,7 @@ impl Parser {
         };
 
         Ok(FnDef {
+            visibility,
             name,
             return_type,
             return_type_span,

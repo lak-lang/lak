@@ -4,6 +4,68 @@ use crate::token::Span;
 
 use super::stmt::Stmt;
 
+/// Visibility of a function or other declaration.
+///
+/// Determines whether a declaration is accessible from other modules.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Visibility {
+    /// Public visibility - accessible from other modules.
+    Public,
+    /// Private visibility - only accessible within the same module.
+    Private,
+}
+
+/// An import declaration in the Lak language.
+///
+/// Imports bring definitions from other modules into scope.
+///
+/// # Examples
+///
+/// ```text
+/// import "math"              // Use as math.add()
+/// import "math/calc" as mc   // Use as mc.add()
+/// import "./utils"           // Use as utils.helper()
+/// ```
+#[derive(Debug, Clone)]
+pub struct ImportDecl {
+    /// The import path (e.g., "math", "math/calc", "./utils").
+    pub path: String,
+    /// Optional alias for the imported module.
+    pub alias: Option<String>,
+    /// The source location of the import declaration.
+    pub span: Span,
+}
+
+impl ImportDecl {
+    /// Creates an `ImportDecl` for testing purposes with dummy spans.
+    ///
+    /// This constructor is intended for unit tests where span information
+    /// is not relevant. For production code, `ImportDecl` should be constructed
+    /// by the parser which provides accurate span information.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `path` is empty or if `alias` is `Some("")` (empty alias).
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The import path (must be non-empty)
+    /// * `alias` - Optional alias for the imported module (must be non-empty if Some)
+    #[cfg(test)]
+    pub fn for_testing(path: &str, alias: Option<&str>) -> Self {
+        assert!(!path.is_empty(), "import path cannot be empty");
+        if let Some(a) = alias {
+            assert!(!a.is_empty(), "import alias cannot be empty");
+        }
+        let dummy = Span::new(0, 0, 1, 1);
+        ImportDecl {
+            path: path.to_string(),
+            alias: alias.map(String::from),
+            span: dummy,
+        }
+    }
+}
+
 /// A function definition in the Lak language.
 ///
 /// Functions are the primary organizational unit in Lak. Every program
@@ -15,7 +77,7 @@ use super::stmt::Stmt;
 /// - `name` should be a non-empty valid identifier
 /// - `return_type` should be a valid type name (currently only "void")
 /// - `return_type_span` should point to the actual return type token in source
-/// - `span` should encompass the function signature from `fn` to before `{`
+/// - `span` should encompass the function signature from `pub` (if present) or `fn` to before `{`
 /// - `span.start <= span.end` (valid span range)
 ///
 /// These invariants are enforced by the parser. Direct construction should
@@ -27,9 +89,15 @@ use super::stmt::Stmt;
 /// fn main() -> void {
 ///     println("Hello, world!")
 /// }
+///
+/// pub fn greet() -> void {
+///     println("Hello!")
+/// }
 /// ```
 #[derive(Debug, Clone)]
 pub struct FnDef {
+    /// The visibility of the function (public or private).
+    pub visibility: Visibility,
     /// The name of the function.
     pub name: String,
     /// The return type of the function. Currently only "void" is supported.
@@ -38,7 +106,7 @@ pub struct FnDef {
     pub return_type_span: Span,
     /// The statements that make up the function body.
     pub body: Vec<Stmt>,
-    /// The source location of the function definition (from `fn` to `{`).
+    /// The source location of the function definition (from `fn` or `pub` to `{`).
     pub span: Span,
 }
 
@@ -58,6 +126,7 @@ impl FnDef {
     pub fn for_testing(name: &str, return_type: &str, body: Vec<Stmt>) -> Self {
         let dummy = Span::new(0, 0, 1, 1);
         FnDef {
+            visibility: Visibility::Private,
             name: name.to_string(),
             return_type: return_type.to_string(),
             return_type_span: dummy,
@@ -69,7 +138,7 @@ impl FnDef {
 
 /// The root node of a Lak program's AST.
 ///
-/// A `Program` contains a collection of function definitions.
+/// A `Program` contains import declarations and function definitions.
 /// Every valid program must have at least a `main` function.
 ///
 /// # Examples
@@ -78,12 +147,16 @@ impl FnDef {
 ///
 /// ```text
 /// // Lak source code:
+/// import "math"
+///
 /// fn main() -> void {
 ///     println("Hello, world!")
 /// }
 /// ```
 #[derive(Debug)]
 pub struct Program {
+    /// The import declarations in this program.
+    pub imports: Vec<ImportDecl>,
     /// The function definitions in this program.
     pub functions: Vec<FnDef>,
 }

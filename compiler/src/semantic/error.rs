@@ -65,6 +65,8 @@ pub enum SemanticErrorKind {
     InvalidMainSignature,
     /// Internal compiler error (should never occur in normal operation).
     InternalError,
+    /// Module-qualified access is not yet implemented.
+    ModuleAccessNotImplemented,
 }
 
 /// An error that occurred during semantic analysis.
@@ -186,6 +188,7 @@ impl SemanticError {
             SemanticErrorKind::MissingMainFunction => "Missing main function",
             SemanticErrorKind::InvalidMainSignature => "Invalid main signature",
             SemanticErrorKind::InternalError => "Internal error",
+            SemanticErrorKind::ModuleAccessNotImplemented => "Module access not implemented",
         }
     }
 
@@ -558,6 +561,20 @@ impl SemanticError {
                 name
             ),
             span,
+        )
+    }
+
+    // =========================================================================
+    // Module errors
+    // =========================================================================
+
+    /// Creates an error for module-qualified access which is not yet implemented.
+    pub fn module_access_not_implemented(span: Span) -> Self {
+        Self::new_with_help(
+            SemanticErrorKind::ModuleAccessNotImplemented,
+            "Module-qualified access (e.g., module.function) is not yet implemented",
+            span,
+            "module resolution will be implemented in a future version",
         )
     }
 }

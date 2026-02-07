@@ -17,8 +17,10 @@ use super::*;
 #[test]
 fn test_duplicate_function_error() {
     let program = Program {
+        imports: vec![],
         functions: vec![
             FnDef {
+                visibility: Visibility::Private,
                 name: "main".to_string(),
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
@@ -26,6 +28,7 @@ fn test_duplicate_function_error() {
                 span: span_at(1, 1),
             },
             FnDef {
+                visibility: Visibility::Private,
                 name: "main".to_string(),
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
@@ -46,8 +49,10 @@ fn test_duplicate_function_error() {
 #[test]
 fn test_duplicate_non_main_function_error() {
     let program = Program {
+        imports: vec![],
         functions: vec![
             FnDef {
+                visibility: Visibility::Private,
                 name: "main".to_string(),
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
@@ -55,6 +60,7 @@ fn test_duplicate_non_main_function_error() {
                 span: dummy_span(),
             },
             FnDef {
+                visibility: Visibility::Private,
                 name: "helper".to_string(),
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
@@ -62,6 +68,7 @@ fn test_duplicate_non_main_function_error() {
                 span: span_at(5, 1),
             },
             FnDef {
+                visibility: Visibility::Private,
                 name: "helper".to_string(),
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
@@ -85,7 +92,10 @@ fn test_duplicate_non_main_function_error() {
 
 #[test]
 fn test_missing_main_function_empty_program() {
-    let program = Program { functions: vec![] };
+    let program = Program {
+        imports: vec![],
+        functions: vec![],
+    };
 
     let mut analyzer = SemanticAnalyzer::new();
     let result = analyzer.analyze(&program);
@@ -101,7 +111,9 @@ fn test_missing_main_function_empty_program() {
 #[test]
 fn test_missing_main_function_with_other_functions() {
     let program = Program {
+        imports: vec![],
         functions: vec![FnDef {
+            visibility: Visibility::Private,
             name: "helper".to_string(),
             return_type: "void".to_string(),
             return_type_span: dummy_span(),
@@ -128,7 +140,9 @@ fn test_missing_main_function_with_other_functions() {
 #[test]
 fn test_invalid_main_signature() {
     let program = Program {
+        imports: vec![],
         functions: vec![FnDef {
+            visibility: Visibility::Private,
             name: "main".to_string(),
             return_type: "int".to_string(),
             return_type_span: span_at(1, 15),
@@ -181,8 +195,10 @@ fn test_undefined_function() {
 fn test_call_user_defined_function() {
     // Call a user-defined function from main
     let program = Program {
+        imports: vec![],
         functions: vec![
             FnDef {
+                visibility: Visibility::Private,
                 name: "helper".to_string(),
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
@@ -190,6 +206,7 @@ fn test_call_user_defined_function() {
                 span: dummy_span(),
             },
             FnDef {
+                visibility: Visibility::Private,
                 name: "main".to_string(),
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
@@ -217,8 +234,10 @@ fn test_call_user_defined_function() {
 fn test_call_multiple_user_defined_functions() {
     // Multiple user-defined functions calling each other concept
     let program = Program {
+        imports: vec![],
         functions: vec![
             FnDef {
+                visibility: Visibility::Private,
                 name: "foo".to_string(),
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
@@ -226,6 +245,7 @@ fn test_call_multiple_user_defined_functions() {
                 span: dummy_span(),
             },
             FnDef {
+                visibility: Visibility::Private,
                 name: "bar".to_string(),
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
@@ -233,6 +253,7 @@ fn test_call_multiple_user_defined_functions() {
                 span: dummy_span(),
             },
             FnDef {
+                visibility: Visibility::Private,
                 name: "main".to_string(),
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
@@ -276,8 +297,10 @@ fn test_call_multiple_user_defined_functions() {
 fn test_function_variable_scope_isolation() {
     // Same variable name in different functions should be allowed
     let program = Program {
+        imports: vec![],
         functions: vec![
             FnDef {
+                visibility: Visibility::Private,
                 name: "helper".to_string(),
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
@@ -292,6 +315,7 @@ fn test_function_variable_scope_isolation() {
                 span: dummy_span(),
             },
             FnDef {
+                visibility: Visibility::Private,
                 name: "main".to_string(),
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
@@ -317,8 +341,10 @@ fn test_function_variable_scope_isolation() {
 fn test_function_scope_isolation_different_types() {
     // Same variable name with different types in different functions
     let program = Program {
+        imports: vec![],
         functions: vec![
             FnDef {
+                visibility: Visibility::Private,
                 name: "helper".to_string(),
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
@@ -333,6 +359,7 @@ fn test_function_scope_isolation_different_types() {
                 span: dummy_span(),
             },
             FnDef {
+                visibility: Visibility::Private,
                 name: "main".to_string(),
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
@@ -361,8 +388,10 @@ fn test_function_scope_isolation_different_types() {
 #[test]
 fn test_valid_multiple_functions() {
     let program = Program {
+        imports: vec![],
         functions: vec![
             FnDef {
+                visibility: Visibility::Private,
                 name: "main".to_string(),
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
@@ -370,6 +399,7 @@ fn test_valid_multiple_functions() {
                 span: dummy_span(),
             },
             FnDef {
+                visibility: Visibility::Private,
                 name: "helper".to_string(),
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),

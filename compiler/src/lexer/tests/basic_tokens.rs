@@ -216,3 +216,56 @@ fn test_all_arithmetic_operators() {
         ]
     );
 }
+
+#[test]
+fn test_dot() {
+    let kinds = tokenize_kinds(".");
+    assert_eq!(kinds, vec![TokenKind::Dot, TokenKind::Eof]);
+}
+
+#[test]
+fn test_multiple_dots() {
+    let kinds = tokenize_kinds("...");
+    assert_eq!(
+        kinds,
+        vec![
+            TokenKind::Dot,
+            TokenKind::Dot,
+            TokenKind::Dot,
+            TokenKind::Eof
+        ]
+    );
+}
+
+#[test]
+fn test_dot_between_identifiers() {
+    let kinds = tokenize_kinds("a.b");
+    assert_eq!(
+        kinds,
+        vec![
+            TokenKind::Identifier("a".to_string()),
+            TokenKind::Dot,
+            TokenKind::Identifier("b".to_string()),
+            TokenKind::Eof
+        ]
+    );
+}
+
+#[test]
+fn test_member_call_tokens() {
+    let kinds = tokenize_kinds("math.add(1, 2)");
+    assert_eq!(
+        kinds,
+        vec![
+            TokenKind::Identifier("math".to_string()),
+            TokenKind::Dot,
+            TokenKind::Identifier("add".to_string()),
+            TokenKind::LeftParen,
+            TokenKind::IntLiteral(1),
+            TokenKind::Comma,
+            TokenKind::IntLiteral(2),
+            TokenKind::RightParen,
+            TokenKind::Eof
+        ]
+    );
+}

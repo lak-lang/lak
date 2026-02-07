@@ -4,7 +4,7 @@
 //! definitions during semantic analysis, with support for scoped variable lookup.
 
 use super::error::SemanticError;
-use crate::ast::Type;
+use crate::ast::{Type, Visibility};
 use crate::token::Span;
 use std::collections::HashMap;
 
@@ -19,6 +19,10 @@ pub struct FunctionInfo {
     pub return_type_span: Span,
     /// The span of the function definition (for "previously defined here" messages).
     pub definition_span: Span,
+    /// The visibility of the function (public or private).
+    /// Currently unused; will be used in Phase 3 for cross-module access control.
+    #[allow(dead_code)]
+    pub visibility: Visibility,
 }
 
 /// Information about a defined variable.

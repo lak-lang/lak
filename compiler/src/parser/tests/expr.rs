@@ -576,3 +576,89 @@ fn test_triple_unary_minus() {
         _ => panic!("Expected Let statement"),
     }
 }
+
+// ===================
+// Member access parsing
+// ===================
+
+#[test]
+fn test_member_access_basic() {
+    let expr = parse_first_expr("math.add");
+    match expr.kind {
+        ExprKind::MemberAccess { object, member } => {
+            assert!(matches!(&object.kind, ExprKind::Identifier(s) if s == "math"));
+            assert_eq!(member, "add");
+        }
+        _ => panic!("Expected MemberAccess expression, got {:?}", expr.kind),
+    }
+}
+
+#[test]
+fn test_member_access_span() {
+    // "math.add" in context "fn test() -> void { math.add }"
+    // The span should cover "math.add"
+    let expr = parse_first_expr("math.add");
+    match &expr.kind {
+        ExprKind::MemberAccess { object, member } => {
+            // object span should cover "math"
+            assert!(object.span.end > object.span.start);
+            // member name
+            assert_eq!(member, "add");
+            // expr span should cover entire "math.add"
+            assert!(expr.span.end > expr.span.start);
+            assert!(expr.span.start <= object.span.start);
+        }
+        _ => panic!("Expected MemberAccess expression"),
+    }
+}
+
+#[test]
+fn test_member_call_basic() {
+    // math.add(1, 2) is converted to Call with callee "math.add"
+    let expr = parse_first_expr("math.add(1, 2)");
+    match expr.kind {
+        ExprKind::Call { callee, args } => {
+            assert_eq!(callee, "math.add");
+            assert_eq!(args.len(), 2);
+            assert!(matches!(args[0].kind, ExprKind::IntLiteral(1)));
+            assert!(matches!(args[1].kind, ExprKind::IntLiteral(2)));
+        }
+        _ => panic!("Expected Call expression, got {:?}", expr.kind),
+    }
+}
+
+#[test]
+fn test_member_call_no_args() {
+    let expr = parse_first_expr("module.func()");
+    match expr.kind {
+        ExprKind::Call { callee, args } => {
+            assert_eq!(callee, "module.func");
+            assert!(args.is_empty());
+        }
+        _ => panic!("Expected Call expression"),
+    }
+}
+
+#[test]
+fn test_member_call_string_arg() {
+    let expr = parse_first_expr(r#"io.print("hello")"#);
+    match expr.kind {
+        ExprKind::Call { callee, args } => {
+            assert_eq!(callee, "io.print");
+            assert_eq!(args.len(), 1);
+            assert!(matches!(&args[0].kind, ExprKind::StringLiteral(s) if s == "hello"));
+        }
+        _ => panic!("Expected Call expression"),
+    }
+}
+
+#[test]
+fn test_member_access_vs_member_call() {
+    // Without parentheses: MemberAccess
+    let access_expr = parse_first_expr("foo.bar");
+    assert!(matches!(access_expr.kind, ExprKind::MemberAccess { .. }));
+
+    // With parentheses: Call
+    let call_expr = parse_first_expr("foo.bar()");
+    assert!(matches!(call_expr.kind, ExprKind::Call { .. }));
+}

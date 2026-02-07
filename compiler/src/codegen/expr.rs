@@ -36,7 +36,8 @@ impl<'ctx> Codegen<'ctx> {
             | ExprKind::BoolLiteral(_)
             | ExprKind::Identifier(_)
             | ExprKind::BinaryOp { .. }
-            | ExprKind::UnaryOp { .. } => {
+            | ExprKind::UnaryOp { .. }
+            | ExprKind::MemberAccess { .. } => {
                 return Err(CodegenError::internal_invalid_expr_stmt(expr.span));
             }
         }
@@ -170,6 +171,12 @@ impl<'ctx> Codegen<'ctx> {
             }
             ExprKind::UnaryOp { op, operand } => {
                 self.generate_unary_op(operand, *op, expected_ty, expr.span)
+            }
+            ExprKind::MemberAccess { .. } => {
+                // Module-qualified expressions are not yet supported
+                Err(CodegenError::internal_member_access_not_implemented(
+                    expr.span,
+                ))
             }
         }
     }

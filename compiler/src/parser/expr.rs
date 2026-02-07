@@ -176,12 +176,14 @@ impl Parser {
                 let inner = self.parse_expr()?;
 
                 self.skip_newlines();
+                // Store span before consuming to avoid index issues
+                let close_paren_span = self.current_span();
                 self.expect(&TokenKind::RightParen)?;
 
                 // Return the inner expression with updated span covering the parens
                 let span = Span::new(
                     start_span.start,
-                    self.tokens[self.pos.saturating_sub(1)].span.end,
+                    close_paren_span.end,
                     start_span.line,
                     start_span.column,
                 );
@@ -191,9 +193,64 @@ impl Parser {
                 let name = name.clone();
                 self.advance();
 
+                // Parse member access (e.g., module.function)
+                // Nested member access (e.g., a.b.c) is detected and rejected with an error
+                let mut expr = Expr::new(ExprKind::Identifier(name.clone()), start_span);
+
+                while matches!(self.current_kind(), TokenKind::Dot) {
+                    // Check if we're creating a nested member access
+                    if matches!(expr.kind, ExprKind::MemberAccess { .. }) {
+                        // Nested member access (e.g., a.b.c) is not yet supported
+                        // Return error early with span covering the entire expression
+                        let span = Span::new(
+                            start_span.start,
+                            self.current_span().end,
+                            start_span.line,
+                            start_span.column,
+                        );
+                        return Err(ParseError::nested_member_access_not_supported(span));
+                    }
+
+                    self.advance(); // consume '.'
+
+                    // Expect identifier after dot
+                    // Store span before consuming to avoid index issues
+                    let member_span = self.current_span();
+                    let member = self.expect_identifier()?;
+
+                    let span = Span::new(
+                        start_span.start,
+                        member_span.end,
+                        start_span.line,
+                        start_span.column,
+                    );
+
+                    expr = Expr::new(
+                        ExprKind::MemberAccess {
+                            object: Box::new(expr),
+                            member,
+                        },
+                        span,
+                    );
+                }
+
+                // Check if this is a function call
                 if matches!(self.current_kind(), TokenKind::LeftParen) {
-                    // Function call
-                    self.parse_call(name, start_span)
+                    // Extract callee name for function call
+                    match &expr.kind {
+                        ExprKind::Identifier(callee) => {
+                            let callee = callee.clone();
+                            self.parse_call(callee, start_span)
+                        }
+                        ExprKind::MemberAccess { .. } => {
+                            // Module-qualified function call (e.g., math.add(1, 2))
+                            self.parse_member_call(expr, start_span)
+                        }
+                        _ => Err(ParseError::internal(
+                            "Internal parser error: unexpected expression kind in function call position. This is a compiler bug, please report it.",
+                            expr.span,
+                        )),
+                    }
                 } else {
                     // Check for syntax error: identifier followed by expression-start token
                     // without an intervening Newline (which would indicate a new statement)
@@ -215,8 +272,8 @@ impl Parser {
                             ))
                         }
                         // Any other token (including Newline, Eof, operators, etc.)
-                        // means this is a valid variable reference
-                        _ => Ok(Expr::new(ExprKind::Identifier(name), start_span)),
+                        // means this is a valid expression (identifier or member access)
+                        _ => Ok(expr),
                     }
                 }
             }
@@ -296,5 +353,86 @@ impl Parser {
         );
 
         Ok(Expr::new(ExprKind::Call { callee, args }, span))
+    }
+
+    /// Parses a module-qualified function call expression (e.g., `math.add(1, 2)`).
+    ///
+    /// The member access expression has already been parsed. This method parses
+    /// the argument list within parentheses and converts the member access into
+    /// a regular function call with a dot-separated callee name.
+    ///
+    /// # Arguments
+    ///
+    /// * `member_expr` - The member access expression (e.g., `math.add`)
+    /// * `start_span` - The span from the start of the expression
+    ///
+    /// # Note
+    ///
+    /// This method is named `parse_member_call` for future compatibility with
+    /// struct method calls. Currently, it only handles module-qualified calls.
+    fn parse_member_call(
+        &mut self,
+        member_expr: Expr,
+        start_span: Span,
+    ) -> Result<Expr, ParseError> {
+        self.expect(&TokenKind::LeftParen)?;
+        self.skip_newlines();
+
+        let mut args = Vec::new();
+
+        if !matches!(self.current_kind(), TokenKind::RightParen) {
+            loop {
+                let arg = self.parse_expr()?;
+                args.push(arg);
+                self.skip_newlines();
+
+                if matches!(self.current_kind(), TokenKind::Comma) {
+                    self.advance();
+                    self.skip_newlines();
+                } else {
+                    break;
+                }
+            }
+        }
+
+        self.skip_newlines();
+        let end_span = self.current_span();
+        self.expect(&TokenKind::RightParen)?;
+
+        let span = Span::new(
+            start_span.start,
+            end_span.end,
+            start_span.line,
+            start_span.column,
+        );
+
+        // Module-qualified function calls (e.g., math.add()) are converted to Call
+        // nodes with a dot-separated callee string (e.g., "math.add"). This allows
+        // the semantic analyzer to detect these as undefined functions until module
+        // resolution is implemented, while keeping the parser simple.
+        // TODO(Phase 3): Consider adding QualifiedCall { module, function, args }
+        // to preserve AST structure instead of string concatenation.
+        if let ExprKind::MemberAccess { object, member } = member_expr.kind {
+            let callee = match object.kind {
+                ExprKind::Identifier(ref module) => format!("{}.{}", module, member),
+                ExprKind::MemberAccess { .. } => {
+                    // Nested member access (e.g., a.b.c) is not yet supported
+                    return Err(ParseError::nested_member_access_not_supported(span));
+                }
+                _ => {
+                    return Err(ParseError::internal(
+                        "Internal parser error: unexpected object kind in member access. This is a compiler bug, please report it.",
+                        span,
+                    ));
+                }
+            };
+
+            Ok(Expr::new(ExprKind::Call { callee, args }, span))
+        } else {
+            Err(ParseError::internal(
+                "Internal parser error: parse_member_call called with non-MemberAccess expression. This is a compiler bug, please report it.",
+                member_expr.span,
+            ))
+        }
     }
 }

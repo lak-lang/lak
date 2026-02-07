@@ -16,6 +16,7 @@ mod errors;
 mod expr;
 mod fn_def;
 mod helpers;
+mod import;
 mod stmt;
 
 /// Helper function to parse input and return the Program.

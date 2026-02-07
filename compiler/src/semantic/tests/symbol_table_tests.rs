@@ -7,6 +7,7 @@
 //! - Scope shadowing
 
 use super::*;
+use crate::ast::Visibility;
 use crate::semantic::error::SemanticErrorKind;
 use crate::semantic::symbol::{FunctionInfo, SymbolTable, VariableInfo};
 
@@ -30,6 +31,7 @@ fn test_define_and_lookup_function() {
         return_type: "void".to_string(),
         return_type_span: dummy_span(),
         definition_span: span_at(1, 1),
+        visibility: Visibility::Private,
     };
 
     assert!(table.define_function(info).is_ok());
@@ -45,12 +47,14 @@ fn test_duplicate_function_error() {
         return_type: "void".to_string(),
         return_type_span: dummy_span(),
         definition_span: span_at(1, 1),
+        visibility: Visibility::Private,
     };
     let info2 = FunctionInfo {
         name: "dup".to_string(),
         return_type: "void".to_string(),
         return_type_span: dummy_span(),
         definition_span: span_at(5, 1),
+        visibility: Visibility::Private,
     };
 
     assert!(table.define_function(info1).is_ok());

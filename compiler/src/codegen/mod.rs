@@ -24,7 +24,7 @@
 //! ```no_run
 //! use inkwell::context::Context;
 //! use lak::codegen::Codegen;
-//! use lak::ast::{Program, FnDef, Stmt, StmtKind, Expr, ExprKind};
+//! use lak::ast::{Program, FnDef, Stmt, StmtKind, Expr, ExprKind, Visibility};
 //! use lak::token::Span;
 //! use std::path::Path;
 //!
@@ -32,7 +32,9 @@
 //! let mut codegen = Codegen::new(&context, "example");
 //!
 //! let program = Program {
+//!     imports: vec![],
 //!     functions: vec![FnDef {
+//!         visibility: Visibility::Private,
 //!         name: "main".to_string(),
 //!         return_type: "void".to_string(),
 //!         return_type_span: Span::new(0, 0, 1, 1),

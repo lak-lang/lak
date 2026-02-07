@@ -1263,3 +1263,92 @@ fn test_compile_error_unary_minus_on_bool_variable() {
         "Expected TypeMismatch error kind"
     );
 }
+
+// ========================================
+// Module access error tests (Phase 2)
+// ========================================
+
+#[test]
+fn test_compile_error_member_call_undefined() {
+    // Member function call (module.function()) is converted to Call with callee "module.function"
+    // Since the function doesn't exist, it's reported as UndefinedFunction
+    let result = compile_error_with_kind(
+        r#"import "./math" as math
+
+fn main() -> void {
+    math.add()
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(msg, "Undefined function: 'math.add'");
+    assert_eq!(short_msg, "Undefined function");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::UndefinedFunction),
+        "Expected UndefinedFunction error kind"
+    );
+}
+
+#[test]
+fn test_compile_error_member_access_not_implemented() {
+    // Member access without call (module.value) triggers ModuleAccessNotImplemented
+    let result = compile_error_with_kind(
+        r#"import "./lib" as lib
+
+fn main() -> void {
+    lib.value
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Module-qualified access (e.g., module.function) is not yet implemented"
+    );
+    assert_eq!(short_msg, "Module access not implemented");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::ModuleAccessNotImplemented),
+        "Expected ModuleAccessNotImplemented error kind"
+    );
+}
+
+#[test]
+fn test_compile_error_member_access_in_let() {
+    // Member access in let statement also triggers ModuleAccessNotImplemented
+    let result = compile_error_with_kind(
+        r#"import "./config" as cfg
+
+fn main() -> void {
+    let x: i32 = cfg.value
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Module-qualified access (e.g., module.function) is not yet implemented"
+    );
+    assert_eq!(short_msg, "Module access not implemented");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::ModuleAccessNotImplemented),
+        "Expected ModuleAccessNotImplemented error kind"
+    );
+}

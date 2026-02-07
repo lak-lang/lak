@@ -71,6 +71,7 @@ impl<'a> Lexer<'a> {
             ':' => {
                 Ok(self.single_char_token(TokenKind::Colon, start_pos, start_line, start_column))
             }
+            '.' => Ok(self.single_char_token(TokenKind::Dot, start_pos, start_line, start_column)),
             '=' => {
                 Ok(self.single_char_token(TokenKind::Equals, start_pos, start_line, start_column))
             }
@@ -267,6 +268,9 @@ impl<'a> Lexer<'a> {
         let kind = match value.as_str() {
             "fn" => TokenKind::Fn,
             "let" => TokenKind::Let,
+            "pub" => TokenKind::Pub,
+            "import" => TokenKind::Import,
+            "as" => TokenKind::As,
             "true" => TokenKind::BoolLiteral(true),
             "false" => TokenKind::BoolLiteral(false),
             _ => TokenKind::Identifier(value),

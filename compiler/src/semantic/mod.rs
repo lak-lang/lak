@@ -97,6 +97,7 @@ impl SemanticAnalyzer {
                 return_type: function.return_type.clone(),
                 return_type_span: function.return_type_span,
                 definition_span: function.span,
+                visibility: function.visibility,
             };
 
             self.symbols.define_function(info)?;
@@ -198,6 +199,11 @@ impl SemanticAnalyzer {
                 // Unary operations as statements have no effect
                 Err(SemanticError::invalid_expression_unary_op(expr.span))
             }
+            ExprKind::MemberAccess { .. } => {
+                // Member access as statement has no effect
+                // Also, module-qualified function calls are not yet supported
+                Err(SemanticError::module_access_not_implemented(expr.span))
+            }
         }
     }
 
@@ -239,6 +245,9 @@ impl SemanticAnalyzer {
                     // For unary operations, validate that all variables exist
                     // and that no unary operator is applied to a string type
                     self.validate_expr_for_println(&args[0])?;
+                }
+                ExprKind::MemberAccess { .. } => {
+                    return Err(SemanticError::module_access_not_implemented(args[0].span));
                 }
             }
 
@@ -300,6 +309,9 @@ impl SemanticAnalyzer {
                         "expression",
                         args[0].span,
                     ));
+                }
+                ExprKind::MemberAccess { .. } => {
+                    return Err(SemanticError::module_access_not_implemented(args[0].span));
                 }
             }
 
@@ -394,6 +406,10 @@ impl SemanticAnalyzer {
             }
             ExprKind::UnaryOp { op, operand } => {
                 self.check_unary_op_type(operand, *op, expected_ty, expr.span)
+            }
+            ExprKind::MemberAccess { .. } => {
+                // Module-qualified expressions are not yet supported
+                Err(SemanticError::module_access_not_implemented(expr.span))
             }
         }
     }
@@ -515,6 +531,9 @@ impl SemanticAnalyzer {
             ExprKind::Call { callee, .. } => Err(
                 SemanticError::invalid_argument_call_not_supported(callee, expr.span),
             ),
+            ExprKind::MemberAccess { .. } => {
+                Err(SemanticError::module_access_not_implemented(expr.span))
+            }
         }
     }
 

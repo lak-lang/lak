@@ -7,7 +7,7 @@ mod common;
 
 use common::dummy_span;
 
-use lak::ast::{Expr, ExprKind, FnDef, Program, Stmt, StmtKind, Type};
+use lak::ast::{Expr, ExprKind, FnDef, Program, Stmt, StmtKind, Type, Visibility};
 use lak::codegen::Codegen;
 use lak::lexer::Lexer;
 use lak::parser::Parser;
@@ -34,8 +34,10 @@ fn test_lexer_parser_integration() {
 fn test_ast_to_codegen() {
     // Build AST directly and compile
     let program = Program {
+        imports: vec![],
         functions: vec![FnDef {
             name: "main".to_string(),
+            visibility: Visibility::Private,
             return_type: "void".to_string(),
             return_type_span: dummy_span(),
             body: vec![Stmt::new(
@@ -72,8 +74,10 @@ fn test_ast_to_codegen() {
 fn test_ast_let_to_codegen() {
     // Build AST with Let statement directly and compile
     let program = Program {
+        imports: vec![],
         functions: vec![FnDef {
             name: "main".to_string(),
+            visibility: Visibility::Private,
             return_type: "void".to_string(),
             return_type_span: dummy_span(),
             body: vec![
@@ -116,8 +120,10 @@ fn test_error_string_literal_as_int_value() {
     // String literal cannot be used as integer initializer
     // Detected by semantic analysis
     let program = Program {
+        imports: vec![],
         functions: vec![FnDef {
             name: "main".to_string(),
+            visibility: Visibility::Private,
             return_type: "void".to_string(),
             return_type_span: dummy_span(),
             body: vec![Stmt::new(
@@ -145,8 +151,10 @@ fn test_error_function_call_as_int_value() {
     // Function call cannot be used as integer initializer (void functions)
     // Detected by semantic analysis
     let program = Program {
+        imports: vec![],
         functions: vec![FnDef {
             name: "main".to_string(),
+            visibility: Visibility::Private,
             return_type: "void".to_string(),
             return_type_span: dummy_span(),
             body: vec![Stmt::new(
@@ -180,8 +188,10 @@ fn test_error_int_literal_as_statement() {
     // Integer literal used as statement should error
     // Detected by semantic analysis
     let program = Program {
+        imports: vec![],
         functions: vec![FnDef {
             name: "main".to_string(),
+            visibility: Visibility::Private,
             return_type: "void".to_string(),
             return_type_span: dummy_span(),
             body: vec![Stmt::new(
@@ -205,8 +215,10 @@ fn test_error_identifier_as_statement() {
     // Variable used as statement should error
     // Detected by semantic analysis
     let program = Program {
+        imports: vec![],
         functions: vec![FnDef {
             name: "main".to_string(),
+            visibility: Visibility::Private,
             return_type: "void".to_string(),
             return_type_span: dummy_span(),
             body: vec![
@@ -243,8 +255,10 @@ fn test_error_string_literal_as_statement() {
     // String literal used as statement should error
     // Detected by semantic analysis
     let program = Program {
+        imports: vec![],
         functions: vec![FnDef {
             name: "main".to_string(),
+            visibility: Visibility::Private,
             return_type: "void".to_string(),
             return_type_span: dummy_span(),
             body: vec![Stmt::new(
@@ -273,8 +287,10 @@ fn test_error_i32_underflow_via_ast() {
     // supported in source code yet.
     // Detected by semantic analysis
     let program = Program {
+        imports: vec![],
         functions: vec![FnDef {
             name: "main".to_string(),
+            visibility: Visibility::Private,
             return_type: "void".to_string(),
             return_type_span: dummy_span(),
             body: vec![Stmt::new(

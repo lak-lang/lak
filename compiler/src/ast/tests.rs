@@ -1,6 +1,7 @@
 //! Unit tests for AST nodes.
 
 use super::*;
+use crate::ast::Visibility;
 use crate::token::Span;
 
 fn dummy_span() -> Span {
@@ -143,13 +144,17 @@ fn test_type_clone() {
 
 #[test]
 fn test_program_empty() {
-    let program = Program { functions: vec![] };
+    let program = Program {
+        imports: vec![],
+        functions: vec![],
+    };
     assert!(program.functions.is_empty());
 }
 
 #[test]
 fn test_program_with_functions() {
     let functions = vec![FnDef {
+        visibility: Visibility::Private,
         name: "main".to_string(),
         return_type: "void".to_string(),
         return_type_span: dummy_span(),
@@ -168,7 +173,10 @@ fn test_program_with_functions() {
         )],
         span: dummy_span(),
     }];
-    let program = Program { functions };
+    let program = Program {
+        imports: vec![],
+        functions,
+    };
     assert_eq!(program.functions.len(), 1);
     assert_eq!(program.functions[0].name, "main");
 }
@@ -176,6 +184,7 @@ fn test_program_with_functions() {
 #[test]
 fn test_fn_def() {
     let fn_def = FnDef {
+        visibility: Visibility::Private,
         name: "test".to_string(),
         return_type: "void".to_string(),
         return_type_span: dummy_span(),
@@ -190,6 +199,7 @@ fn test_fn_def() {
 #[test]
 fn test_fn_def_with_body() {
     let fn_def = FnDef {
+        visibility: Visibility::Private,
         name: "greet".to_string(),
         return_type: "void".to_string(),
         return_type_span: dummy_span(),
@@ -229,6 +239,7 @@ fn test_fn_def_with_body() {
 #[test]
 fn test_fn_def_clone() {
     let fn_def = FnDef {
+        visibility: Visibility::Private,
         name: "test".to_string(),
         return_type: "void".to_string(),
         return_type_span: dummy_span(),
@@ -332,7 +343,9 @@ fn test_stmt_debug() {
 #[test]
 fn test_program_debug() {
     let program = Program {
+        imports: vec![],
         functions: vec![FnDef {
+            visibility: Visibility::Private,
             name: "main".to_string(),
             return_type: "void".to_string(),
             return_type_span: dummy_span(),
@@ -349,7 +362,7 @@ fn test_program_debug() {
     let debug_str = format!("{:?}", program);
     assert_eq!(
         debug_str,
-        "Program { functions: [FnDef { name: \"main\", return_type: \"void\", return_type_span: Span { start: 0, end: 0, line: 1, column: 1 }, body: [Stmt { kind: Expr(Expr { kind: StringLiteral(\"test\"), span: Span { start: 0, end: 0, line: 1, column: 1 } }), span: Span { start: 0, end: 0, line: 1, column: 1 } }], span: Span { start: 0, end: 0, line: 1, column: 1 } }] }"
+        "Program { imports: [], functions: [FnDef { visibility: Private, name: \"main\", return_type: \"void\", return_type_span: Span { start: 0, end: 0, line: 1, column: 1 }, body: [Stmt { kind: Expr(Expr { kind: StringLiteral(\"test\"), span: Span { start: 0, end: 0, line: 1, column: 1 } }), span: Span { start: 0, end: 0, line: 1, column: 1 } }], span: Span { start: 0, end: 0, line: 1, column: 1 } }] }"
     );
 }
 

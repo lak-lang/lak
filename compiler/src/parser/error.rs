@@ -33,10 +33,16 @@ pub enum ParseErrorKind {
     UnexpectedToken,
     /// Expected an identifier but found something else.
     ExpectedIdentifier,
+    /// Expected a string literal but found something else.
+    ExpectedStringLiteral,
     /// Expected a type annotation but found something else.
     ExpectedType,
     /// Expression following identifier without parentheses (likely missing function call syntax).
     MissingFunctionCallParentheses,
+    /// Nested member access (e.g., a.b.c) is not yet supported.
+    NestedMemberAccessNotSupported,
+    /// Empty import path is not allowed.
+    EmptyImportPath,
     /// Internal parser inconsistency (compiler bug).
     InternalError,
 }
@@ -103,8 +109,11 @@ impl ParseError {
             ParseErrorKind::MissingStatementTerminator => "Missing statement terminator",
             ParseErrorKind::UnexpectedToken => "Unexpected token",
             ParseErrorKind::ExpectedIdentifier => "Expected identifier",
+            ParseErrorKind::ExpectedStringLiteral => "Expected string literal",
             ParseErrorKind::ExpectedType => "Unknown type",
             ParseErrorKind::MissingFunctionCallParentheses => "Missing function call parentheses",
+            ParseErrorKind::NestedMemberAccessNotSupported => "Nested member access not supported",
+            ParseErrorKind::EmptyImportPath => "Empty import path",
             ParseErrorKind::InternalError => "Internal error",
         }
     }
@@ -140,6 +149,15 @@ impl ParseError {
         Self::new(
             ParseErrorKind::ExpectedIdentifier,
             format!("Expected identifier, found {}", found),
+            span,
+        )
+    }
+
+    /// Creates an error for expected string literal.
+    pub fn expected_string_literal(found: &str, span: Span) -> Self {
+        Self::new(
+            ParseErrorKind::ExpectedStringLiteral,
+            format!("Expected string literal for import path, found {}", found),
             span,
         )
     }
@@ -210,6 +228,33 @@ impl ParseError {
     }
 
     // =========================================================================
+    // Unsupported syntax errors
+    // =========================================================================
+
+    /// Creates an error for nested member access (e.g., a.b.c).
+    ///
+    /// Nested member access is not yet supported. Only simple module.function
+    /// access is allowed.
+    pub fn nested_member_access_not_supported(span: Span) -> Self {
+        Self::new(
+            ParseErrorKind::NestedMemberAccessNotSupported,
+            "Nested member access (e.g., a.b.c) is not yet supported. Only simple module.function access is allowed.",
+            span,
+        )
+    }
+
+    /// Creates an error for empty import path.
+    ///
+    /// Import paths cannot be empty strings.
+    pub fn empty_import_path(span: Span) -> Self {
+        Self::new(
+            ParseErrorKind::EmptyImportPath,
+            "Import path cannot be empty",
+            span,
+        )
+    }
+
+    // =========================================================================
     // Internal errors
     // =========================================================================
 
@@ -222,6 +267,15 @@ impl ParseError {
             "Internal error: binary_op_precedence returned Some, but token_to_binary_op returned None. This is a compiler bug.".to_string(),
             span,
         )
+    }
+
+    /// Creates an internal parser error with a custom message.
+    ///
+    /// Use this for "impossible" states that should never be reached.
+    /// This is preferable to `unreachable!()` as it returns a proper error
+    /// instead of panicking.
+    pub fn internal(message: impl Into<String>, span: Span) -> Self {
+        Self::new(ParseErrorKind::InternalError, message, span)
     }
 }
 

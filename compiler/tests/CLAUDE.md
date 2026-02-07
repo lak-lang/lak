@@ -15,14 +15,16 @@ Comprehensive test suite verifying the compiler's functionality from source code
 | `e2e_strings.rs` | E2E | 8 | String literals and escape sequences |
 | `e2e_variables.rs` | E2E | 10 | Variable declarations (i32, i64) |
 | `e2e_run.rs` | E2E | 11 | `lak run` command execution |
+| `e2e_visibility.rs` | E2E | 4 | `pub fn` visibility keyword |
+| `e2e_imports.rs` | E2E | 4 | `import` syntax parsing |
 | `errors_lex.rs` | Errors | 4 | Lexical analysis error detection |
 | `errors_parse.rs` | Errors | 3 | Parser error detection |
-| `errors_semantic.rs` | Errors | 14 | Semantic analysis error detection |
+| `errors_semantic.rs` | Errors | 53 | Semantic analysis error detection |
 | `pipeline.rs` | Integration | 9 | Phase integration and direct AST construction |
 
 ## Test Categories
 
-### E2E Tests (36 tests)
+### E2E Tests (44 tests)
 
 Compile, link, and execute real Lak programs, validating stdout output.
 
@@ -31,7 +33,7 @@ let output = compile_and_run(r#"fn main() -> void { println("test") }"#).unwrap(
 assert_eq!(output, "test\n");
 ```
 
-### Error Tests (32 tests)
+### Error Tests (60 tests)
 
 Verify errors are detected at the correct compilation stage with correct error kind.
 

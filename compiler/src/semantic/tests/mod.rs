@@ -1,7 +1,7 @@
 //! Unit tests for the semantic analyzer.
 
 use super::*;
-use crate::ast::{Expr, ExprKind, FnDef, Program, Stmt, StmtKind, Type, UnaryOperator};
+use crate::ast::{Expr, ExprKind, FnDef, Program, Stmt, StmtKind, Type, UnaryOperator, Visibility};
 use crate::token::Span;
 
 mod function_tests;
@@ -24,7 +24,9 @@ pub fn span_at(line: usize, column: usize) -> Span {
 /// Helper to create a minimal valid program with main
 pub fn program_with_main(body: Vec<Stmt>) -> Program {
     Program {
+        imports: vec![],
         functions: vec![FnDef {
+            visibility: Visibility::Private,
             name: "main".to_string(),
             return_type: "void".to_string(),
             return_type_span: dummy_span(),

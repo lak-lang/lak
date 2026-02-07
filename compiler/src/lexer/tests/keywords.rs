@@ -99,3 +99,86 @@ fn test_false_not_prefix() {
         ]
     );
 }
+
+#[test]
+fn test_keyword_pub() {
+    let kinds = tokenize_kinds("pub");
+    assert_eq!(kinds, vec![TokenKind::Pub, TokenKind::Eof]);
+}
+
+#[test]
+fn test_pub_not_prefix() {
+    // "public" should be an identifier, not pub + identifier
+    let kinds = tokenize_kinds("public");
+    assert_eq!(
+        kinds,
+        vec![TokenKind::Identifier("public".to_string()), TokenKind::Eof]
+    );
+}
+
+#[test]
+fn test_keyword_import() {
+    let kinds = tokenize_kinds("import");
+    assert_eq!(kinds, vec![TokenKind::Import, TokenKind::Eof]);
+}
+
+#[test]
+fn test_import_not_prefix() {
+    // "imports" should be an identifier, not import + identifier
+    let kinds = tokenize_kinds("imports");
+    assert_eq!(
+        kinds,
+        vec![TokenKind::Identifier("imports".to_string()), TokenKind::Eof]
+    );
+}
+
+#[test]
+fn test_keyword_as() {
+    let kinds = tokenize_kinds("as");
+    assert_eq!(kinds, vec![TokenKind::As, TokenKind::Eof]);
+}
+
+#[test]
+fn test_as_not_prefix() {
+    // "assign" should be an identifier, not as + identifier
+    let kinds = tokenize_kinds("assign");
+    assert_eq!(
+        kinds,
+        vec![TokenKind::Identifier("assign".to_string()), TokenKind::Eof]
+    );
+}
+
+#[test]
+fn test_pub_fn_tokens() {
+    let kinds = tokenize_kinds("pub fn test() -> void {}");
+    assert_eq!(
+        kinds,
+        vec![
+            TokenKind::Pub,
+            TokenKind::Fn,
+            TokenKind::Identifier("test".to_string()),
+            TokenKind::LeftParen,
+            TokenKind::RightParen,
+            TokenKind::Arrow,
+            TokenKind::Identifier("void".to_string()),
+            TokenKind::LeftBrace,
+            TokenKind::RightBrace,
+            TokenKind::Eof
+        ]
+    );
+}
+
+#[test]
+fn test_import_statement_tokens() {
+    let kinds = tokenize_kinds(r#"import "math" as m"#);
+    assert_eq!(
+        kinds,
+        vec![
+            TokenKind::Import,
+            TokenKind::StringLiteral("math".to_string()),
+            TokenKind::As,
+            TokenKind::Identifier("m".to_string()),
+            TokenKind::Eof
+        ]
+    );
+}

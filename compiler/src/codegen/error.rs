@@ -663,6 +663,16 @@ impl CodegenError {
             ),
         )
     }
+
+    /// Creates an internal error for member access not implemented.
+    pub fn internal_member_access_not_implemented(span: Span) -> Self {
+        Self::new(
+            CodegenErrorKind::InternalError,
+            "Internal error: member access expression reached codegen. \
+             Semantic analysis should have rejected this. This is a compiler bug.",
+            span,
+        )
+    }
 }
 
 impl std::fmt::Display for CodegenError {

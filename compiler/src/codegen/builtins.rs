@@ -129,6 +129,9 @@ impl<'ctx> Codegen<'ctx> {
                 // For unary operations, infer the type from the operand.
                 self.get_expr_type(operand)
             }
+            ExprKind::MemberAccess { .. } => Err(
+                CodegenError::internal_member_access_not_implemented(expr.span),
+            ),
         }
     }
 

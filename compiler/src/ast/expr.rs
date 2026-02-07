@@ -113,6 +113,21 @@ pub enum ExprKind {
         /// The operand.
         operand: Box<Expr>,
     },
+
+    /// A member access expression.
+    ///
+    /// Represents expressions like `module.function` for module-qualified
+    /// function access. In the future, this will also be used for struct
+    /// field access.
+    ///
+    /// Note: Tuple access uses numeric indices (`.0`, `.1`) which are parsed
+    /// differently and won't conflict with this.
+    MemberAccess {
+        /// The object being accessed (e.g., module name).
+        object: Box<Expr>,
+        /// The member name being accessed (e.g., function name).
+        member: String,
+    },
 }
 
 /// An expression in the Lak language with source location.
@@ -132,5 +147,35 @@ impl Expr {
     /// Creates a new expression with the given kind and span.
     pub fn new(kind: ExprKind, span: Span) -> Self {
         Expr { kind, span }
+    }
+
+    /// Creates a member access expression for testing purposes.
+    ///
+    /// This is a convenience method for creating `MemberAccess` expressions
+    /// in tests without needing to construct the full AST manually.
+    ///
+    /// # Arguments
+    ///
+    /// * `object` - The name of the object being accessed (e.g., module name)
+    /// * `member` - The member name being accessed (e.g., function name)
+    ///
+    /// # Panics
+    ///
+    /// Panics if `object` or `member` is empty.
+    #[cfg(test)]
+    pub fn member_access_for_testing(object: &str, member: &str) -> Self {
+        assert!(!object.is_empty(), "object name cannot be empty");
+        assert!(!member.is_empty(), "member name cannot be empty");
+
+        let dummy_span = Span::new(0, 0, 1, 1);
+        let object_expr = Expr::new(ExprKind::Identifier(object.to_string()), dummy_span);
+
+        Expr::new(
+            ExprKind::MemberAccess {
+                object: Box::new(object_expr),
+                member: member.to_string(),
+            },
+            dummy_span,
+        )
     }
 }

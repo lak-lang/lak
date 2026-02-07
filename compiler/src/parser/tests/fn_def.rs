@@ -6,6 +6,7 @@
 //! - Return type span calculation
 
 use super::*;
+use crate::ast::Visibility;
 
 // ===================
 // Function definition parsing
@@ -248,4 +249,74 @@ fn test_fn_def_span_with_long_function_name() {
     let rt_start = fn_def.return_type_span.start;
     let rt_end = fn_def.return_type_span.end;
     assert_eq!(rt_end - rt_start, 4); // "void" is 4 characters
+}
+
+// ============================================================
+// Visibility parsing tests
+// ============================================================
+
+#[test]
+fn test_parse_pub_fn() {
+    let program = parse("pub fn test() -> void {}").unwrap();
+    assert_eq!(program.functions.len(), 1);
+    assert_eq!(program.functions[0].name, "test");
+    assert_eq!(program.functions[0].visibility, Visibility::Public);
+}
+
+#[test]
+fn test_parse_private_fn() {
+    let program = parse("fn test() -> void {}").unwrap();
+    assert_eq!(program.functions.len(), 1);
+    assert_eq!(program.functions[0].name, "test");
+    assert_eq!(program.functions[0].visibility, Visibility::Private);
+}
+
+#[test]
+fn test_parse_pub_fn_with_body() {
+    let program = parse(r#"pub fn greet() -> void { println("Hello") }"#).unwrap();
+    assert_eq!(program.functions.len(), 1);
+    assert_eq!(program.functions[0].visibility, Visibility::Public);
+    assert_eq!(program.functions[0].body.len(), 1);
+}
+
+#[test]
+fn test_parse_mixed_visibility_functions() {
+    let program = parse("pub fn a() -> void {}\nfn b() -> void {}\npub fn c() -> void {}").unwrap();
+    assert_eq!(program.functions.len(), 3);
+    assert_eq!(program.functions[0].visibility, Visibility::Public);
+    assert_eq!(program.functions[1].visibility, Visibility::Private);
+    assert_eq!(program.functions[2].visibility, Visibility::Public);
+}
+
+#[test]
+fn test_pub_fn_span_starts_at_pub() {
+    // "pub fn test() -> void {}"
+    // 0         1         2
+    // 0123456789012345678901234
+    // pub fn test() -> void {}
+    // ^--- span should start at 'p' (position 0)
+    let source = "pub fn test() -> void {}";
+    let program = parse(source).unwrap();
+    let fn_def = &program.functions[0];
+
+    // Span should start at 'pub', not 'fn'
+    assert_eq!(fn_def.span.start, 0, "span.start should be at 'pub'");
+    assert_eq!(fn_def.span.line, 1);
+    assert_eq!(fn_def.span.column, 1);
+}
+
+#[test]
+fn test_pub_fn_span_with_leading_whitespace() {
+    // "  pub fn foo() -> void {}"
+    // 0123456789...
+    let source = "  pub fn foo() -> void {}";
+    let program = parse(source).unwrap();
+    let fn_def = &program.functions[0];
+
+    // Span should start at 'pub' (position 2), not at leading whitespace
+    assert_eq!(
+        fn_def.span.start, 2,
+        "span.start should skip leading whitespace"
+    );
+    assert_eq!(fn_def.span.column, 3);
 }
