@@ -22,18 +22,32 @@
 //! describing the semantic problem.
 
 mod error;
+mod module_table;
 mod symbol;
 
 #[cfg(test)]
 mod tests;
 
 pub use error::{SemanticError, SemanticErrorKind};
+pub use module_table::ModuleTable;
 use symbol::{FunctionInfo, SymbolTable, VariableInfo};
 
 use crate::ast::{
     BinaryOperator, Expr, ExprKind, FnDef, Program, Stmt, StmtKind, Type, UnaryOperator,
 };
 use crate::token::Span;
+
+/// The mode of semantic analysis, determining which validations are performed.
+enum AnalysisMode {
+    /// Analyzing a single-file program (no imports).
+    SingleFile,
+    /// Analyzing an entry module with imports. Contains the module table
+    /// for validating cross-module references.
+    EntryWithModules(ModuleTable),
+    /// Analyzing an imported module (no main function required).
+    /// Optionally carries a module table for imported modules that have their own imports.
+    ImportedModule(Option<ModuleTable>),
+}
 
 /// Semantic analyzer for Lak programs.
 ///
@@ -46,6 +60,7 @@ use crate::token::Span;
 /// semantically valid and code generation can proceed without semantic errors.
 pub struct SemanticAnalyzer {
     symbols: SymbolTable,
+    mode: AnalysisMode,
 }
 
 impl SemanticAnalyzer {
@@ -53,6 +68,7 @@ impl SemanticAnalyzer {
     pub fn new() -> Self {
         SemanticAnalyzer {
             symbols: SymbolTable::new(),
+            mode: AnalysisMode::SingleFile,
         }
     }
 
@@ -81,6 +97,44 @@ impl SemanticAnalyzer {
         self.validate_main_function(program)?;
 
         // Phase 3: Analyze function bodies
+        for function in &program.functions {
+            self.analyze_function(function)?;
+        }
+
+        Ok(())
+    }
+
+    /// Analyzes a program for semantic correctness with module context.
+    ///
+    /// This is used when compiling programs that import other modules.
+    pub fn analyze_with_modules(
+        &mut self,
+        program: &Program,
+        module_table: ModuleTable,
+    ) -> Result<(), SemanticError> {
+        self.mode = AnalysisMode::EntryWithModules(module_table);
+        self.analyze(program)
+    }
+
+    /// Analyzes an imported module for semantic correctness.
+    ///
+    /// Unlike `analyze()`, this method does NOT require a main function,
+    /// since imported modules are libraries, not entry points.
+    ///
+    /// Performs:
+    /// 1. Function collection (check for duplicates)
+    /// 2. Function body analysis (variables, types, expressions)
+    pub fn analyze_module(
+        &mut self,
+        program: &Program,
+        module_table: Option<ModuleTable>,
+    ) -> Result<(), SemanticError> {
+        self.mode = AnalysisMode::ImportedModule(module_table);
+
+        // Phase 1: Collect function definitions
+        self.collect_functions(program)?;
+
+        // Phase 2: Analyze function bodies
         for function in &program.functions {
             self.analyze_function(function)?;
         }
@@ -204,6 +258,11 @@ impl SemanticAnalyzer {
                 // Also, module-qualified function calls are not yet supported
                 Err(SemanticError::module_access_not_implemented(expr.span))
             }
+            ExprKind::ModuleCall {
+                module,
+                function,
+                args,
+            } => self.analyze_module_call(module, function, args, expr.span),
         }
     }
 
@@ -248,6 +307,15 @@ impl SemanticAnalyzer {
                 }
                 ExprKind::MemberAccess { .. } => {
                     return Err(SemanticError::module_access_not_implemented(args[0].span));
+                }
+                ExprKind::ModuleCall {
+                    module, function, ..
+                } => {
+                    return Err(SemanticError::module_call_return_value_not_supported(
+                        module,
+                        function,
+                        args[0].span,
+                    ));
                 }
             }
 
@@ -313,6 +381,15 @@ impl SemanticAnalyzer {
                 ExprKind::MemberAccess { .. } => {
                     return Err(SemanticError::module_access_not_implemented(args[0].span));
                 }
+                ExprKind::ModuleCall {
+                    module, function, ..
+                } => {
+                    return Err(SemanticError::module_call_return_value_not_supported(
+                        module,
+                        function,
+                        args[0].span,
+                    ));
+                }
             }
 
             return Ok(());
@@ -343,6 +420,67 @@ impl SemanticAnalyzer {
             return Err(SemanticError::type_mismatch_non_void_fn_as_stmt(
                 callee,
                 &func_info.return_type,
+                span,
+            ));
+        }
+
+        Ok(())
+    }
+
+    fn analyze_module_call(
+        &self,
+        module_name: &str,
+        function_name: &str,
+        args: &[Expr],
+        span: Span,
+    ) -> Result<(), SemanticError> {
+        // Get the module table based on the current analysis mode
+        let module_table = match &self.mode {
+            AnalysisMode::EntryWithModules(table) => table,
+            AnalysisMode::ImportedModule(Some(table)) => table,
+            AnalysisMode::ImportedModule(None) => {
+                // Imported module has no module table (no imports of its own).
+                // This means it has a ModuleCall expression but no way to resolve it.
+                return Err(SemanticError::cross_module_call_in_imported_module(
+                    module_name,
+                    function_name,
+                    span,
+                ));
+            }
+            AnalysisMode::SingleFile => {
+                // No module table means module resolution is not enabled
+                return Err(SemanticError::module_call_not_implemented(
+                    module_name,
+                    function_name,
+                    span,
+                ));
+            }
+        };
+
+        // Look up the module
+        let module_exports = module_table
+            .get_module(module_name)
+            .ok_or_else(|| SemanticError::undefined_module(module_name, span))?;
+
+        // Look up the function in the module
+        let func_export = module_exports.get_function(function_name).ok_or_else(|| {
+            SemanticError::undefined_module_function(module_name, function_name, span)
+        })?;
+
+        // Check argument count (currently only parameterless functions are supported)
+        if !args.is_empty() {
+            return Err(SemanticError::invalid_argument_fn_expects_no_args(
+                &format!("{}.{}", module_name, function_name),
+                args.len(),
+                span,
+            ));
+        }
+
+        // Check that the function returns void (only void functions can be called as statements)
+        if func_export.return_type() != "void" {
+            return Err(SemanticError::type_mismatch_non_void_fn_as_stmt(
+                &format!("{}.{}", module_name, function_name),
+                func_export.return_type(),
                 span,
             ));
         }
@@ -408,9 +546,13 @@ impl SemanticAnalyzer {
                 self.check_unary_op_type(operand, *op, expected_ty, expr.span)
             }
             ExprKind::MemberAccess { .. } => {
-                // Module-qualified expressions are not yet supported
                 Err(SemanticError::module_access_not_implemented(expr.span))
             }
+            ExprKind::ModuleCall {
+                module, function, ..
+            } => Err(SemanticError::module_call_return_value_not_supported(
+                module, function, expr.span,
+            )),
         }
     }
 
@@ -534,6 +676,11 @@ impl SemanticAnalyzer {
             ExprKind::MemberAccess { .. } => {
                 Err(SemanticError::module_access_not_implemented(expr.span))
             }
+            ExprKind::ModuleCall {
+                module, function, ..
+            } => Err(SemanticError::module_call_return_value_not_supported(
+                module, function, expr.span,
+            )),
         }
     }
 

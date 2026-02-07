@@ -67,6 +67,16 @@ pub enum SemanticErrorKind {
     InternalError,
     /// Module-qualified access is not yet implemented.
     ModuleAccessNotImplemented,
+    /// Module-qualified function call not yet implemented
+    ModuleCallNotImplemented,
+    /// Module not found (not imported).
+    UndefinedModule,
+    /// Function not found in module.
+    UndefinedModuleFunction,
+    /// Duplicate module import (same module name without alias).
+    DuplicateModuleImport,
+    /// Cross-module function call in an imported module is not yet supported.
+    CrossModuleCallInImportedModule,
 }
 
 /// An error that occurred during semantic analysis.
@@ -189,6 +199,13 @@ impl SemanticError {
             SemanticErrorKind::InvalidMainSignature => "Invalid main signature",
             SemanticErrorKind::InternalError => "Internal error",
             SemanticErrorKind::ModuleAccessNotImplemented => "Module access not implemented",
+            SemanticErrorKind::ModuleCallNotImplemented => "Module call not implemented",
+            SemanticErrorKind::UndefinedModule => "Undefined module",
+            SemanticErrorKind::UndefinedModuleFunction => "Undefined module function",
+            SemanticErrorKind::DuplicateModuleImport => "Duplicate module import",
+            SemanticErrorKind::CrossModuleCallInImportedModule => {
+                "Cross-module call in imported module not supported"
+            }
         }
     }
 
@@ -575,6 +592,92 @@ impl SemanticError {
             "Module-qualified access (e.g., module.function) is not yet implemented",
             span,
             "module resolution will be implemented in a future version",
+        )
+    }
+
+    /// Creates a type mismatch error for module function call used as a value.
+    pub fn module_call_return_value_not_supported(
+        module: &str,
+        function: &str,
+        span: Span,
+    ) -> Self {
+        Self::new_with_help(
+            SemanticErrorKind::TypeMismatch,
+            format!(
+                "Module function call '{}.{}()' cannot be used as a value (return values from module functions are not yet supported)",
+                module, function
+            ),
+            span,
+            "call the module function as a statement instead",
+        )
+    }
+
+    pub fn module_call_not_implemented(module: &str, function: &str, span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::ModuleCallNotImplemented,
+            format!(
+                "Module-qualified function call '{}.{}()' is not yet supported. Module import resolution is not implemented.",
+                module, function
+            ),
+            span,
+        )
+    }
+
+    /// Creates an "undefined module" error.
+    pub fn undefined_module(name: &str, span: Span) -> Self {
+        Self::new_with_help(
+            SemanticErrorKind::UndefinedModule,
+            format!("Module '{}' is not defined", name),
+            span,
+            "Did you forget to import it? Add: import \"./module_name\"",
+        )
+    }
+
+    /// Creates an "undefined module function" error.
+    pub fn undefined_module_function(module: &str, function: &str, span: Span) -> Self {
+        Self::new_with_help(
+            SemanticErrorKind::UndefinedModuleFunction,
+            format!("Function '{}' not found in module '{}'", function, module),
+            span,
+            format!(
+                "Check that the function exists in '{}' and is marked 'pub'",
+                module
+            ),
+        )
+    }
+
+    /// Creates a "duplicate module import" error.
+    pub fn duplicate_module_import(
+        module_name: &str,
+        first_path: &str,
+        second_path: &str,
+        span: Span,
+    ) -> Self {
+        Self::new_with_help(
+            SemanticErrorKind::DuplicateModuleImport,
+            format!(
+                "Module name '{}' is already imported from '{}'",
+                module_name, first_path
+            ),
+            span,
+            format!("Use an alias: import \"{}\" as <alias>", second_path),
+        )
+    }
+
+    /// Creates an error for a cross-module function call in an imported module.
+    pub fn cross_module_call_in_imported_module(
+        module_name: &str,
+        function_name: &str,
+        span: Span,
+    ) -> Self {
+        Self::new(
+            SemanticErrorKind::CrossModuleCallInImportedModule,
+            format!(
+                "Cross-module function call '{}.{}()' in an imported module is not yet supported. \
+                 Imported modules cannot call functions from other imported modules.",
+                module_name, function_name
+            ),
+            span,
         )
     }
 }

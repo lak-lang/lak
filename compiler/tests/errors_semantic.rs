@@ -1269,9 +1269,9 @@ fn test_compile_error_unary_minus_on_bool_variable() {
 // ========================================
 
 #[test]
-fn test_compile_error_member_call_undefined() {
-    // Member function call (module.function()) is converted to Call with callee "module.function"
-    // Since the function doesn't exist, it's reported as UndefinedFunction
+fn test_compile_error_member_call_not_implemented() {
+    // Module-qualified function call (module.function()) returns ModuleCallNotImplemented
+    // because module import resolution is not yet implemented
     let result = compile_error_with_kind(
         r#"import "./math" as math
 
@@ -1286,12 +1286,15 @@ fn main() -> void {
         stage,
         msg
     );
-    assert_eq!(msg, "Undefined function: 'math.add'");
-    assert_eq!(short_msg, "Undefined function");
+    assert_eq!(
+        msg,
+        "Module-qualified function call 'math.add()' is not yet supported. Module import resolution is not implemented."
+    );
+    assert_eq!(short_msg, "Module call not implemented");
     assert_eq!(
         kind,
-        CompileErrorKind::Semantic(SemanticErrorKind::UndefinedFunction),
-        "Expected UndefinedFunction error kind"
+        CompileErrorKind::Semantic(SemanticErrorKind::ModuleCallNotImplemented),
+        "Expected ModuleCallNotImplemented error kind"
     );
 }
 

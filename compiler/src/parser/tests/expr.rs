@@ -614,16 +614,21 @@ fn test_member_access_span() {
 
 #[test]
 fn test_member_call_basic() {
-    // math.add(1, 2) is converted to Call with callee "math.add"
+    // math.add(1, 2) is converted to ModuleCall with separate module and function
     let expr = parse_first_expr("math.add(1, 2)");
     match expr.kind {
-        ExprKind::Call { callee, args } => {
-            assert_eq!(callee, "math.add");
+        ExprKind::ModuleCall {
+            module,
+            function,
+            args,
+        } => {
+            assert_eq!(module, "math");
+            assert_eq!(function, "add");
             assert_eq!(args.len(), 2);
             assert!(matches!(args[0].kind, ExprKind::IntLiteral(1)));
             assert!(matches!(args[1].kind, ExprKind::IntLiteral(2)));
         }
-        _ => panic!("Expected Call expression, got {:?}", expr.kind),
+        _ => panic!("Expected ModuleCall expression, got {:?}", expr.kind),
     }
 }
 
@@ -631,11 +636,16 @@ fn test_member_call_basic() {
 fn test_member_call_no_args() {
     let expr = parse_first_expr("module.func()");
     match expr.kind {
-        ExprKind::Call { callee, args } => {
-            assert_eq!(callee, "module.func");
+        ExprKind::ModuleCall {
+            module,
+            function,
+            args,
+        } => {
+            assert_eq!(module, "module");
+            assert_eq!(function, "func");
             assert!(args.is_empty());
         }
-        _ => panic!("Expected Call expression"),
+        _ => panic!("Expected ModuleCall expression"),
     }
 }
 
@@ -643,12 +653,17 @@ fn test_member_call_no_args() {
 fn test_member_call_string_arg() {
     let expr = parse_first_expr(r#"io.print("hello")"#);
     match expr.kind {
-        ExprKind::Call { callee, args } => {
-            assert_eq!(callee, "io.print");
+        ExprKind::ModuleCall {
+            module,
+            function,
+            args,
+        } => {
+            assert_eq!(module, "io");
+            assert_eq!(function, "print");
             assert_eq!(args.len(), 1);
             assert!(matches!(&args[0].kind, ExprKind::StringLiteral(s) if s == "hello"));
         }
-        _ => panic!("Expected Call expression"),
+        _ => panic!("Expected ModuleCall expression"),
     }
 }
 
@@ -658,7 +673,7 @@ fn test_member_access_vs_member_call() {
     let access_expr = parse_first_expr("foo.bar");
     assert!(matches!(access_expr.kind, ExprKind::MemberAccess { .. }));
 
-    // With parentheses: Call
+    // With parentheses: ModuleCall
     let call_expr = parse_first_expr("foo.bar()");
-    assert!(matches!(call_expr.kind, ExprKind::Call { .. }));
+    assert!(matches!(call_expr.kind, ExprKind::ModuleCall { .. }));
 }

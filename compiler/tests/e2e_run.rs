@@ -198,10 +198,18 @@ fn test_run_lexer_error() {
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    // Verify short_message in report title
-    assert!(stderr.contains("\x1b[31mError:\x1b[0m Unterminated string"));
+    // Verify short_message in report title (now goes through resolver)
+    assert!(
+        stderr.contains("\x1b[31mError:\x1b[0m Lexical error in module"),
+        "Expected 'Lexical error in module' in stderr: {}",
+        stderr
+    );
     // Verify detailed message in label
-    assert!(stderr.contains("Unterminated string literal"));
+    assert!(
+        stderr.contains("Unterminated string literal"),
+        "Expected 'Unterminated string literal' in stderr: {}",
+        stderr
+    );
 }
 
 #[test]
@@ -219,10 +227,18 @@ fn test_run_parser_error() {
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    // Verify short_message in report title
-    assert!(stderr.contains("\x1b[31mError:\x1b[0m Unexpected token"));
+    // Verify short_message in report title (now goes through resolver)
+    assert!(
+        stderr.contains("\x1b[31mError:\x1b[0m Parse error in module"),
+        "Expected 'Parse error in module' in stderr: {}",
+        stderr
+    );
     // Verify detailed message in label
-    assert!(stderr.contains("Expected ')', found '->'"));
+    assert!(
+        stderr.contains("Expected ')', found '->'"),
+        "Expected \"Expected ')', found '->'\" in stderr: {}",
+        stderr
+    );
 }
 
 #[test]

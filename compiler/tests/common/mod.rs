@@ -10,6 +10,7 @@
 use lak::codegen::{Codegen, CodegenError, CodegenErrorKind};
 use lak::lexer::{LexErrorKind, Lexer};
 use lak::parser::{ParseErrorKind, Parser};
+use lak::resolver::ResolverErrorKind;
 use lak::semantic::{SemanticAnalyzer, SemanticErrorKind};
 use lak::token::Span;
 
@@ -202,4 +203,142 @@ pub fn compile_error_with_kind(
             CompileErrorKind::Codegen(e.kind()),
         )),
     }
+}
+
+/// Represents the stage at which multi-module compilation failed.
+#[derive(Debug)]
+pub enum MultiModuleCompileStage {
+    Resolve,
+    Semantic,
+    Codegen,
+}
+
+/// Represents the error kind for each multi-module compilation stage.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MultiModuleCompileErrorKind {
+    Resolve(ResolverErrorKind),
+    Semantic(SemanticErrorKind),
+    Codegen(CodegenErrorKind),
+}
+
+/// Attempts multi-module compilation pipeline: resolve -> semantic -> codegen.
+///
+/// Takes a map of filenames to source content. The first entry is treated as
+/// the entry module. Creates a temp directory, writes all files, and runs
+/// the full multi-module pipeline.
+///
+/// Returns the stage, error message, and error kind if any stage fails.
+pub fn multi_module_compile_error_with_kind(
+    files: &[(&str, &str)],
+) -> Option<(MultiModuleCompileStage, String, MultiModuleCompileErrorKind)> {
+    use lak::resolver::ModuleResolver;
+    use std::fs;
+
+    assert!(
+        !files.is_empty(),
+        "multi_module_compile_error_with_kind requires at least one file"
+    );
+
+    let temp_dir = tempdir().expect("Failed to create temp dir");
+
+    // Write all files to the temp directory
+    for (filename, source) in files {
+        let file_path = temp_dir.path().join(filename);
+        // Create parent directories if needed
+        if let Some(parent) = file_path.parent() {
+            fs::create_dir_all(parent).expect("Failed to create parent directories");
+        }
+        fs::write(&file_path, source).expect("Failed to write test file");
+    }
+
+    // Entry module is the first file
+    let (entry_filename, entry_source) = files[0];
+    let entry_path = temp_dir.path().join(entry_filename);
+    let canonical_entry = entry_path
+        .canonicalize()
+        .expect("Failed to canonicalize entry path");
+
+    // Phase 1: Resolve modules
+    let mut resolver = ModuleResolver::new();
+    if let Err(e) =
+        resolver.resolve_from_entry_with_source(&canonical_entry, entry_source.to_string())
+    {
+        return Some((
+            MultiModuleCompileStage::Resolve,
+            e.message().to_string(),
+            MultiModuleCompileErrorKind::Resolve(e.kind()),
+        ));
+    }
+
+    let modules = resolver.into_modules();
+
+    // Find entry module
+    let entry_module = modules
+        .iter()
+        .find(|m| m.path() == canonical_entry)
+        .expect("Entry module not found");
+
+    // Phase 2: Semantic analysis on imported modules
+    for module in &modules {
+        if module.path() != canonical_entry {
+            let mut module_analyzer = SemanticAnalyzer::new();
+            let module_table = if !module.program().imports.is_empty() {
+                match lak::semantic::ModuleTable::from_resolved_modules(&modules, module) {
+                    Ok(table) => Some(table),
+                    Err(e) => {
+                        return Some((
+                            MultiModuleCompileStage::Semantic,
+                            e.message().to_string(),
+                            MultiModuleCompileErrorKind::Semantic(e.kind()),
+                        ));
+                    }
+                }
+            } else {
+                None
+            };
+
+            if let Err(e) = module_analyzer.analyze_module(module.program(), module_table) {
+                return Some((
+                    MultiModuleCompileStage::Semantic,
+                    e.message().to_string(),
+                    MultiModuleCompileErrorKind::Semantic(e.kind()),
+                ));
+            }
+        }
+    }
+
+    // Phase 2b: Semantic analysis on entry module
+    let module_table =
+        match lak::semantic::ModuleTable::from_resolved_modules(&modules, entry_module) {
+            Ok(table) => table,
+            Err(e) => {
+                return Some((
+                    MultiModuleCompileStage::Semantic,
+                    e.message().to_string(),
+                    MultiModuleCompileErrorKind::Semantic(e.kind()),
+                ));
+            }
+        };
+
+    let mut analyzer = SemanticAnalyzer::new();
+    if let Err(e) = analyzer.analyze_with_modules(entry_module.program(), module_table) {
+        return Some((
+            MultiModuleCompileStage::Semantic,
+            e.message().to_string(),
+            MultiModuleCompileErrorKind::Semantic(e.kind()),
+        ));
+    }
+
+    // Phase 3: Codegen
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "test");
+    if let Err(e) = codegen.compile_modules(&modules, entry_module.path()) {
+        return Some((
+            MultiModuleCompileStage::Codegen,
+            e.message().to_string(),
+            MultiModuleCompileErrorKind::Codegen(e.kind()),
+        ));
+    }
+
+    None
 }

@@ -406,15 +406,12 @@ impl Parser {
             start_span.column,
         );
 
-        // Module-qualified function calls (e.g., math.add()) are converted to Call
-        // nodes with a dot-separated callee string (e.g., "math.add"). This allows
-        // the semantic analyzer to detect these as undefined functions until module
-        // resolution is implemented, while keeping the parser simple.
-        // TODO(Phase 3): Consider adding QualifiedCall { module, function, args }
-        // to preserve AST structure instead of string concatenation.
+        // Module-qualified function calls (e.g., math.add()) are represented as
+        // ModuleCall nodes with separate module and function fields. This allows
+        // the semantic analyzer to properly validate module access.
         if let ExprKind::MemberAccess { object, member } = member_expr.kind {
-            let callee = match object.kind {
-                ExprKind::Identifier(ref module) => format!("{}.{}", module, member),
+            let module = match object.kind {
+                ExprKind::Identifier(ref module_name) => module_name.clone(),
                 ExprKind::MemberAccess { .. } => {
                     // Nested member access (e.g., a.b.c) is not yet supported
                     return Err(ParseError::nested_member_access_not_supported(span));
@@ -427,7 +424,14 @@ impl Parser {
                 }
             };
 
-            Ok(Expr::new(ExprKind::Call { callee, args }, span))
+            Ok(Expr::new(
+                ExprKind::ModuleCall {
+                    module,
+                    function: member,
+                    args,
+                },
+                span,
+            ))
         } else {
             Err(ParseError::internal(
                 "Internal parser error: parse_member_call called with non-MemberAccess expression. This is a compiler bug, please report it.",

@@ -5,6 +5,7 @@
 
 use super::Codegen;
 use super::error::CodegenError;
+use super::mangle_name;
 use crate::ast::{BinaryOperator, Expr, ExprKind, Type, UnaryOperator};
 use inkwell::IntPredicate;
 use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum};
@@ -30,6 +31,21 @@ impl<'ctx> Codegen<'ctx> {
                 } else {
                     self.generate_user_function_call(callee, expr.span)?;
                 }
+            }
+            ExprKind::ModuleCall {
+                module,
+                function,
+                args,
+            } => {
+                if !args.is_empty() {
+                    return Err(CodegenError::internal_module_call_with_args(
+                        module,
+                        function,
+                        args.len(),
+                        expr.span,
+                    ));
+                }
+                self.generate_module_call(module, function, expr.span)?;
             }
             ExprKind::StringLiteral(_)
             | ExprKind::IntLiteral(_)
@@ -60,14 +76,70 @@ impl<'ctx> Codegen<'ctx> {
         callee: &str,
         span: crate::token::Span,
     ) -> Result<(), CodegenError> {
-        let function = self
-            .module
-            .get_function(callee)
-            .ok_or_else(|| CodegenError::internal_function_not_found(callee, span))?;
+        // When generating code for an imported module, function calls within
+        // that module need to use mangled names (e.g., "utils__helper" instead
+        // of "helper"), since all imported module functions are declared with
+        // mangled names in the LLVM module.
+        let function = if let Some(ref prefix) = self.current_module_prefix {
+            let mangled = mangle_name(prefix, callee);
+            self.module.get_function(&mangled).or_else(|| {
+                // Only allow fallback to unmangled name for known builtins.
+                // Builtins are declared with their original names (not mangled).
+                const BUILTINS: &[&str] = &[
+                    "lak_println",
+                    "lak_println_i32",
+                    "lak_println_i64",
+                    "lak_println_bool",
+                    "lak_panic",
+                ];
+                if BUILTINS.contains(&callee) {
+                    self.module.get_function(callee)
+                } else {
+                    None
+                }
+            })
+        } else {
+            self.module.get_function(callee)
+        };
+
+        let function =
+            function.ok_or_else(|| CodegenError::internal_function_not_found(callee, span))?;
 
         self.builder
             .build_call(function, &[], "")
             .map_err(|e| CodegenError::internal_call_failed(callee, &e.to_string(), span))?;
+
+        Ok(())
+    }
+
+    /// Generates a call to a module-qualified function.
+    ///
+    /// The function name is mangled as `{real_module}__{function}`.
+    /// If the module name is an alias, it is resolved to the real module name first.
+    ///
+    /// # Arguments
+    ///
+    /// * `module_alias` - The module name or alias used in the source code
+    /// * `function` - The function name
+    /// * `span` - The source span of the call expression
+    fn generate_module_call(
+        &mut self,
+        module_alias: &str,
+        function: &str,
+        span: crate::token::Span,
+    ) -> Result<(), CodegenError> {
+        // Resolve alias to real module name for correct name mangling
+        let real_module = self.resolve_module_alias(module_alias, span)?;
+        let mangled_name = mangle_name(&real_module, function);
+
+        let llvm_function = self
+            .module
+            .get_function(&mangled_name)
+            .ok_or_else(|| CodegenError::internal_function_not_found(&mangled_name, span))?;
+
+        self.builder
+            .build_call(llvm_function, &[], "")
+            .map_err(|e| CodegenError::internal_call_failed(&mangled_name, &e.to_string(), span))?;
 
         Ok(())
     }
@@ -178,6 +250,13 @@ impl<'ctx> Codegen<'ctx> {
                     expr.span,
                 ))
             }
+            ExprKind::ModuleCall {
+                module,
+                function,
+                args: _,
+            } => Err(CodegenError::internal_module_call_as_value(
+                module, function, expr.span,
+            )),
         }
     }
 

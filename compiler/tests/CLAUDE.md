@@ -17,9 +17,11 @@ Comprehensive test suite verifying the compiler's functionality from source code
 | `e2e_run.rs` | E2E | 11 | `lak run` command execution |
 | `e2e_visibility.rs` | E2E | 4 | `pub fn` visibility keyword |
 | `e2e_imports.rs` | E2E | 4 | `import` syntax parsing |
+| `e2e_modules.rs` | E2E | 11 | Multi-file module compilation |
 | `errors_lex.rs` | Errors | 4 | Lexical analysis error detection |
 | `errors_parse.rs` | Errors | 3 | Parser error detection |
 | `errors_semantic.rs` | Errors | 53 | Semantic analysis error detection |
+| `errors_modules.rs` | Errors | 11 | Module resolution error detection |
 | `pipeline.rs` | Integration | 9 | Phase integration and direct AST construction |
 
 ## Test Categories

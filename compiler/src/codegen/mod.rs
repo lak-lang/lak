@@ -88,11 +88,13 @@ mod tests;
 pub use error::{CodegenError, CodegenErrorKind};
 
 use crate::ast::{FnDef, Program, Type};
+use crate::resolver::ResolvedModule;
 use binding::VarBinding;
 use inkwell::AddressSpace;
 use inkwell::context::Context;
 use inkwell::types::BasicTypeEnum;
 use std::collections::HashMap;
+use std::path::Path;
 
 /// LLVM code generator for Lak programs.
 ///
@@ -123,6 +125,33 @@ pub struct Codegen<'ctx> {
     /// be cleared for each function once multiple user-defined functions are
     /// implemented.
     variables: HashMap<String, VarBinding<'ctx>>,
+    /// Mapping from module alias to real module name.
+    ///
+    /// Used to resolve module-qualified function calls when the import
+    /// uses an alias (e.g., `import "./utils" as u` maps "u" to "utils").
+    module_aliases: HashMap<String, String>,
+    /// The current module name prefix for name mangling.
+    ///
+    /// When generating code for an imported module's functions, this is set
+    /// to the module name so that intra-module function calls can be resolved
+    /// to their mangled names (e.g., "utils__helper" for a call to "helper"
+    /// within the "utils" module).
+    current_module_prefix: Option<String>,
+}
+
+/// Creates a mangled function name for a module-qualified function.
+///
+/// Uses a length-prefix scheme: `_L{module_len}_{module}_{function}`.
+/// The module name length prefix ensures unambiguous parsing, making
+/// collisions impossible regardless of module or function name content.
+///
+/// # Examples
+///
+/// - `("utils", "greet")` → `"_L5_utils_greet"`
+/// - `("a", "b__c")` → `"_L1_a_b__c"`
+/// - `("a__b", "c")` → `"_L4_a__b_c"`
+fn mangle_name(module: &str, function: &str) -> String {
+    format!("_L{}_{}_{}", module.len(), module, function)
 }
 
 impl<'ctx> Codegen<'ctx> {
@@ -145,7 +174,18 @@ impl<'ctx> Codegen<'ctx> {
             module,
             builder,
             variables: HashMap::new(),
+            module_aliases: HashMap::new(),
+            current_module_prefix: None,
         }
+    }
+
+    /// Declares all built-in functions used by the runtime.
+    fn declare_builtins(&mut self) {
+        self.declare_lak_println();
+        self.declare_lak_println_i32();
+        self.declare_lak_println_i64();
+        self.declare_lak_println_bool();
+        self.declare_lak_panic();
     }
 
     /// Compiles a Lak program to LLVM IR.
@@ -168,16 +208,12 @@ impl<'ctx> Codegen<'ctx> {
     /// Returns an error if LLVM IR generation fails (internal errors).
     pub fn compile(&mut self, program: &Program) -> Result<(), CodegenError> {
         // Declare built-in functions
-        self.declare_lak_println();
-        self.declare_lak_println_i32();
-        self.declare_lak_println_i64();
-        self.declare_lak_println_bool();
-        self.declare_lak_panic();
+        self.declare_builtins();
 
         // Pass 1: Declare all user-defined functions (except main, which has a special signature)
         for function in &program.functions {
             if function.name != "main" {
-                self.declare_user_function(function)?;
+                self.declare_function(&function.name)?;
             }
         }
 
@@ -186,9 +222,118 @@ impl<'ctx> Codegen<'ctx> {
             if function.name == "main" {
                 self.generate_main(function)?;
             } else {
-                self.generate_user_function(function)?;
+                self.generate_function_body(&function.name, function)?;
             }
         }
+
+        Ok(())
+    }
+
+    /// Compiles multiple modules into a single LLVM module.
+    ///
+    /// This is used when the entry module imports other modules.
+    /// All functions from all modules are compiled into a single LLVM module.
+    ///
+    /// Name mangling: Functions from imported modules use the pattern
+    /// `{module_name}__{function_name}` to avoid name collisions.
+    ///
+    /// # Arguments
+    ///
+    /// * `modules` - All resolved modules
+    /// * `entry_module_name` - The name of the entry point module
+    pub fn compile_modules(
+        &mut self,
+        modules: &[ResolvedModule],
+        entry_path: &Path,
+    ) -> Result<(), CodegenError> {
+        // Declare built-in functions
+        self.declare_builtins();
+
+        // Validate that entry module exists in the module list
+        if !modules.iter().any(|m| m.path() == entry_path) {
+            return Err(CodegenError::without_span(
+                CodegenErrorKind::InternalError,
+                format!(
+                    "Internal error: entry module '{}' not found in module list. This is a compiler bug.",
+                    entry_path.display()
+                ),
+            ));
+        }
+
+        // Pass 1: Declare all user-defined functions from all modules
+        for module in modules {
+            for function in &module.program().functions {
+                if module.path() == entry_path && function.name == "main" {
+                    // Skip main from entry module - it has special signature
+                    continue;
+                }
+                // Use mangled name for functions from imported modules
+                let mangled_name = if module.path() == entry_path {
+                    function.name.clone()
+                } else {
+                    mangle_name(module.name(), &function.name)
+                };
+                self.declare_function(&mangled_name)?;
+            }
+        }
+
+        // Pass 2: Generate function bodies for all modules
+        for module in modules {
+            // Set up this module's alias map for resolving ModuleCall expressions
+            self.module_aliases.clear();
+            for import in &module.program().imports {
+                let canonical_path =
+                    module.resolved_imports().get(&import.path).ok_or_else(|| {
+                        CodegenError::without_span(
+                            CodegenErrorKind::InternalError,
+                            format!(
+                                "Internal error: import path '{}' not found in resolved imports. \
+                                 This is a compiler bug.",
+                                import.path
+                            ),
+                        )
+                    })?;
+                let imported_module = modules
+                    .iter()
+                    .find(|m| m.path() == canonical_path.as_path())
+                    .ok_or_else(|| {
+                        CodegenError::without_span(
+                            CodegenErrorKind::InternalError,
+                            format!(
+                                "Internal error: resolved module not found for path '{}'. \
+                                 This is a compiler bug.",
+                                canonical_path.display()
+                            ),
+                        )
+                    })?;
+                let real_name = imported_module.name().to_string();
+                let key = import.alias.clone().unwrap_or_else(|| real_name.clone());
+                self.module_aliases.insert(key, real_name);
+            }
+
+            // Set module prefix for name mangling of intra-module calls
+            let is_entry = module.path() == entry_path;
+            if is_entry {
+                self.current_module_prefix = None;
+            } else {
+                self.current_module_prefix = Some(module.name().to_string());
+            }
+
+            for function in &module.program().functions {
+                if is_entry && function.name == "main" {
+                    self.generate_main(function)?;
+                } else if is_entry {
+                    self.generate_function_body(&function.name, function)?;
+                } else {
+                    // Generate function with mangled name
+                    let mangled_name = mangle_name(module.name(), &function.name);
+                    self.generate_function_body(&mangled_name, function)?;
+                }
+            }
+        }
+
+        // Reset module prefix after compilation
+        self.current_module_prefix = None;
 
         Ok(())
     }
@@ -197,16 +342,10 @@ impl<'ctx> Codegen<'ctx> {
     ///
     /// This method is called in Pass 1 to create function declarations before
     /// any function bodies are generated. This allows forward references.
-    ///
-    /// # Arguments
-    ///
-    /// * `fn_def` - The function definition from the AST
-    fn declare_user_function(&mut self, fn_def: &FnDef) -> Result<(), CodegenError> {
-        // Currently only void functions with no parameters are supported
+    fn declare_function(&mut self, name: &str) -> Result<(), CodegenError> {
         let void_type = self.context.void_type();
         let fn_type = void_type.fn_type(&[], false);
-
-        self.module.add_function(&fn_def.name, fn_type, None);
+        self.module.add_function(name, fn_type, None);
         Ok(())
     }
 
@@ -217,30 +356,30 @@ impl<'ctx> Codegen<'ctx> {
     ///
     /// # Arguments
     ///
+    /// * `llvm_name` - The name the function was declared with in LLVM (may be mangled)
     /// * `fn_def` - The function definition from the AST
-    fn generate_user_function(&mut self, fn_def: &FnDef) -> Result<(), CodegenError> {
-        // Clear variable table for this function's scope
+    fn generate_function_body(
+        &mut self,
+        llvm_name: &str,
+        fn_def: &FnDef,
+    ) -> Result<(), CodegenError> {
         self.variables.clear();
 
-        // Get the function declaration created in Pass 1
         let function = self
             .module
-            .get_function(&fn_def.name)
-            .ok_or_else(|| CodegenError::internal_function_not_found_no_span(&fn_def.name))?;
+            .get_function(llvm_name)
+            .ok_or_else(|| CodegenError::internal_function_not_found_no_span(llvm_name))?;
 
-        // Create entry block
         let entry = self.context.append_basic_block(function, "entry");
         self.builder.position_at_end(entry);
 
-        // Generate statements
         for stmt in &fn_def.body {
             self.generate_stmt(stmt)?;
         }
 
-        // Add void return
-        self.builder.build_return(None).map_err(|e| {
-            CodegenError::internal_return_build_failed(&fn_def.name, &e.to_string())
-        })?;
+        self.builder
+            .build_return(None)
+            .map_err(|e| CodegenError::internal_return_build_failed(llvm_name, &e.to_string()))?;
 
         Ok(())
     }
@@ -290,5 +429,31 @@ impl<'ctx> Codegen<'ctx> {
             Type::String => self.context.ptr_type(AddressSpace::default()).into(),
             Type::Bool => self.context.bool_type().into(),
         }
+    }
+
+    /// Resolves a module alias to the real module name.
+    ///
+    /// Returns the real module name for a given alias. If the alias is not
+    /// found in the map, returns an internal error since all imports should
+    /// have been registered during compilation.
+    pub(crate) fn resolve_module_alias(
+        &self,
+        alias_or_name: &str,
+        span: crate::token::Span,
+    ) -> Result<String, CodegenError> {
+        self.module_aliases
+            .get(alias_or_name)
+            .cloned()
+            .ok_or_else(|| {
+                CodegenError::new(
+                    CodegenErrorKind::InternalError,
+                    format!(
+                        "Internal error: module alias '{}' not found in alias map. \
+                         This is a compiler bug.",
+                        alias_or_name
+                    ),
+                    span,
+                )
+            })
     }
 }

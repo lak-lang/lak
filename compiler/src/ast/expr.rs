@@ -128,6 +128,20 @@ pub enum ExprKind {
         /// The member name being accessed (e.g., function name).
         member: String,
     },
+
+    /// A module-qualified function call.
+    ///
+    /// Represents expressions like `module.function(args)` where `module`
+    /// is an imported module name. This is distinct from regular `Call` to
+    /// allow semantic analysis to properly validate module function access.
+    ModuleCall {
+        /// The module name (e.g., "math").
+        module: String,
+        /// The function name (e.g., "sqrt").
+        function: String,
+        /// The arguments passed to the function.
+        args: Vec<Expr>,
+    },
 }
 
 /// An expression in the Lak language with source location.
@@ -174,6 +188,29 @@ impl Expr {
             ExprKind::MemberAccess {
                 object: Box::new(object_expr),
                 member: member.to_string(),
+            },
+            dummy_span,
+        )
+    }
+
+    /// Creates a module call expression for testing purposes.
+    ///
+    /// # Arguments
+    ///
+    /// * `module` - The module name
+    /// * `function` - The function name
+    /// * `args` - The arguments (empty vector for no args)
+    #[cfg(test)]
+    pub fn module_call_for_testing(module: &str, function: &str) -> Self {
+        assert!(!module.is_empty(), "module name cannot be empty");
+        assert!(!function.is_empty(), "function name cannot be empty");
+
+        let dummy_span = Span::new(0, 0, 1, 1);
+        Expr::new(
+            ExprKind::ModuleCall {
+                module: module.to_string(),
+                function: function.to_string(),
+                args: Vec::new(),
             },
             dummy_span,
         )

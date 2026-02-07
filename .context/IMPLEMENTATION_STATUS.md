@@ -388,25 +388,28 @@ This document tracks the implementation status of Lak language features as defin
 
 ### 16.1 Visibility
 
-- [x] `pub` keyword for functions (parsing only, enforcement pending Phase 3)
+- [x] `pub` keyword for functions
 - [ ] `pub` keyword for structs
 - [ ] `pub` keyword for enums
 - [x] Private by default
 
 ### 16.2 import Statement
 
-- [x] `import "path"` syntax (parsing only, resolution pending Phase 3)
-- [ ] Standard library import `import "math"`
+- [x] `import "path"` syntax
+- [ ] Standard library import `import "math"` (returns error: not yet supported)
 - [ ] Submodule import `import "math/calc"`
-- [x] Local file import `import "./utils"` (parsing only)
-- [ ] Module name from last path segment
-- [x] `as` alias `import "path" as alias` (parsing only)
+- [x] Local file import `import "./utils"`
+- [x] Module name from last path segment
+- [x] `as` alias `import "path" as alias`
 
 ### 16.3 Module Resolution
 
-- [ ] Public definitions accessible
-- [ ] Private definitions hidden
-- [ ] Imported module's `main` not executed
+- [x] Public definitions accessible
+- [x] Private definitions hidden
+- [x] Imported module's `main` not executed
+- [x] Circular import detection
+- [x] Transitive import support
+- [x] Name mangling for multi-module compilation
 
 ---
 
@@ -486,7 +489,7 @@ This document tracks the implementation status of Lak language features as defin
 | Control Flow | 0 | 28 | 0% |
 | String Interpolation | 0 | 5 | 0% |
 | Error Handling | 0 | 12 | 0% |
-| Modules | 5 | 12 | 42% |
+| Modules | 10 | 15 | 67% |
 | Entry Point | 5 | 5 | 100% |
 
 **Overall Progress: ~20%**

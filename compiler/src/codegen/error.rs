@@ -673,6 +673,39 @@ impl CodegenError {
             span,
         )
     }
+
+    /// Creates an internal error for module call used as value.
+    pub fn internal_module_call_as_value(module: &str, function: &str, span: Span) -> Self {
+        Self::new(
+            CodegenErrorKind::InternalError,
+            format!(
+                "Internal error: module call '{}.{}()' used as value in codegen. \
+                 Return values from module functions are not yet supported. This is a compiler bug.",
+                module, function
+            ),
+            span,
+        )
+    }
+
+    /// Internal error: module call with arguments reached codegen.
+    ///
+    /// Semantic analysis should reject module calls with arguments since
+    /// parameterized module function calls are not yet supported.
+    pub fn internal_module_call_with_args(
+        module: &str,
+        function: &str,
+        arg_count: usize,
+        span: Span,
+    ) -> Self {
+        Self::new(
+            CodegenErrorKind::InternalError,
+            format!(
+                "Internal error: module call '{}.{}()' has {} argument(s) in codegen, but only parameterless calls are supported. This is a compiler bug.",
+                module, function, arg_count
+            ),
+            span,
+        )
+    }
 }
 
 impl std::fmt::Display for CodegenError {

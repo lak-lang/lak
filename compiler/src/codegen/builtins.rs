@@ -132,6 +132,13 @@ impl<'ctx> Codegen<'ctx> {
             ExprKind::MemberAccess { .. } => Err(
                 CodegenError::internal_member_access_not_implemented(expr.span),
             ),
+            ExprKind::ModuleCall {
+                module,
+                function,
+                args: _,
+            } => Err(CodegenError::internal_module_call_as_value(
+                module, function, expr.span,
+            )),
         }
     }
 

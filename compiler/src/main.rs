@@ -31,8 +31,7 @@ use ariadne::{Color, Config, IndexType, Label, Report, ReportKind, Source};
 use clap::{Parser, Subcommand};
 use inkwell::context::Context;
 use lak::codegen::{Codegen, CodegenError};
-use lak::lexer::{LexError, Lexer};
-use lak::parser::{ParseError, Parser as LakParser};
+use lak::resolver::{ModuleResolver, ResolverError};
 use lak::semantic::{SemanticAnalyzer, SemanticError, SemanticErrorKind};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus};
@@ -99,21 +98,29 @@ fn main() {
 
 /// A compilation error from any phase of the compiler.
 ///
-/// This enum unifies errors from lexing, parsing, semantic analysis,
+/// This enum unifies errors from module resolution, semantic analysis,
 /// code generation, linking, and I/O to simplify error handling in the build pipeline.
 enum CompileError {
-    /// An error during lexical analysis.
-    Lex(LexError),
-    /// An error during parsing.
-    Parse(ParseError),
+    /// An error during module resolution (includes lex/parse errors in modules).
+    Resolve(ResolverError),
     /// An error during semantic analysis.
     Semantic(SemanticError),
+    /// A semantic error in an imported module, with its own source context.
+    /// Boxed to keep the `CompileError` enum size reasonable.
+    ModuleSemantic(Box<ModuleSemanticContext>),
     /// An error during code generation.
     Codegen(CodegenError),
     /// An error during linking.
     Link(LinkError),
     /// An I/O error (file read, path validation, etc.).
     Io(String),
+}
+
+/// Context for a semantic error in an imported module.
+struct ModuleSemanticContext {
+    error: SemanticError,
+    filename: String,
+    source: String,
 }
 
 /// A linker error.
@@ -165,6 +172,65 @@ impl CompileErrorWithContext {
     }
 }
 
+/// Reports a semantic error using ariadne with proper source highlighting.
+///
+/// This is shared between entry module semantic errors and imported module semantic errors.
+fn report_semantic_error(filename: &str, source: &str, e: &SemanticError) {
+    if let Some(span) = e.span() {
+        let mut report = Report::build(ReportKind::Error, (filename, span.start..span.end))
+            .with_config(Config::default().with_index_type(IndexType::Byte))
+            .with_message(e.short_message())
+            .with_label(
+                Label::new((filename, span.start..span.end))
+                    .with_message(e.message())
+                    .with_color(Color::Red),
+            );
+
+        if let Some(help) = e.help() {
+            report = report.with_help(help);
+        }
+
+        if let Err(report_err) = report.finish().eprint((filename, Source::from(source))) {
+            eprintln!("Error: {} (at {}:{})", e.message(), span.line, span.column);
+            eprintln!("(Failed to display detailed error report: {})", report_err);
+        }
+    } else {
+        // No span available - show error report pointing to end of file.
+        let end = source.len().saturating_sub(1);
+        let span_range = if source.is_empty() {
+            0..0
+        } else {
+            end..source.len()
+        };
+
+        // Customize label and help based on error kind
+        let is_missing_main = e.kind() == SemanticErrorKind::MissingMainFunction;
+        let label_msg: &str = if is_missing_main {
+            "main function not found"
+        } else {
+            e.message()
+        };
+
+        let mut report = Report::build(ReportKind::Error, (filename, span_range.clone()))
+            .with_config(Config::default().with_index_type(IndexType::Byte))
+            .with_message(e.short_message())
+            .with_label(
+                Label::new((filename, span_range))
+                    .with_message(label_msg)
+                    .with_color(Color::Red),
+            );
+
+        if is_missing_main {
+            report = report.with_help("add a main function: fn main() -> void { ... }");
+        }
+
+        if let Err(report_err) = report.finish().eprint((filename, Source::from(source))) {
+            eprintln!("Error in {}: {}", filename, e.message());
+            eprintln!("(Failed to display detailed error report: {})", report_err);
+        }
+    }
+}
+
 /// Reports a compilation error with source location highlighting.
 ///
 /// Uses [ariadne](https://docs.rs/ariadne) to produce beautiful error
@@ -183,100 +249,69 @@ impl CompileErrorWithContext {
 /// point to the wrong file or show incorrect source context.
 fn report_error(filename: &str, source: &str, error: &CompileError) {
     match error {
-        CompileError::Lex(e) => {
-            let span = e.span();
-            if let Err(report_err) =
-                Report::build(ReportKind::Error, (filename, span.start..span.end))
-                    .with_config(Config::default().with_index_type(IndexType::Byte))
-                    .with_message(e.short_message())
-                    .with_label(
-                        Label::new((filename, span.start..span.end))
-                            .with_message(e.message())
-                            .with_color(Color::Red),
-                    )
-                    .finish()
-                    .eprint((filename, Source::from(source)))
+        CompileError::Resolve(e) => {
+            // If the error carries its own source context (e.g., lex/parse error in imported module),
+            // use that for rendering instead of the entry module's context.
+            let (report_filename, report_source) = if let (Some(src_file), Some(src_content)) =
+                (e.source_filename(), e.source_content())
             {
-                // Fallback to basic error output if report printing fails
-                eprintln!("Error: {} (at {}:{})", e.message(), span.line, span.column);
-                eprintln!("(Failed to display detailed error report: {})", report_err);
-            }
-        }
-        CompileError::Parse(e) => {
-            let span = e.span();
-            if let Err(report_err) =
-                Report::build(ReportKind::Error, (filename, span.start..span.end))
-                    .with_config(Config::default().with_index_type(IndexType::Byte))
-                    .with_message(e.short_message())
-                    .with_label(
-                        Label::new((filename, span.start..span.end))
-                            .with_message(e.message())
-                            .with_color(Color::Red),
-                    )
-                    .finish()
-                    .eprint((filename, Source::from(source)))
-            {
-                // Fallback to basic error output if report printing fails
-                eprintln!("Error: {} (at {}:{})", e.message(), span.line, span.column);
-                eprintln!("(Failed to display detailed error report: {})", report_err);
-            }
-        }
-        CompileError::Semantic(e) => {
+                (src_file, src_content)
+            } else {
+                (filename, source)
+            };
+
             if let Some(span) = e.span() {
-                let mut report = Report::build(ReportKind::Error, (filename, span.start..span.end))
-                    .with_config(Config::default().with_index_type(IndexType::Byte))
-                    .with_message(e.short_message())
-                    .with_label(
-                        Label::new((filename, span.start..span.end))
-                            .with_message(e.message())
-                            .with_color(Color::Red),
-                    );
-
-                if let Some(help) = e.help() {
-                    report = report.with_help(help);
-                }
-
-                if let Err(report_err) = report.finish().eprint((filename, Source::from(source))) {
-                    // Fallback to basic error output if report printing fails
+                if let Err(report_err) =
+                    Report::build(ReportKind::Error, (report_filename, span.start..span.end))
+                        .with_config(Config::default().with_index_type(IndexType::Byte))
+                        .with_message(e.short_message())
+                        .with_label(
+                            Label::new((report_filename, span.start..span.end))
+                                .with_message(e.message())
+                                .with_color(Color::Red),
+                        )
+                        .finish()
+                        .eprint((report_filename, Source::from(report_source)))
+                {
                     eprintln!("Error: {} (at {}:{})", e.message(), span.line, span.column);
                     eprintln!("(Failed to display detailed error report: {})", report_err);
                 }
             } else {
                 // No span available - show error report pointing to end of file.
-                let end = source.len().saturating_sub(1);
-                let span_range = if source.is_empty() {
+                let end = report_source.len().saturating_sub(1);
+                let span_range = if report_source.is_empty() {
                     0..0
                 } else {
-                    end..source.len()
+                    end..report_source.len()
                 };
 
-                // Customize label and help based on error kind
-                let is_missing_main = e.kind() == SemanticErrorKind::MissingMainFunction;
-                let label_msg: &str = if is_missing_main {
-                    "main function not found"
-                } else {
-                    e.message()
-                };
-
-                let mut report = Report::build(ReportKind::Error, (filename, span_range.clone()))
-                    .with_config(Config::default().with_index_type(IndexType::Byte))
-                    .with_message(e.short_message())
-                    .with_label(
-                        Label::new((filename, span_range))
-                            .with_message(label_msg)
-                            .with_color(Color::Red),
-                    );
-
-                if is_missing_main {
-                    report = report.with_help("add a main function: fn main() -> void { ... }");
-                }
-
-                if let Err(report_err) = report.finish().eprint((filename, Source::from(source))) {
-                    // Fallback to basic error output if report printing fails
-                    eprintln!("Error in {}: {}", filename, e.message());
+                if let Err(report_err) =
+                    Report::build(ReportKind::Error, (report_filename, span_range.clone()))
+                        .with_config(Config::default().with_index_type(IndexType::Byte))
+                        .with_message(e.short_message())
+                        .with_label(
+                            Label::new((report_filename, span_range))
+                                .with_message(e.message())
+                                .with_color(Color::Red),
+                        )
+                        .finish()
+                        .eprint((report_filename, Source::from(report_source)))
+                {
+                    eprintln!("Error in {}: {}", report_filename, e.message());
                     eprintln!("(Failed to display detailed error report: {})", report_err);
                 }
             }
+        }
+        CompileError::Semantic(e) => {
+            report_semantic_error(filename, source, e);
+        }
+        CompileError::ModuleSemantic(ctx) => {
+            let ModuleSemanticContext {
+                error: e,
+                filename: module_file,
+                source: module_source,
+            } = ctx.as_ref();
+            report_semantic_error(module_file, module_source, e);
         }
         CompileError::Codegen(e) => {
             // Codegen errors are infrastructure errors (InternalError, TargetError)
@@ -424,22 +459,93 @@ fn compile_to_executable(
     object_path: &Path,
     output_path: &Path,
 ) -> Result<(), CompileError> {
-    let mut lexer = Lexer::new(&context.source);
-    let tokens = lexer.tokenize().map_err(CompileError::Lex)?;
+    // Phase 1: Resolve modules (load and parse all imported files)
+    let entry_path = Path::new(&context.filename);
+    let canonical_entry = entry_path.canonicalize().map_err(|e| {
+        CompileError::Io(format!(
+            "Failed to resolve path '{}': {}",
+            context.filename, e
+        ))
+    })?;
 
-    let mut parser = LakParser::new(tokens);
-    let program = parser.parse().map_err(CompileError::Parse)?;
+    let mut resolver = ModuleResolver::new();
+    resolver
+        .resolve_from_entry_with_source(&canonical_entry, context.source.clone())
+        .map_err(CompileError::Resolve)?;
+
+    let modules = resolver.into_modules();
+
+    // Find entry module
+    let entry_module = modules
+        .iter()
+        .find(|m| m.path() == canonical_entry)
+        .ok_or_else(|| CompileError::Io("Entry module not found after resolution".to_string()))?;
+
+    // Phase 2a: Semantic analysis on imported modules (basic validation)
+    for module in &modules {
+        if module.path() != canonical_entry {
+            let mut module_analyzer = SemanticAnalyzer::new();
+
+            // Build module table if the imported module has its own imports
+            let module_table = if !module.program().imports.is_empty() {
+                Some(
+                    lak::semantic::ModuleTable::from_resolved_modules(&modules, module).map_err(
+                        |e| {
+                            CompileError::ModuleSemantic(Box::new(ModuleSemanticContext {
+                                error: e,
+                                filename: module.path().display().to_string(),
+                                source: module.source().to_string(),
+                            }))
+                        },
+                    )?,
+                )
+            } else {
+                None
+            };
+
+            module_analyzer
+                .analyze_module(module.program(), module_table)
+                .map_err(|e| {
+                    CompileError::ModuleSemantic(Box::new(ModuleSemanticContext {
+                        error: e,
+                        filename: module.path().display().to_string(),
+                        source: module.source().to_string(),
+                    }))
+                })?;
+        }
+    }
+
+    // Phase 2b: Semantic analysis on entry module
+    // Build module table from all resolved modules for import validation
+    let module_table = lak::semantic::ModuleTable::from_resolved_modules(&modules, entry_module)
+        .map_err(CompileError::Semantic)?;
 
     let mut analyzer = SemanticAnalyzer::new();
-    analyzer.analyze(&program).map_err(CompileError::Semantic)?;
+    analyzer
+        .analyze_with_modules(entry_module.program(), module_table)
+        .map_err(CompileError::Semantic)?;
 
+    // Phase 3: Code generation
     let llvm_context = Context::create();
     let mut codegen = Codegen::new(&llvm_context, "lak_module");
-    codegen.compile(&program).map_err(CompileError::Codegen)?;
+
+    if modules.len() == 1 {
+        // Single module: use simple compile
+        codegen
+            .compile(entry_module.program())
+            .map_err(CompileError::Codegen)?;
+    } else {
+        // Multiple modules: use multi-module compile
+        codegen
+            .compile_modules(&modules, entry_module.path())
+            .map_err(CompileError::Codegen)?;
+    }
+
     codegen
         .write_object_file(object_path)
         .map_err(CompileError::Codegen)?;
 
+    // Phase 4: Linking
     link(object_path, output_path)?;
 
     Ok(())
