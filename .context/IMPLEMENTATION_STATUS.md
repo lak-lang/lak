@@ -482,6 +482,7 @@ This document tracks the implementation status of Lak language features as defin
 5. [x] Unary minus `-`
 6. [x] Parentheses for grouping
 7. [x] `panic` built-in function
+8. [ ] Modules and imports
 
 ### Phase 2: Control Flow (High Priority)
 
@@ -533,8 +534,7 @@ This document tracks the implementation status of Lak language features as defin
 
 1. [ ] Interfaces
 2. [ ] Generics
-3. [ ] Modules and imports
-4. [ ] String interpolation
+3. [ ] String interpolation
 
 ---
 
