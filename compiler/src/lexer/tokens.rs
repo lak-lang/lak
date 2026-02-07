@@ -263,10 +263,12 @@ impl<'a> Lexer<'a> {
         let value = self.input[start_pos..self.pos].to_string();
         let span = Span::new(start_pos, self.pos, start_line, start_column);
 
-        // Check for keywords
+        // Check for keywords and boolean literals
         let kind = match value.as_str() {
             "fn" => TokenKind::Fn,
             "let" => TokenKind::Let,
+            "true" => TokenKind::BoolLiteral(true),
+            "false" => TokenKind::BoolLiteral(false),
             _ => TokenKind::Identifier(value),
         };
 

@@ -71,6 +71,9 @@ pub enum TokenKind {
     /// An integer literal (e.g., 42, 100).
     IntLiteral(i64),
 
+    /// A boolean literal (`true` or `false`).
+    BoolLiteral(bool),
+
     /// A newline that acts as a statement terminator.
     ///
     /// Only emitted after certain tokens (identifiers, literals, `)`, `}`)

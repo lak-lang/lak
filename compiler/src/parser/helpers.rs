@@ -28,6 +28,7 @@ impl Parser {
             TokenKind::Colon => "':'".to_string(),
             TokenKind::Equals => "'='".to_string(),
             TokenKind::IntLiteral(n) => format!("integer '{}'", n),
+            TokenKind::BoolLiteral(b) => format!("boolean '{}'", b),
             TokenKind::Newline => "newline".to_string(),
             TokenKind::Plus => "'+'".to_string(),
             TokenKind::Minus => "'-'".to_string(),

@@ -169,6 +169,7 @@ impl<'ctx> Codegen<'ctx> {
         self.declare_lak_println();
         self.declare_lak_println_i32();
         self.declare_lak_println_i64();
+        self.declare_lak_println_bool();
         self.declare_lak_panic();
 
         // Pass 1: Declare all user-defined functions (except main, which has a special signature)
@@ -279,11 +280,13 @@ impl<'ctx> Codegen<'ctx> {
     /// - `Type::I32` → LLVM `i32`
     /// - `Type::I64` → LLVM `i64`
     /// - `Type::String` → LLVM `ptr` (i8*)
+    /// - `Type::Bool` → LLVM `i1`
     fn get_llvm_type(&self, ty: &Type) -> BasicTypeEnum<'ctx> {
         match ty {
             Type::I32 => self.context.i32_type().into(),
             Type::I64 => self.context.i64_type().into(),
             Type::String => self.context.ptr_type(AddressSpace::default()).into(),
+            Type::Bool => self.context.bool_type().into(),
         }
     }
 }

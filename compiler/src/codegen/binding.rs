@@ -58,6 +58,7 @@ impl<'ctx> VarBinding<'ctx> {
             Type::I32 => context.i32_type().into(),
             Type::I64 => context.i64_type().into(),
             Type::String => context.ptr_type(AddressSpace::default()).into(),
+            Type::Bool => context.bool_type().into(),
         };
         let alloca = builder.build_alloca(llvm_type, name).map_err(|e| {
             format!(

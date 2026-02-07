@@ -14,6 +14,8 @@ pub enum Type {
     I64,
     /// UTF-8 string type (`string` in Lak source code).
     String,
+    /// Boolean type (`bool` in Lak source code).
+    Bool,
 }
 
 /// Displays the type as it would appear in Lak source code.
@@ -25,6 +27,7 @@ impl fmt::Display for Type {
             Type::I32 => write!(f, "i32"),
             Type::I64 => write!(f, "i64"),
             Type::String => write!(f, "string"),
+            Type::Bool => write!(f, "bool"),
         }
     }
 }

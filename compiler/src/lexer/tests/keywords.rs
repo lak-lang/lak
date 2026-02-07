@@ -64,3 +64,38 @@ fn test_function_definition_tokens() {
         ]
     );
 }
+
+#[test]
+fn test_keyword_true() {
+    let kinds = tokenize_kinds("true");
+    assert_eq!(kinds, vec![TokenKind::BoolLiteral(true), TokenKind::Eof]);
+}
+
+#[test]
+fn test_keyword_false() {
+    let kinds = tokenize_kinds("false");
+    assert_eq!(kinds, vec![TokenKind::BoolLiteral(false), TokenKind::Eof]);
+}
+
+#[test]
+fn test_true_not_prefix() {
+    // "trueish" should be an identifier, not true + identifier
+    let kinds = tokenize_kinds("trueish");
+    assert_eq!(
+        kinds,
+        vec![TokenKind::Identifier("trueish".to_string()), TokenKind::Eof]
+    );
+}
+
+#[test]
+fn test_false_not_prefix() {
+    // "falsetto" should be an identifier, not false + identifier
+    let kinds = tokenize_kinds("falsetto");
+    assert_eq!(
+        kinds,
+        vec![
+            TokenKind::Identifier("falsetto".to_string()),
+            TokenKind::Eof
+        ]
+    );
+}

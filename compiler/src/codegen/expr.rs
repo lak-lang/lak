@@ -33,6 +33,7 @@ impl<'ctx> Codegen<'ctx> {
             }
             ExprKind::StringLiteral(_)
             | ExprKind::IntLiteral(_)
+            | ExprKind::BoolLiteral(_)
             | ExprKind::Identifier(_)
             | ExprKind::BinaryOp { .. }
             | ExprKind::UnaryOp { .. } => {
@@ -104,7 +105,19 @@ impl<'ctx> Codegen<'ctx> {
                         Ok(llvm_value.into())
                     }
                     Type::String => Err(CodegenError::internal_int_as_string(*value, expr.span)),
+                    Type::Bool => Err(CodegenError::internal_int_as_bool(*value, expr.span)),
                 }
+            }
+            ExprKind::BoolLiteral(value) => {
+                // Semantic analysis guarantees the expected type is Bool.
+                if *expected_ty != Type::Bool {
+                    return Err(CodegenError::internal_bool_as_type(
+                        &expected_ty.to_string(),
+                        expr.span,
+                    ));
+                }
+                let llvm_value = self.context.bool_type().const_int(*value as u64, false);
+                Ok(llvm_value.into())
             }
             ExprKind::Identifier(name) => {
                 // Semantic analysis guarantees the variable exists and has the correct type
@@ -184,8 +197,8 @@ impl<'ctx> Codegen<'ctx> {
         expected_ty: &Type,
         span: crate::token::Span,
     ) -> Result<BasicValueEnum<'ctx>, CodegenError> {
-        // Semantic analysis guarantees the type is numeric
-        if *expected_ty == Type::String {
+        // Semantic analysis guarantees the type is numeric (not string or bool)
+        if *expected_ty == Type::String || *expected_ty == Type::Bool {
             return Err(CodegenError::internal_binary_op_string(op, span));
         }
 
@@ -253,8 +266,8 @@ impl<'ctx> Codegen<'ctx> {
         expected_ty: &Type,
         span: crate::token::Span,
     ) -> Result<BasicValueEnum<'ctx>, CodegenError> {
-        // Semantic analysis guarantees the type is numeric
-        if *expected_ty == Type::String {
+        // Semantic analysis guarantees the type is numeric (not string or bool)
+        if *expected_ty == Type::String || *expected_ty == Type::Bool {
             return Err(CodegenError::internal_unary_op_string(op, span));
         }
 

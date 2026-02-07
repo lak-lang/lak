@@ -251,6 +251,18 @@ impl SemanticError {
         )
     }
 
+    /// Creates a type mismatch error for assigning integer to bool.
+    pub fn type_mismatch_int_to_bool(value: i64, span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::TypeMismatch,
+            format!(
+                "Type mismatch: integer literal '{}' cannot be assigned to type 'bool'",
+                value
+            ),
+            span,
+        )
+    }
+
     /// Creates a type mismatch error for variable type.
     pub fn type_mismatch_variable(
         name: &str,
@@ -274,6 +286,18 @@ impl SemanticError {
             SemanticErrorKind::TypeMismatch,
             format!(
                 "Type mismatch: string literal cannot be assigned to type '{}'",
+                expected_ty
+            ),
+            span,
+        )
+    }
+
+    /// Creates a type mismatch error for assigning bool to non-bool type.
+    pub fn type_mismatch_bool_to_type(expected_ty: &str, span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::TypeMismatch,
+            format!(
+                "Type mismatch: boolean literal cannot be assigned to type '{}'",
                 expected_ty
             ),
             span,
@@ -391,6 +415,15 @@ impl SemanticError {
         )
     }
 
+    /// Creates an error for boolean literal used as statement.
+    pub fn invalid_expression_bool_literal(span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::InvalidExpression,
+            "Boolean literal as a statement has no effect. Did you mean to use it in a condition?",
+            span,
+        )
+    }
+
     /// Creates an error for identifier used as statement.
     pub fn invalid_expression_identifier(name: &str, span: Span) -> Self {
         Self::new(
@@ -498,6 +531,18 @@ impl SemanticError {
             SemanticErrorKind::InternalError,
             format!(
                 "Internal error: check_integer_range called with string type for value '{}'. This is a compiler bug.",
+                value
+            ),
+            span,
+        )
+    }
+
+    /// Creates an internal error for check_integer_range called with bool type.
+    pub fn internal_check_integer_range_bool(value: i64, span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::InternalError,
+            format!(
+                "Internal error: check_integer_range called with bool type for value '{}'. This is a compiler bug.",
                 value
             ),
             span,

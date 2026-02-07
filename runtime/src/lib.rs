@@ -48,6 +48,18 @@ pub extern "C" fn lak_println_i64(value: i64) {
     println!("{}", value);
 }
 
+/// Prints a boolean value followed by a newline to stdout.
+///
+/// Outputs "true" for `true` and "false" for `false`.
+#[unsafe(no_mangle)]
+pub extern "C" fn lak_println_bool(value: bool) {
+    if value {
+        println!("true");
+    } else {
+        println!("false");
+    }
+}
+
 /// Prints an error message to stderr and terminates the program with exit code 1.
 ///
 /// This function is called by Lak's `panic()` built-in function.

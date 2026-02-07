@@ -10,7 +10,7 @@ impl Parser {
     /// # Grammar
     ///
     /// ```text
-    /// type → "i32" | "i64" | "string"
+    /// type → "i32" | "i64" | "string" | "bool"
     /// ```
     pub(super) fn parse_type(&mut self) -> Result<Type, ParseError> {
         let type_span = self.current_span();
@@ -19,6 +19,7 @@ impl Parser {
             "i32" => Ok(Type::I32),
             "i64" => Ok(Type::I64),
             "string" => Ok(Type::String),
+            "bool" => Ok(Type::Bool),
             _ => Err(ParseError::unknown_type(&name, type_span)),
         }
     }

@@ -49,7 +49,7 @@ impl<'a> Lexer<'a> {
     /// Inspired by Go's automatic semicolon insertion rules, newlines
     /// are significant (act as statement terminators) only after certain tokens:
     /// - Identifiers
-    /// - Literals (string, integer)
+    /// - Literals (string, integer, boolean)
     /// - `)` (right parenthesis)
     /// - `}` (right brace)
     pub(super) fn should_emit_newline(&self) -> bool {
@@ -58,6 +58,7 @@ impl<'a> Lexer<'a> {
             Some(TokenKind::Identifier(_))
                 | Some(TokenKind::IntLiteral(_))
                 | Some(TokenKind::StringLiteral(_))
+                | Some(TokenKind::BoolLiteral(_))
                 | Some(TokenKind::RightParen)
                 | Some(TokenKind::RightBrace)
         )

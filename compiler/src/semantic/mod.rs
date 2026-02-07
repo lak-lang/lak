@@ -184,6 +184,9 @@ impl SemanticAnalyzer {
             ExprKind::IntLiteral(_) => {
                 Err(SemanticError::invalid_expression_int_literal(expr.span))
             }
+            ExprKind::BoolLiteral(_) => {
+                Err(SemanticError::invalid_expression_bool_literal(expr.span))
+            }
             ExprKind::Identifier(name) => Err(SemanticError::invalid_expression_identifier(
                 name, expr.span,
             )),
@@ -206,10 +209,11 @@ impl SemanticAnalyzer {
                 return Err(SemanticError::invalid_argument_println_count(span));
             }
 
-            // println accepts string literals, integer literals, or any variable
+            // println accepts string literals, integer literals, boolean literals, or any variable
             match &args[0].kind {
                 ExprKind::StringLiteral(_) => {}
                 ExprKind::IntLiteral(_) => {}
+                ExprKind::BoolLiteral(_) => {}
                 ExprKind::Identifier(name) => {
                     // Verify the variable exists (type doesn't matter, any type is accepted)
                     self.symbols
@@ -267,6 +271,12 @@ impl SemanticAnalyzer {
                 ExprKind::IntLiteral(_) => {
                     return Err(SemanticError::invalid_argument_panic_type(
                         "integer literal",
+                        args[0].span,
+                    ));
+                }
+                ExprKind::BoolLiteral(_) => {
+                    return Err(SemanticError::invalid_argument_panic_type(
+                        "boolean literal",
                         args[0].span,
                     ));
                 }
@@ -336,6 +346,9 @@ impl SemanticAnalyzer {
                         *value, expr.span,
                     ));
                 }
+                if *expected_ty == Type::Bool {
+                    return Err(SemanticError::type_mismatch_int_to_bool(*value, expr.span));
+                }
                 self.check_integer_range(*value, expected_ty, expr.span)
             }
             ExprKind::Identifier(name) => {
@@ -358,6 +371,15 @@ impl SemanticAnalyzer {
             ExprKind::StringLiteral(_) => {
                 if *expected_ty != Type::String {
                     return Err(SemanticError::type_mismatch_string_to_type(
+                        &expected_ty.to_string(),
+                        expr.span,
+                    ));
+                }
+                Ok(())
+            }
+            ExprKind::BoolLiteral(_) => {
+                if *expected_ty != Type::Bool {
+                    return Err(SemanticError::type_mismatch_bool_to_type(
                         &expected_ty.to_string(),
                         expr.span,
                     ));
@@ -389,9 +411,13 @@ impl SemanticAnalyzer {
         expected_ty: &Type,
         span: Span,
     ) -> Result<(), SemanticError> {
-        // Verify the expected type is numeric (not string)
-        if *expected_ty == Type::String {
-            return Err(SemanticError::invalid_binary_op_type(op, "string", span));
+        // Verify the expected type is numeric (not string or bool)
+        if *expected_ty == Type::String || *expected_ty == Type::Bool {
+            return Err(SemanticError::invalid_binary_op_type(
+                op,
+                &expected_ty.to_string(),
+                span,
+            ));
         }
 
         // Check both operands have the expected type
@@ -413,9 +439,13 @@ impl SemanticAnalyzer {
         expected_ty: &Type,
         span: Span,
     ) -> Result<(), SemanticError> {
-        // Verify the expected type is numeric (not string)
-        if *expected_ty == Type::String {
-            return Err(SemanticError::invalid_unary_op_type(op, "string", span));
+        // Verify the expected type is numeric (not string or bool)
+        if *expected_ty == Type::String || *expected_ty == Type::Bool {
+            return Err(SemanticError::invalid_unary_op_type(
+                op,
+                &expected_ty.to_string(),
+                span,
+            ));
         }
 
         // Check the operand has the expected type, adding unary context to errors
@@ -443,7 +473,9 @@ impl SemanticAnalyzer {
     /// 2. No unary operator is applied to a string type
     fn validate_expr_for_println(&self, expr: &Expr) -> Result<(), SemanticError> {
         match &expr.kind {
-            ExprKind::IntLiteral(_) | ExprKind::StringLiteral(_) => Ok(()),
+            ExprKind::IntLiteral(_) | ExprKind::StringLiteral(_) | ExprKind::BoolLiteral(_) => {
+                Ok(())
+            }
             ExprKind::Identifier(name) => {
                 self.symbols
                     .lookup_variable(name)
@@ -502,6 +534,14 @@ impl SemanticAnalyzer {
                 // handles Type::String before calling check_integer_range.
                 // Return an internal error to signal a compiler bug if this is reached.
                 return Err(SemanticError::internal_check_integer_range_string(
+                    value, span,
+                ));
+            }
+            Type::Bool => {
+                // This branch should never be reached because check_expr_type
+                // handles Type::Bool before calling check_integer_range.
+                // Return an internal error to signal a compiler bug if this is reached.
+                return Err(SemanticError::internal_check_integer_range_bool(
                     value, span,
                 ));
             }

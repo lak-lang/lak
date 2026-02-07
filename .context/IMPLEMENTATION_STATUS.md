@@ -41,9 +41,9 @@ This document tracks the implementation status of Lak language features as defin
 
 #### Other Primitive Types
 
-- [ ] `bool` type
-  - [ ] `true` literal
-  - [ ] `false` literal
+- [x] `bool` type
+  - [x] `true` literal
+  - [x] `false` literal
 - [x] `string` type
   - [x] String literals with double quotes
   - [x] Escape sequences (`\n`, `\t`, `\r`, `\\`, `\"`)
@@ -193,7 +193,7 @@ This document tracks the implementation status of Lak language features as defin
 - [x] `println(value: any)` - print any value with newline
   - [x] String argument support
   - [x] Integer argument support (i32, i64)
-  - [ ] Bool argument support
+  - [x] Bool argument support
   - [ ] Float argument support (f32, f64)
   - [ ] Struct argument support (default format)
   - [ ] Stringer interface priority
@@ -463,6 +463,7 @@ This document tracks the implementation status of Lak language features as defin
 - [x] `lak_println` function (string)
 - [x] `lak_println_i32` function
 - [x] `lak_println_i64` function
+- [x] `lak_println_bool` function
 - [ ] `lak_print` function
 - [x] `lak_panic` function
 - [ ] Memory allocation functions
@@ -475,7 +476,7 @@ This document tracks the implementation status of Lak language features as defin
 ### Phase 1: Basic Expressions (High Priority)
 
 1. [x] Arithmetic operators (`+`, `-`, `*`, `/`, `%`) - i32/i64 only
-2. [ ] `bool` type with `true`/`false` literals
+2. [x] `bool` type with `true`/`false` literals
 3. [ ] Comparison operators (`==`, `!=`, `<`, `>`, `<=`, `>=`)
 4. [ ] Logical operators (`&&`, `||`, `!`)
 5. [x] Unary minus `-`
@@ -541,7 +542,7 @@ This document tracks the implementation status of Lak language features as defin
 
 | Category | Implemented | Total | Progress |
 |----------|-------------|-------|----------|
-| Types | 5 | 26 | 19% |
+| Types | 6 | 26 | 23% |
 | Variables | 3 | 8 | 38% |
 | Operators | 8 | 17 | 47% |
 | Functions | 8 | 18 | 44% |

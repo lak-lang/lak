@@ -249,6 +249,32 @@ impl CodegenError {
         )
     }
 
+    /// Creates an internal error for integer used as bool.
+    pub fn internal_int_as_bool(value: i64, span: Span) -> Self {
+        Self::new(
+            CodegenErrorKind::InternalError,
+            format!(
+                "Internal error: integer literal {} used as 'bool' value in codegen. \
+                 Semantic analysis should have caught this. This is a compiler bug.",
+                value
+            ),
+            span,
+        )
+    }
+
+    /// Creates an internal error for bool used as non-bool type.
+    pub fn internal_bool_as_type(expected: &str, span: Span) -> Self {
+        Self::new(
+            CodegenErrorKind::InternalError,
+            format!(
+                "Internal error: boolean literal used as '{}' value in codegen. \
+                 Semantic analysis should have caught this. This is a compiler bug.",
+                expected
+            ),
+            span,
+        )
+    }
+
     /// Creates an internal error for undefined variable.
     pub fn internal_variable_not_found(name: &str, span: Span) -> Self {
         Self::new(
@@ -408,6 +434,15 @@ impl CodegenError {
         Self::new(
             CodegenErrorKind::InternalError,
             "Internal error: println i64 argument is not an integer literal or i64 variable. This is a compiler bug.",
+            span,
+        )
+    }
+
+    /// Creates an internal error for invalid println bool argument.
+    pub fn internal_println_invalid_bool_arg(span: Span) -> Self {
+        Self::new(
+            CodegenErrorKind::InternalError,
+            "Internal error: println bool argument is not a boolean literal or bool variable. This is a compiler bug.",
             span,
         )
     }

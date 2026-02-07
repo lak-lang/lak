@@ -890,3 +890,376 @@ fn test_compile_error_unary_minus_on_string_literal_in_println() {
         "Expected TypeMismatch error kind"
     );
 }
+
+// ========================================
+// Boolean type error tests
+// ========================================
+
+#[test]
+fn test_compile_error_bool_literal_to_i32() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let x: i32 = true
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Type mismatch: boolean literal cannot be assigned to type 'i32'"
+    );
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch),
+        "Expected TypeMismatch error kind"
+    );
+}
+
+#[test]
+fn test_compile_error_bool_literal_to_string() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let x: string = false
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Type mismatch: boolean literal cannot be assigned to type 'string'"
+    );
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch),
+        "Expected TypeMismatch error kind"
+    );
+}
+
+#[test]
+fn test_compile_error_int_literal_to_bool() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let x: bool = 42
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Type mismatch: integer literal '42' cannot be assigned to type 'bool'"
+    );
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch),
+        "Expected TypeMismatch error kind"
+    );
+}
+
+#[test]
+fn test_compile_error_string_literal_to_bool() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let x: bool = "hello"
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Type mismatch: string literal cannot be assigned to type 'bool'"
+    );
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch),
+        "Expected TypeMismatch error kind"
+    );
+}
+
+#[test]
+fn test_compile_error_bool_literal_as_statement() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    true
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Boolean literal as a statement has no effect. Did you mean to use it in a condition?"
+    );
+    assert_eq!(short_msg, "Invalid expression");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::InvalidExpression),
+        "Expected InvalidExpression error kind"
+    );
+}
+
+#[test]
+fn test_compile_error_panic_bool_literal() {
+    let result = compile_error_with_kind(r#"fn main() -> void { panic(true) }"#);
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "panic requires a string argument, but got 'boolean literal'"
+    );
+    assert_eq!(short_msg, "Invalid argument");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::InvalidArgument),
+        "Expected InvalidArgument error kind"
+    );
+}
+
+#[test]
+fn test_compile_error_panic_bool_variable() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let flag: bool = true
+    panic(flag)
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(msg, "panic requires a string argument, but got 'bool'");
+    assert_eq!(short_msg, "Invalid argument");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::InvalidArgument),
+        "Expected InvalidArgument error kind"
+    );
+}
+
+#[test]
+fn test_compile_error_bool_variable_type_mismatch() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let flag: bool = true
+    let x: i32 = flag
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Type mismatch: variable 'flag' has type 'bool', expected 'i32'"
+    );
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch),
+        "Expected TypeMismatch error kind"
+    );
+}
+
+// ========================================
+// Boolean operator error tests
+// ========================================
+
+#[test]
+fn test_compile_error_bool_addition() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let x: bool = true + false
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(msg, "Operator '+' cannot be used with 'bool' type");
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch),
+        "Expected TypeMismatch error kind"
+    );
+}
+
+#[test]
+fn test_compile_error_bool_subtraction() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let x: bool = true - false
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(msg, "Operator '-' cannot be used with 'bool' type");
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch),
+        "Expected TypeMismatch error kind"
+    );
+}
+
+#[test]
+fn test_compile_error_bool_multiplication() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let x: bool = true * false
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(msg, "Operator '*' cannot be used with 'bool' type");
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch),
+        "Expected TypeMismatch error kind"
+    );
+}
+
+#[test]
+fn test_compile_error_bool_division() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let x: bool = true / false
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(msg, "Operator '/' cannot be used with 'bool' type");
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch),
+        "Expected TypeMismatch error kind"
+    );
+}
+
+#[test]
+fn test_compile_error_bool_modulo() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let x: bool = true % false
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(msg, "Operator '%' cannot be used with 'bool' type");
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch),
+        "Expected TypeMismatch error kind"
+    );
+}
+
+#[test]
+fn test_compile_error_unary_minus_on_bool_literal() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let x: bool = -true
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(msg, "Unary operator '-' cannot be used with 'bool' type");
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch),
+        "Expected TypeMismatch error kind"
+    );
+}
+
+#[test]
+fn test_compile_error_unary_minus_on_bool_variable() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let flag: bool = true
+    let x: bool = -flag
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(msg, "Unary operator '-' cannot be used with 'bool' type");
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch),
+        "Expected TypeMismatch error kind"
+    );
+}

@@ -72,6 +72,9 @@ pub enum ExprKind {
     /// appropriate type during code generation.
     IntLiteral(i64),
 
+    /// A boolean literal value (`true` or `false`).
+    BoolLiteral(bool),
+
     /// A variable reference.
     ///
     /// Refers to a variable by name. The variable must be declared before

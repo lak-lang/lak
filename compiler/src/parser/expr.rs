@@ -230,6 +230,11 @@ impl Parser {
                 self.advance();
                 Ok(Expr::new(ExprKind::IntLiteral(value), start_span))
             }
+            TokenKind::BoolLiteral(value) => {
+                let value = *value;
+                self.advance();
+                Ok(Expr::new(ExprKind::BoolLiteral(value), start_span))
+            }
             _ => Err(ParseError::unexpected_expression_start(
                 &Self::token_kind_display(self.current_kind()),
                 start_span,

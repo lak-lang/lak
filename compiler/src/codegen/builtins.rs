@@ -51,6 +51,19 @@ impl<'ctx> Codegen<'ctx> {
             .add_function("lak_println_i64", println_type, Some(Linkage::External));
     }
 
+    /// Declares the Lak runtime `lak_println_bool` function for use in generated code.
+    ///
+    /// This creates an external function declaration with the signature:
+    /// `void lak_println_bool(bool value)`
+    pub(super) fn declare_lak_println_bool(&self) {
+        let void_type = self.context.void_type();
+        let bool_type = self.context.bool_type();
+
+        let println_type = void_type.fn_type(&[bool_type.into()], false);
+        self.module
+            .add_function("lak_println_bool", println_type, Some(Linkage::External));
+    }
+
     /// Declares the Lak runtime `lak_panic` function for use in generated code.
     ///
     /// This creates an external function declaration with the signature:
@@ -78,12 +91,14 @@ impl<'ctx> Codegen<'ctx> {
     ///
     /// This is used to determine which println runtime function to call.
     /// The type dispatch is compile-time: each supported type maps to a dedicated
-    /// runtime function (`lak_println`, `lak_println_i32`, `lak_println_i64`).
+    /// runtime function (`lak_println`, `lak_println_i32`, `lak_println_i64`,
+    /// `lak_println_bool`).
     ///
     /// Type mapping:
     /// - `IntLiteral` → `Type::I64` (bare integer literals always use i64)
     /// - `StringLiteral` → `Type::String`
-    /// - `Identifier` → the variable's declared type (may be i32, i64, or string)
+    /// - `BoolLiteral` → `Type::Bool`
+    /// - `Identifier` → the variable's declared type (may be i32, i64, string, or bool)
     ///
     /// Note: Integer literals passed directly to println are always treated as i64.
     /// To print an i32, assign the literal to an i32 variable first.
@@ -96,6 +111,7 @@ impl<'ctx> Codegen<'ctx> {
         match &expr.kind {
             ExprKind::IntLiteral(_) => Ok(Type::I64),
             ExprKind::StringLiteral(_) => Ok(Type::String),
+            ExprKind::BoolLiteral(_) => Ok(Type::Bool),
             ExprKind::Identifier(name) => self
                 .variables
                 .get(name)
@@ -126,6 +142,7 @@ impl<'ctx> Codegen<'ctx> {
     /// - `string` → `lak_println` (string literals or string variables)
     /// - `i32` → `lak_println_i32` (i32 variables only)
     /// - `i64` → `lak_println_i64` (integer literals or i64 variables)
+    /// - `bool` → `lak_println_bool` (boolean literals or bool variables)
     ///
     /// # Validation responsibilities
     ///
@@ -163,6 +180,7 @@ impl<'ctx> Codegen<'ctx> {
             Type::String => self.generate_println_string(arg, span),
             Type::I32 => self.generate_println_i32(arg, span),
             Type::I64 => self.generate_println_i64(arg, span),
+            Type::Bool => self.generate_println_bool(arg, span),
         }
     }
 
@@ -259,6 +277,58 @@ impl<'ctx> Codegen<'ctx> {
             .build_call(
                 lak_println_i32,
                 &[BasicMetadataValueEnum::IntValue(i32_value)],
+                "",
+            )
+            .map_err(|e| CodegenError::internal_println_call_failed(&e.to_string(), span))?;
+
+        Ok(())
+    }
+
+    /// Generates LLVM IR for `println` with a bool argument.
+    ///
+    /// This handles boolean literals and bool variables.
+    fn generate_println_bool(&mut self, arg: &Expr, span: Span) -> Result<(), CodegenError> {
+        let bool_value = match &arg.kind {
+            ExprKind::BoolLiteral(value) => {
+                self.context.bool_type().const_int(*value as u64, false)
+            }
+            ExprKind::Identifier(name) => {
+                let binding = self
+                    .variables
+                    .get(name)
+                    .ok_or_else(|| CodegenError::internal_variable_not_found(name, arg.span))?;
+
+                if binding.ty() != &Type::Bool {
+                    return Err(CodegenError::internal_println_type_mismatch(
+                        name,
+                        "bool",
+                        &binding.ty().to_string(),
+                        arg.span,
+                    ));
+                }
+
+                let bool_type = self.context.bool_type();
+                self.builder
+                    .build_load(bool_type, binding.alloca(), &format!("{}_load", name))
+                    .map_err(|e| {
+                        CodegenError::internal_variable_load_failed(name, &e.to_string(), arg.span)
+                    })?
+                    .into_int_value()
+            }
+            _ => {
+                return Err(CodegenError::internal_println_invalid_bool_arg(arg.span));
+            }
+        };
+
+        let lak_println_bool = self
+            .module
+            .get_function("lak_println_bool")
+            .ok_or_else(|| CodegenError::internal_builtin_not_found("lak_println_bool"))?;
+
+        self.builder
+            .build_call(
+                lak_println_bool,
+                &[BasicMetadataValueEnum::IntValue(bool_value)],
                 "",
             )
             .map_err(|e| CodegenError::internal_println_call_failed(&e.to_string(), span))?;

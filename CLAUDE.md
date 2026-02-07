@@ -122,3 +122,18 @@ Use the following prefixes based on the type of change:
 ## Code Comments
 
 - **No work-log comments**: Do not write comments like "this test was moved from X" or "Y is now valid because of Z". Git history tracks these changes. Comments should explain *why* code exists, not its change history.
+
+## Adding New Types
+
+When adding a new primitive type to Lak, update all of the following locations:
+
+1. **AST**: `ast/types.rs` (`Type` enum), `ast/expr.rs` (`ExprKind` variant if literal)
+2. **Lexer**: `lexer/tokens.rs` (keyword/literal recognition), `lexer/skip.rs` (newline emission rules)
+3. **Parser**: `parser/types.rs` (type parsing), `parser/expr.rs` (literal parsing), `parser/helpers.rs` (token display)
+4. **Semantic**: `semantic/mod.rs` (type checking, operator validation), `semantic/error.rs` (type-specific errors)
+5. **Codegen**: `codegen/mod.rs` (`get_llvm_type`), `codegen/binding.rs`, `codegen/expr.rs`, `codegen/builtins.rs` (println dispatch), `codegen/error.rs` (internal errors)
+6. **Runtime**: `runtime/src/lib.rs` (println function if needed)
+7. **Tests**: E2E tests for happy path, error tests for type mismatches and invalid operations
+8. **Docs**: `.context/IMPLEMENTATION_STATUS.md`
+
+**Critical**: Ensure operator type checks (`check_binary_op_type`, `check_unary_op_type`) reject non-numeric types.
