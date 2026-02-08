@@ -31,15 +31,23 @@ cargo test lexer::tests
 cargo test parser::tests
 
 # Run end-to-end tests only
+cargo test --test e2e_any
+cargo test --test e2e_arithmetic
 cargo test --test e2e_basic
+cargo test --test e2e_bool
+cargo test --test e2e_build
+cargo test --test e2e_functions
+cargo test --test e2e_imports
+cargo test --test e2e_modules
+cargo test --test e2e_panic
+cargo test --test e2e_run
 cargo test --test e2e_strings
 cargo test --test e2e_variables
-cargo test --test e2e_run
-cargo test --test e2e_any
-cargo test --test e2e_functions
+cargo test --test e2e_visibility
 
 # Run error tests only
 cargo test --test errors_lex
+cargo test --test errors_modules
 cargo test --test errors_parse
 cargo test --test errors_semantic
 cargo test --test pipeline
@@ -96,10 +104,11 @@ Source (.lak) → Lexer → Parser → Semantic Analyzer → Codegen → LLVM �
 1. `build()` in main.rs reads source file
 2. `Lexer::tokenize()` produces `Vec<Token>`
 3. `Parser::parse()` produces `Program` (AST)
-4. `SemanticAnalyzer::analyze()` validates the AST
-5. `Codegen::compile()` generates LLVM IR
-6. `Codegen::write_object_file()` outputs `.o` file
-7. System linker (`cc`) produces final executable
+4. `ModuleResolver::resolve_from_entry_with_source()` discovers imported modules
+5. `SemanticAnalyzer::analyze()` / `analyze_with_modules()` validates the AST
+6. `Codegen::compile()` / `compile_modules()` generates LLVM IR
+7. `Codegen::write_object_file()` outputs `.o` file
+8. System linker (`cc`) produces final executable
 
 ### Development Tools
 

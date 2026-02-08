@@ -9,7 +9,7 @@ compiler/
 ├── src/
 │   ├── main.rs      # CLI entry point (lak build, lak run)
 │   ├── lib.rs       # Library crate exposing all modules
-│   ├── token.rs     # Token and Span definitions
+│   ├── token/       # Token and Span definitions (see token/CLAUDE.md)
 │   ├── ast/         # AST node definitions (see ast/CLAUDE.md)
 │   ├── lexer/       # Lexical analysis (see lexer/CLAUDE.md)
 │   ├── parser/      # Parsing (see parser/CLAUDE.md)
