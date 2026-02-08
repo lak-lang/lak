@@ -11,6 +11,7 @@
 //! - Creates an LLVM module and builder
 //! - Generates a `main` function as the program entry point
 //! - Compiles function calls (`println`, `panic`, user-defined functions, module-qualified calls)
+//! - Computes path-based mangle prefixes for multi-module compilation
 //! - Handles variable declarations (`let` statements) with stack allocation
 //! - Writes the output to a native object file
 //!
@@ -94,7 +95,7 @@ use inkwell::AddressSpace;
 use inkwell::context::Context;
 use inkwell::types::BasicTypeEnum;
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// LLVM code generator for Lak programs.
 ///
@@ -123,33 +124,164 @@ pub struct Codegen<'ctx> {
     /// This table is cleared at the start of each function body to implement
     /// function-scoped variables.
     variables: HashMap<String, VarBinding<'ctx>>,
-    /// Mapping from module alias to real module name.
+    /// Mapping from module alias to its mangle prefix.
     ///
-    /// Used to resolve module-qualified function calls when the import
-    /// uses an alias (e.g., `import "./utils" as u` maps "u" to "utils").
+    /// When an import has no alias (e.g., `import "./utils"`), the key is the
+    /// imported module's filename stem (e.g., `"utils"`). When an alias is
+    /// provided (e.g., `import "./utils" as u`), the key is the alias (e.g., `"u"`).
+    ///
+    /// The mangle prefix is derived from the module's path relative to the
+    /// entry directory, ensuring unique mangled names even for modules with
+    /// the same filename in different directories.
     module_aliases: HashMap<String, String>,
-    /// The current module name prefix for name mangling.
+    /// The current module's mangle prefix for name mangling.
     ///
     /// When generating code for an imported module's functions, this is set
-    /// to the module name so that intra-module function calls can be resolved
-    /// to their mangled names (e.g., "_L5_utils_helper" for a call to "helper"
-    /// within the "utils" module).
+    /// to the module's mangle prefix (derived from its path relative to the
+    /// entry directory) so that intra-module function calls can be resolved
+    /// to their mangled names.
+    ///
+    /// For example, if the current module is at `lib/utils.lak` relative to
+    /// the entry directory, this would be `Some("lib__utils")`, and a call
+    /// to function `helper()` within the same module would resolve to `_L10_lib__utils_helper`.
+    ///
+    /// `None` when generating the entry module (its functions are not mangled).
     current_module_prefix: Option<String>,
 }
 
-/// Creates a mangled function name for a module-qualified function.
+/// Creates a mangled function name using a length-prefix scheme.
 ///
-/// Uses a length-prefix scheme: `_L{module_len}_{module}_{function}`.
-/// The module name length prefix ensures unambiguous parsing, making
-/// collisions impossible regardless of module or function name content.
+/// Format: `_L{prefix_len}_{prefix}_{function}`.
+/// The prefix length ensures unambiguous parsing, making collisions
+/// impossible regardless of prefix or function name content.
 ///
 /// # Examples
 ///
 /// - `("utils", "greet")` → `"_L5_utils_greet"`
-/// - `("a", "b__c")` → `"_L1_a_b__c"`
+/// - `("dir__foo", "bar")` → `"_L8_dir__foo_bar"`
 /// - `("a__b", "c")` → `"_L4_a__b_c"`
-fn mangle_name(module: &str, function: &str) -> String {
-    format!("_L{}_{}_{}", module.len(), module, function)
+fn mangle_name(prefix: &str, function: &str) -> String {
+    format!("_L{}_{}_{}", prefix.len(), prefix, function)
+}
+
+/// Extracts [`Normal`](std::path::Component::Normal) path components as UTF-8 strings, rejecting non-canonical paths.
+///
+/// Only [`std::path::Component::Normal`] components are included in the result.
+/// Root (`/`) and prefix (`C:\`) components are silently excluded since they
+/// are not meaningful for mangle prefixes. `.` and `..` components cause an
+/// error because paths must be canonical before reaching code generation.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Any Normal component contains non-UTF-8 data
+/// - The path contains `.` or `..` components (paths must be canonical)
+fn path_components_to_strings<'a>(
+    path: &'a Path,
+    original_module_path: &Path,
+) -> Result<Vec<&'a str>, CodegenError> {
+    use std::path::Component;
+    path.components()
+        .filter_map(|c| match c {
+            Component::Normal(os_str) => Some(
+                os_str
+                    .to_str()
+                    .ok_or_else(|| CodegenError::non_utf8_path_component(original_module_path)),
+            ),
+            Component::CurDir | Component::ParentDir => Some(Err(
+                CodegenError::internal_non_canonical_path(original_module_path),
+            )),
+            // Root (`/`) and Prefix (`C:\`) are not meaningful for mangle prefixes
+            _ => None,
+        })
+        .collect()
+}
+
+/// Computes unique mangle prefixes for imported modules.
+///
+/// The prefix is derived from the module's path relative to the entry
+/// module's directory, with path separators replaced by `__`.
+/// This ensures modules with the same filename but different directories
+/// get distinct mangled names.
+///
+/// If the module path is not under the entry directory (e.g., resolved
+/// via parent-relative imports), all Normal path components (excluding
+/// `/`) from the full path are used as a fallback prefix.
+///
+/// # Examples
+///
+/// Given entry path `/project/main.lak`:
+/// - `/project/foo.lak` → prefix `"foo"`
+/// - `/project/dir/foo.lak` → prefix `"dir__foo"`
+/// - `/project/a/b/c/mod.lak` → prefix `"a__b__c__mod"`
+///
+/// Fallback (outside entry directory):
+/// - `/opt/lib/utils.lak` → prefix `"opt__lib__utils"`
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - A module path contains non-UTF-8 components
+/// - A module path contains non-canonical components (`.` or `..`)
+/// - The entry path has no parent directory
+/// - A module path produces an empty mangle prefix
+/// - Two different modules produce the same mangle prefix
+fn compute_mangle_prefixes(
+    modules: &[ResolvedModule],
+    entry_path: &Path,
+) -> Result<HashMap<PathBuf, String>, CodegenError> {
+    let entry_dir = entry_path
+        .parent()
+        .ok_or_else(|| CodegenError::internal_entry_path_no_parent(entry_path))?;
+    let mut prefixes = HashMap::new();
+    let mut prefix_to_path: HashMap<String, PathBuf> = HashMap::new();
+
+    for module in modules {
+        if module.path() == entry_path {
+            continue;
+        }
+
+        let prefix = if let Ok(relative) = module.path().strip_prefix(entry_dir) {
+            let without_ext = relative.with_extension("");
+            path_components_to_strings(&without_ext, module.path())?.join("__")
+        } else {
+            let without_ext = module.path().with_extension("");
+            path_components_to_strings(&without_ext, module.path())?.join("__")
+        };
+
+        if prefix.is_empty() {
+            return Err(CodegenError::internal_empty_mangle_prefix(module.path()));
+        }
+
+        if let Some(existing_path) = prefix_to_path.get(&prefix) {
+            return Err(CodegenError::duplicate_mangle_prefix(
+                &prefix,
+                existing_path,
+                module.path(),
+            ));
+        }
+
+        prefix_to_path.insert(prefix.clone(), module.path().to_path_buf());
+        prefixes.insert(module.path().to_path_buf(), prefix);
+    }
+
+    Ok(prefixes)
+}
+
+/// Looks up the mangle prefix for a module path.
+///
+/// Returns an internal error if the prefix is not found, which indicates
+/// a compiler bug since all non-entry modules should have been registered
+/// by `compute_mangle_prefixes`. Entry module functions use unmangled
+/// names and are not registered in the prefix map.
+fn get_mangle_prefix<'a>(
+    prefixes: &'a HashMap<PathBuf, String>,
+    module_path: &Path,
+) -> Result<&'a str, CodegenError> {
+    prefixes
+        .get(module_path)
+        .map(String::as_str)
+        .ok_or_else(|| CodegenError::internal_mangle_prefix_not_found(module_path))
 }
 
 impl<'ctx> Codegen<'ctx> {
@@ -236,12 +368,24 @@ impl<'ctx> Codegen<'ctx> {
     /// All functions from all modules are compiled into a single LLVM module.
     ///
     /// Name mangling: Functions from imported modules use the pattern
-    /// `_L{module_len}_{module_name}_{function_name}` to avoid name collisions.
+    /// `_L{prefix_len}_{mangle_prefix}_{function_name}` to avoid name collisions.
+    ///
+    /// The mangle prefix is derived from the module's path relative to the entry
+    /// directory (see `compute_mangle_prefixes`).
     ///
     /// # Arguments
     ///
     /// * `modules` - All resolved modules
     /// * `entry_path` - The canonical path of the entry point module
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The entry module is not found in the module list
+    /// - A module path contains non-UTF-8 components
+    /// - Two modules produce the same mangle prefix
+    /// - An import path is not found in the resolved imports
+    /// - LLVM IR generation fails for any module
     pub fn compile_modules(
         &mut self,
         modules: &[ResolvedModule],
@@ -255,6 +399,8 @@ impl<'ctx> Codegen<'ctx> {
             return Err(CodegenError::internal_entry_module_not_found(entry_path));
         }
 
+        let mangle_prefixes = compute_mangle_prefixes(modules, entry_path)?;
+
         // Pass 1: Declare all user-defined functions from all modules
         for module in modules {
             let is_entry = module.path() == entry_path;
@@ -267,7 +413,8 @@ impl<'ctx> Codegen<'ctx> {
                 let mangled_name = if is_entry {
                     function.name.clone()
                 } else {
-                    mangle_name(module.name(), &function.name)
+                    let prefix = get_mangle_prefix(&mangle_prefixes, module.path())?;
+                    mangle_name(prefix, &function.name)
                 };
                 self.declare_function(&mangled_name)?;
             }
@@ -291,27 +438,33 @@ impl<'ctx> Codegen<'ctx> {
                             import.span,
                         )
                     })?;
-                let real_name = imported_module.name().to_string();
-                let key = import.alias.clone().unwrap_or_else(|| real_name.clone());
-                self.module_aliases.insert(key, real_name);
+                let mangle_prefix = get_mangle_prefix(&mangle_prefixes, canonical_path.as_path())?;
+                let key = import
+                    .alias
+                    .clone()
+                    .unwrap_or_else(|| imported_module.name().to_string());
+                self.module_aliases.insert(key, mangle_prefix.to_string());
             }
 
             // Set module prefix for name mangling of intra-module calls
             let is_entry = module.path() == entry_path;
-            if is_entry {
+            let module_prefix = if is_entry {
                 self.current_module_prefix = None;
+                None
             } else {
-                self.current_module_prefix = Some(module.name().to_string());
-            }
+                let prefix = get_mangle_prefix(&mangle_prefixes, module.path())?;
+                self.current_module_prefix = Some(prefix.to_string());
+                Some(prefix)
+            };
 
             for function in &module.program().functions {
                 if is_entry && function.name == "main" {
                     self.generate_main(function)?;
                 } else {
-                    let llvm_name = if is_entry {
-                        function.name.clone()
+                    let llvm_name = if let Some(prefix) = module_prefix {
+                        mangle_name(prefix, &function.name)
                     } else {
-                        mangle_name(module.name(), &function.name)
+                        function.name.clone()
                     };
                     self.generate_function_body(&llvm_name, function)?;
                 }
@@ -417,9 +570,9 @@ impl<'ctx> Codegen<'ctx> {
         }
     }
 
-    /// Resolves a module alias to the real module name.
+    /// Resolves a module alias to its mangle prefix.
     ///
-    /// Returns the real module name for a given alias. If the alias is not
+    /// Returns the mangle prefix for a given alias. If the alias is not
     /// found in the map, returns an internal error since all imports should
     /// have been registered during compilation.
     pub(crate) fn resolve_module_alias(

@@ -19,6 +19,9 @@
 //!   [`internal_println_arg_count()`](CodegenError::internal_println_arg_count), etc.
 //! - **Internal errors** (without span): [`internal_builtin_not_found()`](CodegenError::internal_builtin_not_found),
 //!   [`internal_return_build_failed()`](CodegenError::internal_return_build_failed), etc.
+//! - **Module path errors** (without span): [`non_utf8_path_component()`](CodegenError::non_utf8_path_component),
+//!   [`duplicate_mangle_prefix()`](CodegenError::duplicate_mangle_prefix)
+//! - **Internal errors** (without span, module path): [`internal_empty_mangle_prefix()`](CodegenError::internal_empty_mangle_prefix)
 
 use std::path::Path;
 
@@ -33,18 +36,22 @@ use crate::token::Span;
 ///
 /// Semantic errors (undefined variables, type mismatches, etc.) are detected
 /// during semantic analysis. This enum only contains errors that can occur
-/// during LLVM IR generation or object file output.
+/// during the code generation phase, including module path validation, LLVM IR
+/// generation, and object file output.
 ///
 /// # Error Categories
 ///
 /// - **Infrastructure errors** (typically no span): [`InternalError`](Self::InternalError),
 ///   [`TargetError`](Self::TargetError)
+/// - **Module path errors** (no span): [`InvalidModulePath`](Self::InvalidModulePath)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CodegenErrorKind {
     /// Internal compiler error (should not happen in normal use).
     InternalError,
     /// LLVM target or code generation infrastructure error.
     TargetError,
+    /// Invalid module path (e.g., non-UTF-8 path components, duplicate prefixes).
+    InvalidModulePath,
 }
 
 /// An error that occurred during code generation.
@@ -153,6 +160,7 @@ impl CodegenError {
         match self.kind {
             CodegenErrorKind::InternalError => "Internal error",
             CodegenErrorKind::TargetError => "Target error",
+            CodegenErrorKind::InvalidModulePath => "Invalid module path",
         }
     }
 
@@ -779,6 +787,101 @@ impl CodegenError {
                 alias_or_name
             ),
             span,
+        )
+    }
+
+    /// Creates an internal error for mangle prefix not found for a module path.
+    pub fn internal_mangle_prefix_not_found(module_path: &Path) -> Self {
+        Self::without_span(
+            CodegenErrorKind::InternalError,
+            format!(
+                "Internal error: mangle prefix not found for module '{}'. This is a compiler bug.",
+                module_path.display()
+            ),
+        )
+    }
+
+    /// Creates an internal error when entry path has no parent directory.
+    ///
+    /// The entry path is expected to be a file path with at least one directory
+    /// component. A path without a parent indicates a bug in path resolution
+    /// before code generation.
+    pub fn internal_entry_path_no_parent(entry_path: &Path) -> Self {
+        Self::without_span(
+            CodegenErrorKind::InternalError,
+            format!(
+                "Internal error: entry path '{}' has no parent directory. \
+                 This is a compiler bug.",
+                entry_path.display()
+            ),
+        )
+    }
+
+    /// Creates an internal error for non-canonical path reaching codegen.
+    ///
+    /// Module paths must be canonicalized by the resolver before reaching
+    /// code generation. The presence of `.` or `..` components indicates
+    /// a compiler bug.
+    pub fn internal_non_canonical_path(module_path: &Path) -> Self {
+        Self::without_span(
+            CodegenErrorKind::InternalError,
+            format!(
+                "Internal error: module path '{}' contains '.' or '..' components. \
+                 Paths must be canonicalized before code generation. This is a compiler bug.",
+                module_path.display()
+            ),
+        )
+    }
+
+    /// Creates an internal error when a module path produces an empty mangle prefix.
+    ///
+    /// An empty prefix means the module path has no Normal components (e.g., `/`
+    /// on Unix). This indicates a bug in the resolver, as such a path should never
+    /// reach code generation.
+    pub fn internal_empty_mangle_prefix(module_path: &Path) -> Self {
+        Self::without_span(
+            CodegenErrorKind::InternalError,
+            format!(
+                "Internal error: module path '{}' produces an empty mangle prefix. This is a compiler bug.",
+                module_path.display()
+            ),
+        )
+    }
+
+    // =========================================================================
+    // Module path errors (without span)
+    // =========================================================================
+
+    /// Creates an error for non-UTF-8 path component in module path.
+    pub fn non_utf8_path_component(module_path: &Path) -> Self {
+        Self::without_span(
+            CodegenErrorKind::InvalidModulePath,
+            format!(
+                "Module path '{}' contains a non-UTF-8 component.",
+                module_path.display()
+            ),
+        )
+    }
+
+    /// Creates an error when two module paths produce the same mangle prefix.
+    ///
+    /// The paths are sorted alphabetically to ensure deterministic error messages
+    /// regardless of the order in which the paths are passed.
+    pub fn duplicate_mangle_prefix(prefix: &str, path1: &Path, path2: &Path) -> Self {
+        let (first, second) = if path1 <= path2 {
+            (path1, path2)
+        } else {
+            (path2, path1)
+        };
+        Self::without_span(
+            CodegenErrorKind::InvalidModulePath,
+            format!(
+                "Modules '{}' and '{}' produce the same mangle prefix '{}'. \
+                 Rename one of the modules to avoid the collision.",
+                first.display(),
+                second.display(),
+                prefix
+            ),
         )
     }
 

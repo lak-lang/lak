@@ -444,8 +444,8 @@ fn report_error(filename: &str, source: &str, error: &CompileError) {
             report_semantic_error(module_file, module_source, e);
         }
         CompileError::Codegen(e) => {
-            // Codegen errors are infrastructure errors (InternalError, TargetError)
-            // that typically don't have source locations
+            // Codegen errors (InternalError, TargetError, InvalidModulePath)
+            // typically don't have source locations
             if let Some(span) = e.span() {
                 if let Err(report_err) =
                     Report::build(ReportKind::Error, (filename, span.start..span.end))

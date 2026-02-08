@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::ast::{Expr, ExprKind, FnDef, Program, Stmt, StmtKind, Type, UnaryOperator, Visibility};
+use crate::resolver::ResolvedModule;
 use crate::token::Span;
 use inkwell::context::Context;
 
@@ -41,6 +42,14 @@ fn let_stmt(name: &str, ty: Type, init_kind: ExprKind) -> Stmt {
         },
         dummy_span(),
     )
+}
+
+/// Helper to create an empty program (no imports, no functions).
+fn empty_program() -> Program {
+    Program {
+        imports: vec![],
+        functions: vec![],
+    }
 }
 
 #[test]
@@ -322,6 +331,14 @@ fn test_codegen_error_kinds() {
     assert_ne!(
         CodegenErrorKind::InternalError,
         CodegenErrorKind::TargetError
+    );
+    assert_ne!(
+        CodegenErrorKind::InternalError,
+        CodegenErrorKind::InvalidModulePath
+    );
+    assert_ne!(
+        CodegenErrorKind::TargetError,
+        CodegenErrorKind::InvalidModulePath
     );
 }
 
@@ -992,7 +1009,7 @@ fn test_compile_modules_basic() {
 
     // Verify main exists
     assert!(codegen.module.get_function("main").is_some());
-    // Verify mangled function exists
+    // Verify mangled function uses path-based prefix
     assert!(codegen.module.get_function("_L5_utils_greet").is_some());
 }
 
@@ -1068,6 +1085,486 @@ fn test_compile_modules_with_alias() {
 
     // Verify main exists
     assert!(codegen.module.get_function("main").is_some());
-    // Verify mangled function uses real module name, not alias
+    // Verify mangled function uses path-based prefix, not alias
     assert!(codegen.module.get_function("_L5_utils_greet").is_some());
+}
+
+#[test]
+fn test_compile_modules_subdirectory() {
+    use crate::ast::ImportDecl;
+    use crate::resolver::ResolvedModule;
+
+    let temp_dir = std::env::temp_dir();
+
+    // Create an imported module in a subdirectory
+    let imported_program = Program {
+        imports: vec![],
+        functions: vec![FnDef {
+            visibility: Visibility::Public,
+            name: "greet".to_string(),
+            return_type: "void".to_string(),
+            return_type_span: dummy_span(),
+            body: vec![expr_stmt(ExprKind::Call {
+                callee: "println".to_string(),
+                args: vec![Expr::new(
+                    ExprKind::StringLiteral("hello from lib/utils".to_string()),
+                    dummy_span(),
+                )],
+            })],
+            span: dummy_span(),
+        }],
+    };
+    // Module is in a subdirectory relative to entry
+    let imported_path = temp_dir.join("lib").join("utils.lak");
+    let imported_module = ResolvedModule::for_testing(
+        imported_path.clone(),
+        "utils".to_string(),
+        imported_program,
+        "".to_string(),
+    );
+
+    // Create entry module that imports and calls utils.greet()
+    let entry_program = Program {
+        imports: vec![ImportDecl {
+            path: "./lib/utils".to_string(),
+            alias: None,
+            span: dummy_span(),
+        }],
+        functions: vec![FnDef {
+            visibility: Visibility::Private,
+            name: "main".to_string(),
+            return_type: "void".to_string(),
+            return_type_span: dummy_span(),
+            body: vec![expr_stmt(ExprKind::ModuleCall {
+                module: "utils".to_string(),
+                function: "greet".to_string(),
+                args: vec![],
+            })],
+            span: dummy_span(),
+        }],
+    };
+    let entry_path = temp_dir.join("main.lak");
+    let mut entry_module = ResolvedModule::for_testing(
+        entry_path.clone(),
+        "main".to_string(),
+        entry_program,
+        "".to_string(),
+    );
+    entry_module.add_resolved_import_for_testing("./lib/utils".to_string(), imported_path);
+
+    let modules = [imported_module, entry_module];
+
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "test");
+    codegen
+        .compile_modules(&modules, &entry_path)
+        .expect("compile_modules with subdirectory module should succeed");
+
+    // Verify main exists
+    assert!(codegen.module.get_function("main").is_some());
+    // Verify mangled function uses path-based prefix including directory
+    assert!(
+        codegen
+            .module
+            .get_function("_L10_lib__utils_greet")
+            .is_some()
+    );
+}
+
+// ==================================
+// Module path error constructor tests
+// ==================================
+
+#[test]
+fn test_internal_mangle_prefix_not_found_constructor() {
+    let path = std::path::Path::new("/tmp/utils.lak");
+    let err = CodegenError::internal_mangle_prefix_not_found(path);
+    assert_eq!(err.kind(), CodegenErrorKind::InternalError);
+    assert!(err.span().is_none());
+    assert_eq!(
+        err.message(),
+        "Internal error: mangle prefix not found for module '/tmp/utils.lak'. This is a compiler bug."
+    );
+}
+
+#[test]
+fn test_non_utf8_path_component_constructor() {
+    let path = std::path::Path::new("/tmp/test.lak");
+    let err = CodegenError::non_utf8_path_component(path);
+    assert_eq!(err.kind(), CodegenErrorKind::InvalidModulePath);
+    assert!(err.span().is_none());
+    assert_eq!(
+        err.message(),
+        "Module path '/tmp/test.lak' contains a non-UTF-8 component."
+    );
+}
+
+#[test]
+fn test_internal_entry_path_no_parent_constructor() {
+    let path = std::path::Path::new("/tmp/main.lak");
+    let err = CodegenError::internal_entry_path_no_parent(path);
+    assert_eq!(err.kind(), CodegenErrorKind::InternalError);
+    assert!(err.span().is_none());
+    assert_eq!(
+        err.message(),
+        "Internal error: entry path '/tmp/main.lak' has no parent directory. This is a compiler bug."
+    );
+}
+
+#[test]
+fn test_internal_non_canonical_path_constructor() {
+    let path = std::path::Path::new("/tmp/test.lak");
+    let err = CodegenError::internal_non_canonical_path(path);
+    assert_eq!(err.kind(), CodegenErrorKind::InternalError);
+    assert!(err.span().is_none());
+    assert_eq!(
+        err.message(),
+        "Internal error: module path '/tmp/test.lak' contains '.' or '..' components. \
+         Paths must be canonicalized before code generation. This is a compiler bug."
+    );
+}
+
+// ==================================
+// compute_mangle_prefixes tests
+// ==================================
+
+#[test]
+fn test_compute_mangle_prefixes_same_directory() {
+    let entry = PathBuf::from("/project/main.lak");
+    let modules = vec![
+        ResolvedModule::for_testing(
+            PathBuf::from("/project/main.lak"),
+            "main".to_string(),
+            empty_program(),
+            String::new(),
+        ),
+        ResolvedModule::for_testing(
+            PathBuf::from("/project/utils.lak"),
+            "utils".to_string(),
+            empty_program(),
+            String::new(),
+        ),
+    ];
+    let prefixes = compute_mangle_prefixes(&modules, &entry).unwrap();
+    assert_eq!(
+        prefixes.get(Path::new("/project/utils.lak")).unwrap(),
+        "utils"
+    );
+}
+
+#[test]
+fn test_compute_mangle_prefixes_subdirectory() {
+    let entry = PathBuf::from("/project/main.lak");
+    let modules = vec![
+        ResolvedModule::for_testing(
+            PathBuf::from("/project/main.lak"),
+            "main".to_string(),
+            empty_program(),
+            String::new(),
+        ),
+        ResolvedModule::for_testing(
+            PathBuf::from("/project/dir/foo.lak"),
+            "foo".to_string(),
+            empty_program(),
+            String::new(),
+        ),
+    ];
+    let prefixes = compute_mangle_prefixes(&modules, &entry).unwrap();
+    assert_eq!(
+        prefixes.get(Path::new("/project/dir/foo.lak")).unwrap(),
+        "dir__foo"
+    );
+}
+
+#[test]
+fn test_compute_mangle_prefixes_deeply_nested() {
+    let entry = PathBuf::from("/project/main.lak");
+    let modules = vec![
+        ResolvedModule::for_testing(
+            PathBuf::from("/project/main.lak"),
+            "main".to_string(),
+            empty_program(),
+            String::new(),
+        ),
+        ResolvedModule::for_testing(
+            PathBuf::from("/project/a/b/c/mod.lak"),
+            "mod".to_string(),
+            empty_program(),
+            String::new(),
+        ),
+    ];
+    let prefixes = compute_mangle_prefixes(&modules, &entry).unwrap();
+    assert_eq!(
+        prefixes.get(Path::new("/project/a/b/c/mod.lak")).unwrap(),
+        "a__b__c__mod"
+    );
+}
+
+#[test]
+fn test_compute_mangle_prefixes_same_name_different_dirs() {
+    let entry = PathBuf::from("/project/main.lak");
+    let modules = vec![
+        ResolvedModule::for_testing(
+            PathBuf::from("/project/main.lak"),
+            "main".to_string(),
+            empty_program(),
+            String::new(),
+        ),
+        ResolvedModule::for_testing(
+            PathBuf::from("/project/foo.lak"),
+            "foo".to_string(),
+            empty_program(),
+            String::new(),
+        ),
+        ResolvedModule::for_testing(
+            PathBuf::from("/project/dir/foo.lak"),
+            "foo".to_string(),
+            empty_program(),
+            String::new(),
+        ),
+    ];
+    let prefixes = compute_mangle_prefixes(&modules, &entry).unwrap();
+    assert_eq!(prefixes.get(Path::new("/project/foo.lak")).unwrap(), "foo");
+    assert_eq!(
+        prefixes.get(Path::new("/project/dir/foo.lak")).unwrap(),
+        "dir__foo"
+    );
+}
+
+#[test]
+fn test_compute_mangle_prefixes_skips_entry() {
+    let entry = PathBuf::from("/project/main.lak");
+    let modules = vec![ResolvedModule::for_testing(
+        PathBuf::from("/project/main.lak"),
+        "main".to_string(),
+        empty_program(),
+        String::new(),
+    )];
+    let prefixes = compute_mangle_prefixes(&modules, &entry).unwrap();
+    assert!(prefixes.is_empty());
+}
+
+#[test]
+fn test_compute_mangle_prefixes_empty_modules() {
+    let entry = PathBuf::from("/project/main.lak");
+    let prefixes = compute_mangle_prefixes(&[], &entry).unwrap();
+    assert!(prefixes.is_empty());
+}
+
+#[test]
+fn test_compute_mangle_prefixes_outside_entry_dir() {
+    let entry = PathBuf::from("/home/user/project/main.lak");
+    let modules = vec![
+        ResolvedModule::for_testing(
+            PathBuf::from("/home/user/project/main.lak"),
+            "main".to_string(),
+            empty_program(),
+            String::new(),
+        ),
+        ResolvedModule::for_testing(
+            PathBuf::from("/opt/lib/utils.lak"),
+            "utils".to_string(),
+            empty_program(),
+            String::new(),
+        ),
+    ];
+    let prefixes = compute_mangle_prefixes(&modules, &entry).unwrap();
+    assert_eq!(
+        prefixes.get(Path::new("/opt/lib/utils.lak")).unwrap(),
+        "opt__lib__utils"
+    );
+}
+
+#[test]
+fn test_codegen_error_short_message_invalid_module_path() {
+    let err = CodegenError::without_span(CodegenErrorKind::InvalidModulePath, "test error");
+    assert_eq!(err.short_message(), "Invalid module path");
+}
+
+#[test]
+fn test_duplicate_mangle_prefix_constructor() {
+    let path1 = std::path::Path::new("/project/a/utils.lak");
+    let path2 = std::path::Path::new("/project/b/utils.lak");
+    let err = CodegenError::duplicate_mangle_prefix("utils", path1, path2);
+    assert_eq!(err.kind(), CodegenErrorKind::InvalidModulePath);
+    assert!(err.span().is_none());
+    assert_eq!(
+        err.message(),
+        "Modules '/project/a/utils.lak' and '/project/b/utils.lak' produce the same mangle prefix 'utils'. \
+         Rename one of the modules to avoid the collision."
+    );
+}
+
+#[test]
+fn test_duplicate_mangle_prefix_reverse_order() {
+    // Verify that passing paths in reverse alphabetical order
+    // still produces a sorted error message.
+    let path1 = std::path::Path::new("/project/b/utils.lak");
+    let path2 = std::path::Path::new("/project/a/utils.lak");
+    let err = CodegenError::duplicate_mangle_prefix("utils", path1, path2);
+    assert_eq!(err.kind(), CodegenErrorKind::InvalidModulePath);
+    assert!(err.span().is_none());
+    assert_eq!(
+        err.message(),
+        "Modules '/project/a/utils.lak' and '/project/b/utils.lak' produce the same mangle prefix 'utils'. \
+         Rename one of the modules to avoid the collision."
+    );
+}
+
+#[test]
+fn test_internal_empty_mangle_prefix_constructor() {
+    let path = std::path::Path::new("/project/empty.lak");
+    let err = CodegenError::internal_empty_mangle_prefix(path);
+    assert_eq!(err.kind(), CodegenErrorKind::InternalError);
+    assert!(err.span().is_none());
+    assert_eq!(
+        err.message(),
+        "Internal error: module path '/project/empty.lak' produces an empty mangle prefix. This is a compiler bug."
+    );
+}
+
+#[test]
+fn test_compute_mangle_prefixes_duplicate_detection() {
+    // A module inside the entry directory and one outside can collide
+    // when the outside module's full Normal components match the inside
+    // module's relative path prefix.
+    let entry = PathBuf::from("/project/main.lak");
+    let modules = vec![
+        ResolvedModule::for_testing(
+            PathBuf::from("/project/main.lak"),
+            "main".to_string(),
+            empty_program(),
+            String::new(),
+        ),
+        ResolvedModule::for_testing(
+            PathBuf::from("/project/foo.lak"),
+            "foo".to_string(),
+            empty_program(),
+            String::new(),
+        ),
+        ResolvedModule::for_testing(
+            PathBuf::from("/foo.lak"),
+            "foo".to_string(),
+            empty_program(),
+            String::new(),
+        ),
+    ];
+    let result = compute_mangle_prefixes(&modules, &entry);
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert_eq!(err.kind(), CodegenErrorKind::InvalidModulePath);
+    assert_eq!(
+        err.message(),
+        "Modules '/foo.lak' and '/project/foo.lak' produce the same mangle prefix 'foo'. \
+         Rename one of the modules to avoid the collision."
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn test_compute_mangle_prefixes_empty_prefix() {
+    let entry = PathBuf::from("/project/main.lak");
+    let modules = vec![
+        ResolvedModule::for_testing(
+            PathBuf::from("/project/main.lak"),
+            "main".to_string(),
+            empty_program(),
+            String::new(),
+        ),
+        ResolvedModule::for_testing(
+            PathBuf::from("/"),
+            "root".to_string(),
+            empty_program(),
+            String::new(),
+        ),
+    ];
+    let result = compute_mangle_prefixes(&modules, &entry);
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert_eq!(err.kind(), CodegenErrorKind::InternalError);
+    assert_eq!(
+        err.message(),
+        "Internal error: module path '/' produces an empty mangle prefix. This is a compiler bug."
+    );
+}
+
+#[test]
+fn test_get_mangle_prefix_found() {
+    let mut prefixes = HashMap::new();
+    prefixes.insert(PathBuf::from("/project/utils.lak"), "utils".to_string());
+    prefixes.insert(
+        PathBuf::from("/project/lib/helper.lak"),
+        "lib__helper".to_string(),
+    );
+    assert_eq!(
+        get_mangle_prefix(&prefixes, Path::new("/project/utils.lak")).unwrap(),
+        "utils"
+    );
+    assert_eq!(
+        get_mangle_prefix(&prefixes, Path::new("/project/lib/helper.lak")).unwrap(),
+        "lib__helper"
+    );
+}
+
+#[test]
+fn test_get_mangle_prefix_not_found() {
+    let prefixes = HashMap::new();
+    let module_path = Path::new("/project/missing.lak");
+    let result = get_mangle_prefix(&prefixes, module_path);
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert_eq!(err.kind(), CodegenErrorKind::InternalError);
+    assert_eq!(
+        err.message(),
+        "Internal error: mangle prefix not found for module '/project/missing.lak'. This is a compiler bug."
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn test_path_components_to_strings_filters_non_normal() {
+    let module_path = Path::new("/a/b/c.lak");
+
+    // Root component is filtered out; only Normal components remain
+    let path = Path::new("/a/b/c");
+    let result = path_components_to_strings(path, module_path).unwrap();
+    assert_eq!(result, vec!["a", "b", "c"]);
+}
+
+#[test]
+fn test_path_components_to_strings_relative_normal_only() {
+    let module_path = Path::new("/a/b/c.lak");
+    let path = Path::new("a/b/c");
+    let result = path_components_to_strings(path, module_path).unwrap();
+    assert_eq!(result, vec!["a", "b", "c"]);
+}
+
+#[test]
+fn test_path_components_to_strings_rejects_parent_dir() {
+    let module_path = Path::new("/a/b/c.lak");
+    let path = Path::new("a/../b");
+    let result = path_components_to_strings(path, module_path);
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert_eq!(err.kind(), CodegenErrorKind::InternalError);
+    assert_eq!(
+        err.message(),
+        "Internal error: module path '/a/b/c.lak' contains '.' or '..' components. \
+         Paths must be canonicalized before code generation. This is a compiler bug."
+    );
+}
+
+#[test]
+fn test_path_components_to_strings_rejects_cur_dir() {
+    let module_path = Path::new("/a/b/c.lak");
+    let path = Path::new("./a/b");
+    let result = path_components_to_strings(path, module_path);
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert_eq!(err.kind(), CodegenErrorKind::InternalError);
+    assert_eq!(
+        err.message(),
+        "Internal error: module path '/a/b/c.lak' contains '.' or '..' components. \
+         Paths must be canonicalized before code generation. This is a compiler bug."
+    );
 }

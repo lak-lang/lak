@@ -10,7 +10,7 @@ Transforms Lak AST into LLVM IR and generates native object files. Uses Inkwell 
 
 | File | Responsibility |
 |------|----------------|
-| `mod.rs` | `Codegen` struct, `compile()`/`compile_modules()` entry points, `mangle_name()` |
+| `mod.rs` | `Codegen` struct, `compile()`/`compile_modules()` entry points, `mangle_name()`, `compute_mangle_prefixes()`, `path_components_to_strings()`, `get_mangle_prefix()` |
 | `error.rs` | `CodegenError`, `CodegenErrorKind` |
 | `binding.rs` | `VarBinding` (stack allocation and type info for variables) |
 | `builtins.rs` | Built-in functions (`println` → `lak_println`) |
@@ -25,13 +25,14 @@ Transforms Lak AST into LLVM IR and generates native object files. Uses Inkwell 
 
 - Undefined variables, type mismatches, duplicate variables are already caught
 - Violations are handled by returning `CodegenError::InternalError` (not `panic!` or `debug_assert!`)
-- Runtime errors are limited to infrastructure errors (LLVM failures, target errors)
+- Errors in this module are limited to infrastructure issues (LLVM failures, target errors) and module path validation
 
 ## Error Types
 
 `CodegenErrorKind`:
-- `InternalError` - LLVM IR generation failures (compiler bug)
+- `InternalError` - Invariant violations that indicate compiler bugs (LLVM IR generation failures, module path resolution errors, etc.)
 - `TargetError` - Target initialization or object file output failures
+- `InvalidModulePath` - Module path validation errors (non-UTF-8 components, duplicate prefixes)
 
 ## Lifetime `'ctx`
 

@@ -788,3 +788,283 @@ fn main() -> void {
         "Hello from lak extension!\n"
     );
 }
+
+#[test]
+fn test_same_name_modules_in_different_directories() {
+    let temp = tempdir().unwrap();
+
+    // Create dir/ subdirectory
+    fs::create_dir(temp.path().join("dir")).unwrap();
+
+    // Create foo.lak in root
+    let foo_path = temp.path().join("foo.lak");
+    fs::write(
+        &foo_path,
+        r#"pub fn foo() -> void {
+    println("foo1")
+}
+"#,
+    )
+    .unwrap();
+
+    // Create dir/foo.lak
+    let dir_foo_path = temp.path().join("dir").join("foo.lak");
+    fs::write(
+        &dir_foo_path,
+        r#"pub fn foo() -> void {
+    println("foo2")
+}
+"#,
+    )
+    .unwrap();
+
+    // Create main.lak importing both
+    let main_path = temp.path().join("main.lak");
+    fs::write(
+        &main_path,
+        r#"import "./foo"
+import "./dir/foo" as foo2
+
+fn main() -> void {
+    foo.foo()
+    foo2.foo()
+}
+"#,
+    )
+    .unwrap();
+
+    let build_output = Command::new(lak_binary())
+        .current_dir(temp.path())
+        .args(["build", "main.lak"])
+        .output()
+        .unwrap();
+
+    assert!(
+        build_output.status.success(),
+        "Build failed: {}",
+        String::from_utf8_lossy(&build_output.stderr)
+    );
+
+    let exec_path = temp.path().join("main");
+    let run_output = Command::new(&exec_path).output().unwrap();
+
+    assert!(run_output.status.success());
+    assert_eq!(String::from_utf8_lossy(&run_output.stdout), "foo1\nfoo2\n");
+}
+
+#[test]
+fn test_deeply_nested_module_import() {
+    let temp = tempdir().unwrap();
+
+    // Create a/b/c/ subdirectory
+    fs::create_dir_all(temp.path().join("a").join("b").join("c")).unwrap();
+
+    // Create a/b/c/deep.lak
+    let deep_path = temp.path().join("a").join("b").join("c").join("deep.lak");
+    fs::write(
+        &deep_path,
+        r#"pub fn hello() -> void {
+    println("from deep")
+}
+"#,
+    )
+    .unwrap();
+
+    // Create main.lak importing deeply nested module
+    let main_path = temp.path().join("main.lak");
+    fs::write(
+        &main_path,
+        r#"import "./a/b/c/deep"
+
+fn main() -> void {
+    deep.hello()
+}
+"#,
+    )
+    .unwrap();
+
+    let build_output = Command::new(lak_binary())
+        .current_dir(temp.path())
+        .args(["build", "main.lak"])
+        .output()
+        .unwrap();
+
+    assert!(
+        build_output.status.success(),
+        "Build failed: {}",
+        String::from_utf8_lossy(&build_output.stderr)
+    );
+
+    let exec_path = temp.path().join("main");
+    let run_output = Command::new(&exec_path).output().unwrap();
+
+    assert!(run_output.status.success());
+    assert_eq!(String::from_utf8_lossy(&run_output.stdout), "from deep\n");
+}
+
+#[test]
+fn test_intra_module_call_in_subdirectory() {
+    let temp = tempdir().unwrap();
+
+    fs::create_dir(temp.path().join("lib")).unwrap();
+
+    let utils_path = temp.path().join("lib").join("utils.lak");
+    fs::write(
+        &utils_path,
+        r#"fn helper() -> void {
+    println("from helper")
+}
+
+pub fn greet() -> void {
+    helper()
+}
+"#,
+    )
+    .unwrap();
+
+    let main_path = temp.path().join("main.lak");
+    fs::write(
+        &main_path,
+        r#"import "./lib/utils"
+
+fn main() -> void {
+    utils.greet()
+}
+"#,
+    )
+    .unwrap();
+
+    let build_output = Command::new(lak_binary())
+        .current_dir(temp.path())
+        .args(["build", "main.lak"])
+        .output()
+        .unwrap();
+
+    assert!(
+        build_output.status.success(),
+        "Build failed: {}",
+        String::from_utf8_lossy(&build_output.stderr)
+    );
+
+    let exec_path = temp.path().join("main");
+    let run_output = Command::new(&exec_path).output().unwrap();
+
+    assert!(run_output.status.success());
+    assert_eq!(String::from_utf8_lossy(&run_output.stdout), "from helper\n");
+}
+
+#[test]
+fn test_transitive_import_with_subdirectories() {
+    let temp = tempdir().unwrap();
+
+    // Create lib/helpers/ subdirectory
+    fs::create_dir_all(temp.path().join("lib").join("helpers")).unwrap();
+
+    // Create lib/helpers/utils.lak
+    let utils_path = temp.path().join("lib").join("helpers").join("utils.lak");
+    fs::write(
+        &utils_path,
+        r#"pub fn hello() -> void {
+    println("from deep transitive")
+}
+"#,
+    )
+    .unwrap();
+
+    // Create lib/app.lak that imports ./helpers/utils
+    let app_path = temp.path().join("lib").join("app.lak");
+    fs::write(
+        &app_path,
+        r#"import "./helpers/utils"
+
+pub fn run() -> void {
+    utils.hello()
+}
+"#,
+    )
+    .unwrap();
+
+    // Create main.lak that imports ./lib/app
+    let main_path = temp.path().join("main.lak");
+    fs::write(
+        &main_path,
+        r#"import "./lib/app"
+
+fn main() -> void {
+    app.run()
+}
+"#,
+    )
+    .unwrap();
+
+    let build_output = Command::new(lak_binary())
+        .current_dir(temp.path())
+        .args(["build", "main.lak"])
+        .output()
+        .unwrap();
+
+    assert!(
+        build_output.status.success(),
+        "Build failed: {}",
+        String::from_utf8_lossy(&build_output.stderr)
+    );
+
+    let exec_path = temp.path().join("main");
+    let run_output = Command::new(&exec_path).output().unwrap();
+
+    assert!(run_output.status.success());
+    assert_eq!(
+        String::from_utf8_lossy(&run_output.stdout),
+        "from deep transitive\n"
+    );
+}
+
+#[test]
+fn test_subdirectory_import_with_alias() {
+    let temp = tempdir().unwrap();
+
+    fs::create_dir(temp.path().join("lib")).unwrap();
+
+    let utils_path = temp.path().join("lib").join("utils.lak");
+    fs::write(
+        &utils_path,
+        r#"pub fn greet() -> void {
+    println("hello from alias")
+}
+"#,
+    )
+    .unwrap();
+
+    let main_path = temp.path().join("main.lak");
+    fs::write(
+        &main_path,
+        r#"import "./lib/utils" as u
+
+fn main() -> void {
+    u.greet()
+}
+"#,
+    )
+    .unwrap();
+
+    let build_output = Command::new(lak_binary())
+        .current_dir(temp.path())
+        .args(["build", "main.lak"])
+        .output()
+        .unwrap();
+
+    assert!(
+        build_output.status.success(),
+        "Build failed: {}",
+        String::from_utf8_lossy(&build_output.stderr)
+    );
+
+    let exec_path = temp.path().join("main");
+    let run_output = Command::new(&exec_path).output().unwrap();
+
+    assert!(run_output.status.success());
+    assert_eq!(
+        String::from_utf8_lossy(&run_output.stdout),
+        "hello from alias\n"
+    );
+}

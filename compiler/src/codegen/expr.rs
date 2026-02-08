@@ -111,7 +111,7 @@ impl<'ctx> Codegen<'ctx> {
     /// Generates a call to a module-qualified function.
     ///
     /// The function name is mangled using the length-prefix scheme via `mangle_name()`.
-    /// If the module name is an alias, it is resolved to the real module name first.
+    /// If the module name is an alias, it is resolved to its mangle prefix first.
     ///
     /// # Arguments
     ///
@@ -124,9 +124,9 @@ impl<'ctx> Codegen<'ctx> {
         function: &str,
         span: crate::token::Span,
     ) -> Result<(), CodegenError> {
-        // Resolve alias to real module name for correct name mangling
-        let real_module = self.resolve_module_alias(module_alias, span)?;
-        let mangled_name = mangle_name(&real_module, function);
+        // Resolve alias to mangle prefix for correct name mangling
+        let mangle_prefix = self.resolve_module_alias(module_alias, span)?;
+        let mangled_name = mangle_name(&mangle_prefix, function);
 
         let llvm_function = self
             .module
