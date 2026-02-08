@@ -4,7 +4,8 @@ description: Install and configure LLVM 21 for inkwell
 runs:
   using: composite
   steps:
-    - name: Install LLVM 21
+    - name: Install LLVM 21 (Linux)
+      if: runner.os == 'Linux'
       shell: bash
       run: |
         wget https://apt.llvm.org/llvm.sh
@@ -12,8 +13,33 @@ runs:
         sudo ./llvm.sh 21
         sudo apt-get install -y llvm-21-dev libclang-21-dev clang-21 libpolly-21-dev
 
-    - name: Configure LLVM environment
+    - name: Configure LLVM (Linux)
+      if: runner.os == 'Linux'
       shell: bash
       run: |
         echo "LLVM_SYS_211_PREFIX=/usr/lib/llvm-21" >> "$GITHUB_ENV"
         echo "/usr/lib/llvm-21/bin" >> "$GITHUB_PATH"
+
+    - name: Install LLVM 21 (macOS)
+      if: runner.os == 'macOS'
+      shell: bash
+      run: brew install llvm@21
+
+    - name: Configure LLVM (macOS)
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        echo "LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21" >> "$GITHUB_ENV"
+        echo "/opt/homebrew/opt/llvm@21/bin" >> "$GITHUB_PATH"
+
+    - name: Install LLVM 21 (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: choco install llvm --version=21.0.0 --allow-downgrade -y
+
+    - name: Configure LLVM (Windows)
+      if: runner.os == 'Windows'
+      shell: bash
+      run: |
+        echo "LLVM_SYS_211_PREFIX=C:\Program Files\LLVM" >> "$GITHUB_ENV"
+        echo "C:\Program Files\LLVM\bin" >> "$GITHUB_PATH"

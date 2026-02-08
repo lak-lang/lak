@@ -5,7 +5,7 @@
 
 mod common;
 
-use common::lak_binary;
+use common::{executable_name, lak_binary};
 use std::fs;
 use std::process::Command;
 use tempfile::tempdir;
@@ -23,7 +23,7 @@ fn test_build_basic() {
         .unwrap();
 
     assert!(output.status.success());
-    assert!(temp.path().join("test").exists());
+    assert!(temp.path().join(executable_name("test")).exists());
 }
 
 #[test]
@@ -41,7 +41,7 @@ fn test_build_custom_output() {
     assert!(output.status.success());
     assert!(temp.path().join("custom").exists());
     // Original name should not exist
-    assert!(!temp.path().join("test").exists());
+    assert!(!temp.path().join(executable_name("test")).exists());
 }
 
 #[test]
@@ -188,7 +188,7 @@ fn test_build_produces_executable() {
     assert!(build_output.status.success());
 
     // Run the built executable
-    let exec_path = temp.path().join("hello");
+    let exec_path = temp.path().join(executable_name("hello"));
     let run_output = Command::new(&exec_path).output().unwrap();
 
     assert!(run_output.status.success());

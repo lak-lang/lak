@@ -20,11 +20,22 @@ fn main() {
         env::var("PROFILE").expect("PROFILE not set. This build script must be run by Cargo.");
 
     // Construct the path to the runtime static library.
-    // Note: Cargo converts package name "lak-runtime" to "liblak_runtime.a"
+    // Cargo converts package name "lak-runtime" to platform-specific names:
+    // - Unix and Windows GNU (MinGW): "liblak_runtime.a"
+    // - Windows MSVC: "lak_runtime.lib"
+    let target_os = env::var("CARGO_CFG_TARGET_OS")
+        .expect("CARGO_CFG_TARGET_OS not set. This build script must be run by Cargo.");
+    let target_env = env::var("CARGO_CFG_TARGET_ENV")
+        .expect("CARGO_CFG_TARGET_ENV not set. This build script must be run by Cargo.");
+    let runtime_lib_name = if target_os == "windows" && target_env == "msvc" {
+        "lak_runtime.lib"
+    } else {
+        "liblak_runtime.a"
+    };
     let runtime_lib = workspace_root
         .join("target")
         .join(&profile)
-        .join("liblak_runtime.a");
+        .join(runtime_lib_name);
 
     // Export the runtime library path as a compile-time environment variable
     println!("cargo:rustc-env=LAK_RUNTIME_PATH={}", runtime_lib.display());

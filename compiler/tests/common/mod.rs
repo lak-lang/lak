@@ -20,6 +20,12 @@ use tempfile::tempdir;
 /// Path to the Lak runtime library, set at compile time by build.rs.
 pub const LAK_RUNTIME_PATH: &str = env!("LAK_RUNTIME_PATH");
 
+/// Returns an executable filename with the correct platform extension.
+/// e.g., "test" → "test" on Unix, "test.exe" on Windows.
+pub fn executable_name(name: &str) -> String {
+    format!("{}{}", name, std::env::consts::EXE_SUFFIX)
+}
+
 /// Returns the path to the lak binary built by cargo.
 ///
 /// Used for tests that need to verify panic behavior and exit codes,
@@ -64,7 +70,7 @@ pub fn compile_and_run(source: &str) -> Result<String, String> {
     // Write object file
     let temp_dir = tempdir().map_err(|e| e.to_string())?;
     let object_path = temp_dir.path().join("test.o");
-    let executable_path = temp_dir.path().join("test");
+    let executable_path = temp_dir.path().join(executable_name("test"));
 
     codegen
         .write_object_file(&object_path)
@@ -78,10 +84,23 @@ pub fn compile_and_run(source: &str) -> Result<String, String> {
         .to_str()
         .ok_or_else(|| format!("Executable path {:?} is not valid UTF-8", executable_path))?;
 
-    let link_output = Command::new("cc")
-        .args([object_str, LAK_RUNTIME_PATH, "-o", exec_str])
-        .output()
-        .map_err(|e| format!("Failed to run linker: {}", e))?;
+    let link_output = if cfg!(all(target_os = "windows", target_env = "msvc")) {
+        Command::new("link.exe")
+            .args([
+                "/NOLOGO",
+                object_str,
+                LAK_RUNTIME_PATH,
+                &format!("/OUT:{}", exec_str),
+                "/DEFAULTLIB:msvcrt",
+                "/DEFAULTLIB:legacy_stdio_definitions",
+            ])
+            .output()
+    } else {
+        Command::new("cc")
+            .args([object_str, LAK_RUNTIME_PATH, "-o", exec_str])
+            .output()
+    }
+    .map_err(|e| format!("Failed to run linker: {}", e))?;
 
     if !link_output.status.success() {
         return Err(format!(

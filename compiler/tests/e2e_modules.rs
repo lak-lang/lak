@@ -5,7 +5,7 @@
 
 mod common;
 
-use common::lak_binary;
+use common::{executable_name, lak_binary};
 use std::fs;
 use std::process::Command;
 use tempfile::tempdir;
@@ -52,7 +52,7 @@ fn main() -> void {
     );
 
     // Run the executable
-    let exec_path = temp.path().join("main");
+    let exec_path = temp.path().join(executable_name("main"));
     let run_output = Command::new(&exec_path).output().unwrap();
 
     assert!(run_output.status.success());
@@ -102,7 +102,7 @@ fn main() -> void {
         String::from_utf8_lossy(&build_output.stderr)
     );
 
-    let exec_path = temp.path().join("main");
+    let exec_path = temp.path().join(executable_name("main"));
     let run_output = Command::new(&exec_path).output().unwrap();
 
     assert!(run_output.status.success());
@@ -162,7 +162,7 @@ fn main() -> void {
         String::from_utf8_lossy(&build_output.stderr)
     );
 
-    let exec_path = temp.path().join("main");
+    let exec_path = temp.path().join(executable_name("main"));
     let run_output = Command::new(&exec_path).output().unwrap();
 
     assert!(run_output.status.success());
@@ -222,7 +222,7 @@ fn main() -> void {
         String::from_utf8_lossy(&build_output.stderr)
     );
 
-    let exec_path = temp.path().join("main");
+    let exec_path = temp.path().join(executable_name("main"));
     let run_output = Command::new(&exec_path).output().unwrap();
 
     assert!(run_output.status.success());
@@ -281,7 +281,7 @@ fn main() -> void {
         String::from_utf8_lossy(&build_output.stderr)
     );
 
-    let exec_path = temp.path().join("main");
+    let exec_path = temp.path().join(executable_name("main"));
     let run_output = Command::new(&exec_path).output().unwrap();
 
     assert!(run_output.status.success());
@@ -403,7 +403,7 @@ fn main() -> void {
         String::from_utf8_lossy(&build_output.stderr)
     );
 
-    let exec_path = temp.path().join("main");
+    let exec_path = temp.path().join(executable_name("main"));
     let run_output = Command::new(&exec_path).output().unwrap();
 
     assert!(run_output.status.success());
@@ -458,7 +458,7 @@ fn main() -> void {
         String::from_utf8_lossy(&build_output.stderr)
     );
 
-    let exec_path = temp.path().join("main");
+    let exec_path = temp.path().join(executable_name("main"));
     let run_output = Command::new(&exec_path).output().unwrap();
 
     assert!(run_output.status.success());
@@ -505,7 +505,7 @@ fn main() -> void {
         String::from_utf8_lossy(&build_output.stderr)
     );
 
-    let exec_path = temp.path().join("main");
+    let exec_path = temp.path().join(executable_name("main"));
     let run_output = Command::new(&exec_path).output().unwrap();
 
     assert!(run_output.status.success());
@@ -555,7 +555,7 @@ fn main() -> void {
         String::from_utf8_lossy(&build_output.stderr)
     );
 
-    let exec_path = temp.path().join("main");
+    let exec_path = temp.path().join(executable_name("main"));
     let run_output = Command::new(&exec_path).output().unwrap();
 
     assert!(run_output.status.success());
@@ -611,7 +611,7 @@ fn main() -> void {
         String::from_utf8_lossy(&build_output.stderr)
     );
 
-    let exec_path = temp.path().join("main");
+    let exec_path = temp.path().join(executable_name("main"));
     let run_output = Command::new(&exec_path).output().unwrap();
 
     assert!(run_output.status.success());
@@ -665,7 +665,7 @@ fn main() -> void {
         String::from_utf8_lossy(&build_output.stderr)
     );
 
-    let exec_path = temp.path().join("main");
+    let exec_path = temp.path().join(executable_name("main"));
     let run_output = Command::new(&exec_path).output().unwrap();
 
     assert!(run_output.status.success());
@@ -728,7 +728,7 @@ fn main() -> void {
         String::from_utf8_lossy(&build_output.stderr)
     );
 
-    let exec_path = temp.path().join("main");
+    let exec_path = temp.path().join(executable_name("main"));
     let run_output = Command::new(&exec_path).output().unwrap();
 
     assert!(run_output.status.success());
@@ -779,7 +779,7 @@ fn main() -> void {
         String::from_utf8_lossy(&build_output.stderr)
     );
 
-    let exec_path = temp.path().join("main");
+    let exec_path = temp.path().join(executable_name("main"));
     let run_output = Command::new(&exec_path).output().unwrap();
 
     assert!(run_output.status.success());
@@ -845,7 +845,7 @@ fn main() -> void {
         String::from_utf8_lossy(&build_output.stderr)
     );
 
-    let exec_path = temp.path().join("main");
+    let exec_path = temp.path().join(executable_name("main"));
     let run_output = Command::new(&exec_path).output().unwrap();
 
     assert!(run_output.status.success());
@@ -895,7 +895,7 @@ fn main() -> void {
         String::from_utf8_lossy(&build_output.stderr)
     );
 
-    let exec_path = temp.path().join("main");
+    let exec_path = temp.path().join(executable_name("main"));
     let run_output = Command::new(&exec_path).output().unwrap();
 
     assert!(run_output.status.success());
@@ -946,7 +946,7 @@ fn main() -> void {
         String::from_utf8_lossy(&build_output.stderr)
     );
 
-    let exec_path = temp.path().join("main");
+    let exec_path = temp.path().join(executable_name("main"));
     let run_output = Command::new(&exec_path).output().unwrap();
 
     assert!(run_output.status.success());
@@ -1009,7 +1009,7 @@ fn main() -> void {
         String::from_utf8_lossy(&build_output.stderr)
     );
 
-    let exec_path = temp.path().join("main");
+    let exec_path = temp.path().join(executable_name("main"));
     let run_output = Command::new(&exec_path).output().unwrap();
 
     assert!(run_output.status.success());
@@ -1059,7 +1059,7 @@ fn main() -> void {
         String::from_utf8_lossy(&build_output.stderr)
     );
 
-    let exec_path = temp.path().join("main");
+    let exec_path = temp.path().join(executable_name("main"));
     let run_output = Command::new(&exec_path).output().unwrap();
 
     assert!(run_output.status.success());

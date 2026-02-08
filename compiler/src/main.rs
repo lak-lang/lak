@@ -548,10 +548,23 @@ fn link(object_path: &Path, output_path: &Path) -> Result<(), CompileError> {
         .to_str()
         .ok_or_else(|| CompileError::path_not_utf8(output_path, "Output file"))?;
 
-    let output = Command::new("cc")
-        .args([object_str, LAK_RUNTIME_PATH, "-o", output_str])
-        .output()
-        .map_err(|e| CompileError::Link(LinkError::ExecutionFailed(e)))?;
+    let output = if cfg!(all(target_os = "windows", target_env = "msvc")) {
+        Command::new("link.exe")
+            .args([
+                "/NOLOGO",
+                object_str,
+                LAK_RUNTIME_PATH,
+                &format!("/OUT:{}", output_str),
+                "/DEFAULTLIB:msvcrt",
+                "/DEFAULTLIB:legacy_stdio_definitions",
+            ])
+            .output()
+    } else {
+        Command::new("cc")
+            .args([object_str, LAK_RUNTIME_PATH, "-o", output_str])
+            .output()
+    }
+    .map_err(|e| CompileError::Link(LinkError::ExecutionFailed(e)))?;
 
     if !output.status.success() {
         return Err(CompileError::Link(LinkError::Failed {
@@ -719,7 +732,7 @@ fn build(file: &str, output: Option<&str>) -> Result<(), Box<CompileErrorWithCon
     let object_path = PathBuf::from(format!("{}.o", stem));
     let output_path = match output {
         Some(path) => PathBuf::from(path),
-        None => PathBuf::from(stem),
+        None => PathBuf::from(format!("{}{}", stem, std::env::consts::EXE_SUFFIX)),
     };
 
     compile_to_executable(&context, &object_path, &output_path)
@@ -773,7 +786,9 @@ fn run(file: &str) -> Result<i32, Box<CompileErrorWithContext>> {
     })?;
 
     let object_path = temp_dir.path().join("program.o");
-    let executable_path = temp_dir.path().join("program");
+    let executable_path = temp_dir
+        .path()
+        .join(format!("program{}", std::env::consts::EXE_SUFFIX));
 
     compile_to_executable(&context, &object_path, &executable_path)
         .map_err(|e| Box::new(context.clone().with_error(e)))?;
