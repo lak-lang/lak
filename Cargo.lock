@@ -211,6 +211,7 @@ name = "lak"
 version = "0.0.0"
 dependencies = [
  "ariadne",
+ "cc",
  "clap",
  "inkwell",
  "tempfile",

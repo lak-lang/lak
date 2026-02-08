@@ -549,7 +549,8 @@ fn link(object_path: &Path, output_path: &Path) -> Result<(), CompileError> {
         .ok_or_else(|| CompileError::path_not_utf8(output_path, "Output file"))?;
 
     let output = if cfg!(all(target_os = "windows", target_env = "msvc")) {
-        Command::new("link.exe")
+        let linker = find_msvc_linker()?;
+        Command::new(linker)
             .args([
                 "/NOLOGO",
                 object_str,
@@ -575,6 +576,43 @@ fn link(object_path: &Path, output_path: &Path) -> Result<(), CompileError> {
     }
 
     Ok(())
+}
+
+/// Finds the MSVC `link.exe` linker using the `cc` crate.
+///
+/// On Windows, the system PATH may contain a GNU coreutils `link.exe`
+/// (from Git for Windows) that takes priority over the MSVC linker.
+/// This function uses the `cc` crate to locate the MSVC C compiler
+/// (`cl.exe`) and finds `link.exe` in the same directory.
+fn find_msvc_linker() -> Result<PathBuf, CompileError> {
+    let compiler = cc::Build::new()
+        .cargo_metadata(false)
+        .try_get_compiler()
+        .map_err(|e| {
+            CompileError::Link(LinkError::ExecutionFailed(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("Failed to locate MSVC toolchain: {}", e),
+            )))
+        })?;
+
+    let tools_dir = compiler.path().parent().ok_or_else(|| {
+        CompileError::Link(LinkError::ExecutionFailed(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "Cannot determine MSVC tools directory from C compiler path",
+        )))
+    })?;
+
+    let link_exe = tools_dir.join("link.exe");
+    if link_exe.exists() {
+        Ok(link_exe)
+    } else {
+        Err(CompileError::Link(LinkError::ExecutionFailed(
+            std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("MSVC link.exe not found in {}", tools_dir.display()),
+            ),
+        )))
+    }
 }
 
 /// Compiles a Lak source file and links it into an executable.
