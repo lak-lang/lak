@@ -35,11 +35,19 @@ runs:
     - name: Install LLVM 21 (Windows)
       if: runner.os == 'Windows'
       shell: pwsh
-      run: choco install llvm --version=21.1.8 --allow-downgrade -y
+      run: |
+        $version = "21.1.1"
+        $config = "windows-amd64-msvc17-msvcrt"
+        $archive = "llvm-$version-$config.7z"
+        $url = "https://github.com/vovkos/llvm-package-windows/releases/download/llvm-$version/$archive"
+        Write-Host "Downloading LLVM from $url"
+        Invoke-WebRequest -Uri $url -OutFile $archive
+        7z x $archive -oC:\
+        Rename-Item "C:\llvm-$version-$config" "C:\llvm-21"
 
     - name: Configure LLVM (Windows)
       if: runner.os == 'Windows'
       shell: bash
       run: |
-        echo "LLVM_SYS_211_PREFIX=C:\Program Files\LLVM" >> "$GITHUB_ENV"
-        echo "C:\Program Files\LLVM\bin" >> "$GITHUB_PATH"
+        echo "LLVM_SYS_211_PREFIX=C:/llvm-21" >> "$GITHUB_ENV"
+        echo "C:/llvm-21/bin" >> "$GITHUB_PATH"
