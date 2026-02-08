@@ -40,13 +40,15 @@ fn main() -> void {}
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
+    // Verify short_message in report title
     assert!(
-        stderr.contains("Module not found"),
+        stderr.contains("\x1b[31mError:\x1b[0m Module not found"),
         "Expected 'Module not found' error, got: {}",
         stderr
     );
+    // Verify detailed message in label
     assert!(
-        stderr.contains("Cannot find module './nonexistent'"),
+        stderr.contains("Cannot find module './nonexistent'. Check that the file exists."),
         "Expected error message to mention the module path, got: {}",
         stderr
     );
@@ -103,9 +105,16 @@ fn main() -> void {
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
+    // Verify short_message in report title
     assert!(
-        stderr.contains("Circular import"),
+        stderr.contains("\x1b[31mError:\x1b[0m Circular import"),
         "Expected 'Circular import' error, got: {}",
+        stderr
+    );
+    // Verify detailed message in label
+    assert!(
+        stderr.contains("Circular import detected: a -> b -> a"),
+        "Expected cycle details in error, got: {}",
         stderr
     );
 }
@@ -133,14 +142,24 @@ fn test_error_undefined_module() {
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
+    // Verify short_message in report title
     assert!(
-        stderr.contains("Undefined module"),
+        stderr.contains("\x1b[31mError:\x1b[0m Undefined module"),
         "Expected 'Undefined module' error, got: {}",
         stderr
     );
+    // Verify detailed message in label
     assert!(
         stderr.contains("Module 'nonexistent' is not defined"),
         "Expected error message to mention the module name, got: {}",
+        stderr
+    );
+    // Verify help text
+    assert!(
+        stderr.contains(
+            "\x1b[38;5;115mHelp\x1b[0m: Did you forget to import it? Add: import \"./module_name\""
+        ),
+        "Expected help text about importing, got: {}",
         stderr
     );
 }
@@ -181,14 +200,22 @@ fn main() -> void {
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
+    // Verify short_message in report title
     assert!(
-        stderr.contains("Undefined module function"),
+        stderr.contains("\x1b[31mError:\x1b[0m Undefined module function"),
         "Expected 'Undefined module function' error, got: {}",
         stderr
     );
+    // Verify detailed message in label
     assert!(
         stderr.contains("Function 'nonexistent' not found in module 'utils'"),
         "Expected error message to mention the function and module, got: {}",
+        stderr
+    );
+    // Verify help text
+    assert!(
+        stderr.contains("\x1b[38;5;115mHelp\x1b[0m: Check that the function exists in 'utils' and is marked 'pub'"),
+        "Expected help text about pub visibility, got: {}",
         stderr
     );
 }
@@ -234,14 +261,22 @@ fn main() -> void {
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
     // Private functions appear as "not found" since they're not in the public exports
+    // Verify short_message in report title
     assert!(
-        stderr.contains("Undefined module function"),
+        stderr.contains("\x1b[31mError:\x1b[0m Undefined module function"),
         "Expected 'Undefined module function' error, got: {}",
         stderr
     );
+    // Verify detailed message in label
     assert!(
         stderr.contains("Function 'private_helper' not found in module 'utils'"),
         "Expected error message to mention the private function, got: {}",
+        stderr
+    );
+    // Verify help text
+    assert!(
+        stderr.contains("\x1b[38;5;115mHelp\x1b[0m: Check that the function exists in 'utils' and is marked 'pub'"),
+        "Expected help text about pub visibility, got: {}",
         stderr
     );
 }
@@ -269,13 +304,15 @@ fn main() -> void {}
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
+    // Verify short_message in report title
     assert!(
-        stderr.contains("Standard library not supported"),
+        stderr.contains("\x1b[31mError:\x1b[0m Standard library not supported"),
         "Expected 'Standard library not supported' error, got: {}",
         stderr
     );
+    // Verify detailed message in label
     assert!(
-        stderr.contains("Standard library imports are not yet supported: 'math'"),
+        stderr.contains("Standard library imports are not yet supported: 'math'. Use relative paths like './module' instead."),
         "Expected error message to mention the library name, got: {}",
         stderr
     );
@@ -315,9 +352,16 @@ fn main() -> void {}
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
+    // Verify short_message in report title
     assert!(
-        stderr.contains("Invalid module name"),
+        stderr.contains("\x1b[31mError:\x1b[0m Invalid module name"),
         "Expected 'Invalid module name' error, got: {}",
+        stderr
+    );
+    // Verify detailed message in label
+    assert!(
+        stderr.contains("Module names must be valid identifiers."),
+        "Expected error message to mention valid identifiers, got: {}",
         stderr
     );
 }
@@ -358,11 +402,13 @@ fn main() -> void {
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
+    // Verify short_message in report title
     assert!(
-        stderr.contains("Lexical error in module"),
+        stderr.contains("\x1b[31mError:\x1b[0m Lexical error in module"),
         "Expected 'Lexical error in module' error, got: {}",
         stderr
     );
+    // Verify detailed message in label
     assert!(
         stderr.contains("Unterminated string literal"),
         "Expected error message to mention unterminated string, got: {}",
@@ -406,9 +452,16 @@ fn main() -> void {
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
+    // Verify short_message in report title
     assert!(
-        stderr.contains("Parse error in module"),
+        stderr.contains("\x1b[31mError:\x1b[0m Parse error in module"),
         "Expected 'Parse error in module' error, got: {}",
+        stderr
+    );
+    // Verify detailed message in label
+    assert!(
+        stderr.contains("Expected ')', found '->'"),
+        "Expected parse error details in label, got: {}",
         stderr
     );
 }
@@ -441,14 +494,16 @@ fn main() -> void {}
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
+    // Verify short_message in report title
     assert!(
-        stderr.contains("Circular import"),
+        stderr.contains("\x1b[31mError:\x1b[0m Circular import"),
         "Expected 'Circular import' error for self-import, got: {}",
         stderr
     );
+    // Verify detailed message in label
     assert!(
-        stderr.contains("recursive -> recursive"),
-        "Expected cycle to show 'recursive -> recursive', got: {}",
+        stderr.contains("Circular import detected: recursive -> recursive"),
+        "Expected cycle to show 'Circular import detected: recursive -> recursive', got: {}",
         stderr
     );
 }
@@ -503,14 +558,23 @@ fn main() -> void {
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
+    // Verify short_message in report title
     assert!(
-        stderr.contains("Duplicate module import"),
+        stderr.contains("\x1b[31mError:\x1b[0m Duplicate module import"),
         "Expected 'Duplicate module import' error, got: {}",
         stderr
     );
+    // Verify detailed message in label
     assert!(
-        stderr.contains("Module name 'utils' is already imported"),
+        stderr.contains("Module name 'utils' is already imported from './utils'"),
         "Expected error message to mention duplicate module name, got: {}",
+        stderr
+    );
+    // Verify help text
+    assert!(
+        stderr
+            .contains("\x1b[38;5;115mHelp\x1b[0m: Use an alias: import \"./lib/utils\" as <alias>"),
+        "Expected help text about using alias, got: {}",
         stderr
     );
 }
@@ -551,13 +615,15 @@ fn main() -> void {
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
+    // Verify short_message in report title
     assert!(
-        stderr.contains("Undefined variable"),
+        stderr.contains("\x1b[31mError:\x1b[0m Undefined variable"),
         "Expected 'Undefined variable' error for imported module, got: {}",
         stderr
     );
+    // Verify detailed message in label
     assert!(
-        stderr.contains("undefined_var"),
+        stderr.contains("Undefined variable: 'undefined_var'"),
         "Expected error to mention the undefined variable name, got: {}",
         stderr
     );
@@ -599,13 +665,15 @@ fn main() -> void {
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
+    // Verify short_message in report title
     assert!(
-        stderr.contains("Invalid argument"),
+        stderr.contains("\x1b[31mError:\x1b[0m Invalid argument"),
         "Expected 'Invalid argument' error, got: {}",
         stderr
     );
+    // Verify detailed message in label
     assert!(
-        stderr.contains("expects 0 arguments, but got 1"),
+        stderr.contains("Function 'utils.greet' expects 0 arguments, but got 1"),
         "Expected error to mention argument count, got: {}",
         stderr
     );
@@ -675,9 +743,16 @@ fn main() -> void {
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
+    // Verify short_message in report title
     assert!(
-        stderr.contains("Circular import"),
+        stderr.contains("\x1b[31mError:\x1b[0m Circular import"),
         "Expected 'Circular import' error for three-level cycle, got: {}",
+        stderr
+    );
+    // Verify detailed message in label
+    assert!(
+        stderr.contains("Circular import detected: a -> b -> c -> a"),
+        "Expected cycle details for three-level cycle, got: {}",
         stderr
     );
 }
@@ -773,13 +848,15 @@ fn main() -> void {}
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
+    // Verify short_message in report title
     assert!(
-        stderr.contains("Module not found"),
+        stderr.contains("\x1b[31mError:\x1b[0m Module not found"),
         "Expected 'Module not found' error, got: {}",
         stderr
     );
+    // Verify detailed message in label
     assert!(
-        stderr.contains("./nonexistent.lak"),
+        stderr.contains("Cannot find module './nonexistent.lak'. Check that the file exists."),
         "Expected error message to mention the module path with .lak extension, got: {}",
         stderr
     );
@@ -808,9 +885,16 @@ fn test_error_invalid_entry_module_name() {
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
+    // Verify error message (no ANSI codes - this error has no span, output via eprintln)
     assert!(
         stderr.contains("Module names must be valid identifiers"),
         "Expected 'Module names must be valid identifiers' error for entry module with hyphen, got: {}",
+        stderr
+    );
+    // Verify the problematic filename is mentioned
+    assert!(
+        stderr.contains("my-app"),
+        "Expected error to mention the invalid filename 'my-app', got: {}",
         stderr
     );
 }

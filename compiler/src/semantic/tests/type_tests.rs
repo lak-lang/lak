@@ -109,6 +109,10 @@ fn test_integer_negative_overflow_i32() {
     assert!(result.is_err());
     let err = result.unwrap_err();
     assert_eq!(err.kind(), SemanticErrorKind::IntegerOverflow);
+    assert_eq!(
+        err.message(),
+        "Integer literal '-2147483649' is out of range for i32 (valid range: -2147483648 to 2147483647)"
+    );
 }
 
 #[test]
@@ -478,8 +482,10 @@ fn test_unary_minus_on_string_error() {
     assert!(result.is_err());
     let err = result.unwrap_err();
     assert_eq!(err.kind(), SemanticErrorKind::TypeMismatch);
-    assert!(err.message().contains("Unary operator '-'"));
-    assert!(err.message().contains("'string'"));
+    assert_eq!(
+        err.message(),
+        "Unary operator '-' cannot be used with 'string' type"
+    );
 }
 
 #[test]
@@ -574,8 +580,10 @@ fn test_unary_minus_type_mismatch_i32_to_i64() {
     assert!(result.is_err());
     let err = result.unwrap_err();
     assert_eq!(err.kind(), SemanticErrorKind::TypeMismatch);
-    // Error message should mention the unary operation context
-    assert!(err.message().contains("unary"));
+    assert_eq!(
+        err.message(),
+        "in unary '-' operation: Type mismatch: variable 'x' has type 'i32', expected 'i64'"
+    );
 }
 
 #[test]
@@ -616,8 +624,10 @@ fn test_unary_minus_on_string_variable_in_println() {
     assert!(result.is_err());
     let err = result.unwrap_err();
     assert_eq!(err.kind(), SemanticErrorKind::TypeMismatch);
-    assert!(err.message().contains("Unary operator '-'"));
-    assert!(err.message().contains("'string'"));
+    assert_eq!(
+        err.message(),
+        "Unary operator '-' cannot be used with 'string' type"
+    );
 }
 
 #[test]
@@ -648,4 +658,8 @@ fn test_unary_minus_on_string_literal_in_println() {
     assert!(result.is_err());
     let err = result.unwrap_err();
     assert_eq!(err.kind(), SemanticErrorKind::TypeMismatch);
+    assert_eq!(
+        err.message(),
+        "Unary operator '-' cannot be used with 'string' type"
+    );
 }
