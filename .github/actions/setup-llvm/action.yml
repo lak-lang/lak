@@ -35,7 +35,7 @@ runs:
     - name: Install LLVM 21 (Windows)
       if: runner.os == 'Windows'
       shell: pwsh
-      run: choco install llvm --version=21.0.0 --allow-downgrade -y
+      run: choco install llvm --version=21.1.8 --allow-downgrade -y
 
     - name: Configure LLVM (Windows)
       if: runner.os == 'Windows'
