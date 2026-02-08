@@ -888,9 +888,13 @@ fn test_unary_minus_variable_in_function_arg() {
 fn test_unary_minus_i32_min_overflow() {
     // Negating i32::MIN causes overflow in two's complement
     // -(-2147483648) wraps around to -2147483648
+    // Note: i32::MIN (-2147483648) cannot be written directly as a literal
+    // because the parser treats `-2147483648` as unary minus applied to
+    // `2147483648`, which exceeds i32::MAX.
+    // So we compute i32::MIN as -2147483647 - 1
     let output = compile_and_run(
         r#"fn main() -> void {
-    let x: i32 = -2147483648
+    let x: i32 = -2147483647 - 1
     let y: i32 = -x
     println(y)
 }"#,

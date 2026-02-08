@@ -174,3 +174,237 @@ fn test_internal_no_scope_constructor() {
         "Internal error: attempted to define variable 'x' outside a scope. This is a compiler bug."
     );
 }
+
+// ============================================================================
+// Module table internal error constructor tests
+// ============================================================================
+
+#[test]
+fn test_internal_function_export_empty_name_constructor() {
+    let err = SemanticError::internal_function_export_empty_name(dummy_span());
+    assert_eq!(err.kind(), SemanticErrorKind::InternalError);
+    assert!(err.span().is_some());
+    assert_eq!(
+        err.message(),
+        "Internal error: FunctionExport name must not be empty. This is a compiler bug."
+    );
+}
+
+#[test]
+fn test_internal_function_export_empty_return_type_constructor() {
+    let err = SemanticError::internal_function_export_empty_return_type(dummy_span());
+    assert_eq!(err.kind(), SemanticErrorKind::InternalError);
+    assert!(err.span().is_some());
+    assert_eq!(
+        err.message(),
+        "Internal error: FunctionExport return type must not be empty. This is a compiler bug."
+    );
+}
+
+#[test]
+fn test_internal_resolved_path_not_found_constructor() {
+    let err = SemanticError::internal_resolved_path_not_found("./utils", dummy_span());
+    assert_eq!(err.kind(), SemanticErrorKind::InternalError);
+    assert!(err.span().is_some());
+    assert_eq!(
+        err.message(),
+        "Internal error: resolved path for import './utils' not found. This is a compiler bug."
+    );
+}
+
+#[test]
+fn test_internal_resolved_module_not_found_constructor() {
+    let err = SemanticError::internal_resolved_module_not_found("./utils", dummy_span());
+    assert_eq!(err.kind(), SemanticErrorKind::InternalError);
+    assert!(err.span().is_some());
+    assert_eq!(
+        err.message(),
+        "Internal error: resolved module for './utils' not found in resolution map. This is a compiler bug."
+    );
+}
+
+// ============================================================================
+// Module error constructor tests
+// ============================================================================
+
+#[test]
+fn test_module_access_not_implemented_constructor() {
+    let err = SemanticError::module_access_not_implemented(dummy_span());
+    assert_eq!(err.kind(), SemanticErrorKind::ModuleAccessNotImplemented);
+    assert!(err.span().is_some());
+    assert_eq!(
+        err.message(),
+        "Module-qualified access (e.g., module.function) is not yet implemented"
+    );
+    assert_eq!(
+        err.help(),
+        Some("only module function calls are supported: module.function()")
+    );
+}
+
+#[test]
+fn test_module_call_return_value_not_supported_constructor() {
+    let err =
+        SemanticError::module_call_return_value_not_supported("utils", "get_value", dummy_span());
+    assert_eq!(err.kind(), SemanticErrorKind::TypeMismatch);
+    assert!(err.span().is_some());
+    assert_eq!(
+        err.message(),
+        "Module function call 'utils.get_value()' cannot be used as a value \
+         (return values from module functions are not yet supported)"
+    );
+    assert_eq!(
+        err.help(),
+        Some("call the module function as a statement instead")
+    );
+}
+
+#[test]
+fn test_module_not_imported_constructor() {
+    let err = SemanticError::module_not_imported("utils", "greet", dummy_span());
+    assert_eq!(err.kind(), SemanticErrorKind::ModuleNotImported);
+    assert!(err.span().is_some());
+    assert_eq!(
+        err.message(),
+        "Module-qualified function call 'utils.greet()' requires an import statement. \
+         Add: import \"./utils\""
+    );
+    assert!(err.help().is_none());
+}
+
+#[test]
+fn test_undefined_module_constructor() {
+    let err = SemanticError::undefined_module("math", dummy_span());
+    assert_eq!(err.kind(), SemanticErrorKind::UndefinedModule);
+    assert!(err.span().is_some());
+    assert_eq!(err.message(), "Module 'math' is not defined");
+    assert_eq!(
+        err.help(),
+        Some("Did you forget to import it? Add: import \"./module_name\"")
+    );
+}
+
+#[test]
+fn test_undefined_module_function_constructor() {
+    let err = SemanticError::undefined_module_function("utils", "nonexistent", dummy_span());
+    assert_eq!(err.kind(), SemanticErrorKind::UndefinedModuleFunction);
+    assert!(err.span().is_some());
+    assert_eq!(
+        err.message(),
+        "Function 'nonexistent' not found in module 'utils'"
+    );
+    assert_eq!(
+        err.help(),
+        Some("Check that the function exists in 'utils' and is marked 'pub'")
+    );
+}
+
+#[test]
+fn test_duplicate_module_import_constructor() {
+    let err =
+        SemanticError::duplicate_module_import("utils", "./utils", "../lib/utils", dummy_span());
+    assert_eq!(err.kind(), SemanticErrorKind::DuplicateModuleImport);
+    assert!(err.span().is_some());
+    assert_eq!(
+        err.message(),
+        "Module name 'utils' is already imported from './utils'"
+    );
+    assert_eq!(
+        err.help(),
+        Some("Use an alias: import \"../lib/utils\" as <alias>")
+    );
+}
+
+#[test]
+fn test_cross_module_call_in_imported_module_constructor() {
+    let err =
+        SemanticError::cross_module_call_in_imported_module("helper", "do_work", dummy_span());
+    assert_eq!(
+        err.kind(),
+        SemanticErrorKind::CrossModuleCallInImportedModule
+    );
+    assert!(err.span().is_some());
+    assert_eq!(
+        err.message(),
+        "Cross-module function call 'helper.do_work()' in an imported module is not yet supported. \
+         Imported modules cannot call functions from other imported modules."
+    );
+    assert!(err.help().is_none());
+}
+
+// ============================================================================
+// Missing main function helper tests
+// ============================================================================
+
+#[test]
+fn test_missing_main_no_functions_constructor() {
+    let err = SemanticError::missing_main_no_functions();
+    assert_eq!(err.kind(), SemanticErrorKind::MissingMainFunction);
+    assert!(err.span().is_none());
+    assert_eq!(
+        err.message(),
+        "No main function found: program contains no function definitions"
+    );
+}
+
+#[test]
+fn test_missing_main_with_functions_constructor() {
+    let err = SemanticError::missing_main_with_functions(&["helper", "greet"]);
+    assert_eq!(err.kind(), SemanticErrorKind::MissingMainFunction);
+    assert!(err.span().is_none());
+    assert_eq!(
+        err.message(),
+        "No main function found. Defined functions: 'helper', 'greet'"
+    );
+}
+
+// ============================================================================
+// wrap_in_unary_context tests
+// ============================================================================
+
+#[test]
+fn test_wrap_in_unary_context_non_unary_error() {
+    let base = SemanticError::undefined_variable("x", dummy_span());
+    let wrapped = SemanticError::wrap_in_unary_context(&base, UnaryOperator::Neg, dummy_span());
+    assert_eq!(wrapped.kind(), SemanticErrorKind::UndefinedVariable);
+    assert_eq!(
+        wrapped.message(),
+        "in unary '-' operation: Undefined variable: 'x'"
+    );
+}
+
+#[test]
+fn test_wrap_in_unary_context_with_help_preserves_help() {
+    let base = SemanticError::invalid_binary_op_type(
+        crate::ast::BinaryOperator::Add,
+        "string",
+        dummy_span(),
+    );
+    assert!(base.help().is_some());
+    let wrapped = SemanticError::wrap_in_unary_context(&base, UnaryOperator::Neg, dummy_span());
+    assert_eq!(
+        wrapped.message(),
+        "in unary '-' operation: Operator '+' cannot be used with 'string' type"
+    );
+    assert_eq!(
+        wrapped.help(),
+        Some("arithmetic operators (+, -, *, /, %) only work with numeric types (i32, i64)")
+    );
+}
+
+#[test]
+fn test_wrap_in_unary_context_without_help_returns_none() {
+    let base = SemanticError::undefined_variable("x", dummy_span());
+    assert!(base.help().is_none());
+    let wrapped = SemanticError::wrap_in_unary_context(&base, UnaryOperator::Neg, dummy_span());
+    assert!(wrapped.help().is_none());
+}
+
+#[test]
+fn test_wrap_in_unary_context_already_unary_preserves_original() {
+    let base = SemanticError::invalid_unary_op_type(UnaryOperator::Neg, "string", dummy_span());
+    let wrapped = SemanticError::wrap_in_unary_context(&base, UnaryOperator::Neg, dummy_span());
+    // Should not double-wrap: message and help should be the original
+    assert_eq!(wrapped.message(), base.message());
+    assert_eq!(wrapped.help(), base.help());
+}

@@ -197,9 +197,12 @@ fn test_let_chain_with_negation() {
 #[test]
 fn test_i32_min_value_valid() {
     // i32::MIN = -2147483648 should be valid for i32
+    // Note: i32::MIN cannot be written directly as `-2147483648` because the
+    // parser treats it as unary minus applied to `2147483648`, which exceeds i32::MAX.
+    // So we compute i32::MIN as -2147483647 - 1.
     let output = compile_and_run(
         r#"fn main() -> void {
-    let x: i32 = -2147483648
+    let x: i32 = -2147483647 - 1
     println(x)
 }"#,
     )

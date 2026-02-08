@@ -5,7 +5,7 @@
 
 use crate::ast::Visibility;
 use crate::resolver::ResolvedModule;
-use crate::semantic::{SemanticError, SemanticErrorKind};
+use crate::semantic::SemanticError;
 use crate::token::Span;
 
 use std::collections::HashMap;
@@ -29,16 +29,12 @@ impl FunctionExport {
         definition_span: Span,
     ) -> Result<Self, SemanticError> {
         if name.is_empty() {
-            return Err(SemanticError::new(
-                SemanticErrorKind::InternalError,
-                "Internal error: FunctionExport name must not be empty. This is a compiler bug.",
+            return Err(SemanticError::internal_function_export_empty_name(
                 definition_span,
             ));
         }
         if return_type.is_empty() {
-            return Err(SemanticError::new(
-                SemanticErrorKind::InternalError,
-                "Internal error: FunctionExport return type must not be empty. This is a compiler bug.",
+            return Err(SemanticError::internal_function_export_empty_return_type(
                 definition_span,
             ));
         }
@@ -163,27 +159,11 @@ impl ModuleTable {
         for import in &entry_module.program().imports {
             // Look up the canonical path from the resolver's pre-computed mapping
             let canonical = resolved_imports.get(&import.path).ok_or_else(|| {
-                SemanticError::new(
-                    SemanticErrorKind::InternalError,
-                    format!(
-                        "Internal error: resolved path for import '{}' not found. \
-                         This is a compiler bug.",
-                        import.path
-                    ),
-                    import.span,
-                )
+                SemanticError::internal_resolved_path_not_found(&import.path, import.span)
             })?;
 
             let module = path_to_module.get(canonical).ok_or_else(|| {
-                SemanticError::new(
-                    SemanticErrorKind::InternalError,
-                    format!(
-                        "Internal error: resolved module for '{}' not found in resolution map. \
-                         This is a compiler bug.",
-                        import.path
-                    ),
-                    import.span,
-                )
+                SemanticError::internal_resolved_module_not_found(&import.path, import.span)
             })?;
 
             let exports = ModuleExports::from_module(module)?;
@@ -248,9 +228,36 @@ impl ModuleTable {
 }
 
 #[cfg(test)]
+impl ModuleTable {
+    /// Inserts a module with the given exports for testing.
+    pub fn insert_for_testing(&mut self, name: String, exports: ModuleExports) {
+        self.modules.insert(name, exports);
+    }
+}
+
+#[cfg(test)]
+impl ModuleExports {
+    /// Creates a ModuleExports with the given name and functions for testing.
+    pub fn for_testing(
+        name: String,
+        functions: Vec<(String, String, Span)>,
+    ) -> Result<Self, SemanticError> {
+        let mut map = HashMap::new();
+        for (fn_name, ret_type, span) in functions {
+            let export = FunctionExport::new(fn_name.clone(), ret_type, span)?;
+            map.insert(fn_name, export);
+        }
+        Ok(ModuleExports {
+            name,
+            functions: map,
+        })
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::{FnDef, Program, Visibility};
+    use crate::ast::{FnDef, ImportDecl, Program, Visibility};
     use crate::token::Span;
 
     fn dummy_span() -> Span {
@@ -270,12 +277,30 @@ mod tests {
     fn test_function_export_empty_name_fails() {
         let result = FunctionExport::new("".to_string(), "void".to_string(), dummy_span());
         assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert_eq!(
+            err.kind(),
+            crate::semantic::SemanticErrorKind::InternalError
+        );
+        assert_eq!(
+            err.message(),
+            "Internal error: FunctionExport name must not be empty. This is a compiler bug."
+        );
     }
 
     #[test]
     fn test_function_export_empty_return_type_fails() {
         let result = FunctionExport::new("greet".to_string(), "".to_string(), dummy_span());
         assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert_eq!(
+            err.kind(),
+            crate::semantic::SemanticErrorKind::InternalError
+        );
+        assert_eq!(
+            err.message(),
+            "Internal error: FunctionExport return type must not be empty. This is a compiler bug."
+        );
     }
 
     #[test]
@@ -317,5 +342,385 @@ mod tests {
         assert_eq!(exports.functions().len(), 1);
         assert!(exports.get_function("greet").is_some());
         assert!(exports.get_function("helper").is_none());
+    }
+
+    // =========================================================================
+    // ModuleTable::from_resolved_modules tests
+    // =========================================================================
+
+    #[test]
+    fn test_from_resolved_modules_missing_resolved_import() {
+        // When entry module has imports but for_testing creates empty resolved_imports,
+        // from_resolved_modules should return an internal error
+        let imported_program = Program {
+            imports: Vec::new(),
+            functions: vec![FnDef {
+                visibility: Visibility::Public,
+                name: "greet".to_string(),
+                return_type: "void".to_string(),
+                return_type_span: dummy_span(),
+                body: Vec::new(),
+                span: dummy_span(),
+            }],
+        };
+
+        let temp_dir = std::env::temp_dir();
+        let imported_module = crate::resolver::ResolvedModule::for_testing(
+            temp_dir.join("utils.lak"),
+            "utils".to_string(),
+            imported_program,
+            "".to_string(),
+        );
+
+        let entry_program = Program {
+            imports: vec![ImportDecl {
+                path: "./utils".to_string(),
+                alias: None,
+                span: dummy_span(),
+            }],
+            functions: vec![FnDef {
+                visibility: Visibility::Private,
+                name: "main".to_string(),
+                return_type: "void".to_string(),
+                return_type_span: dummy_span(),
+                body: Vec::new(),
+                span: dummy_span(),
+            }],
+        };
+
+        let entry_module = crate::resolver::ResolvedModule::for_testing(
+            temp_dir.join("main.lak"),
+            "main".to_string(),
+            entry_program,
+            "".to_string(),
+        );
+
+        let modules = [imported_module, entry_module];
+        let result = ModuleTable::from_resolved_modules(&modules, &modules[1]);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert_eq!(
+            err.kind(),
+            crate::semantic::SemanticErrorKind::InternalError
+        );
+        assert_eq!(
+            err.message(),
+            "Internal error: resolved path for import './utils' not found. This is a compiler bug."
+        );
+    }
+
+    #[test]
+    fn test_from_resolved_modules_missing_module_for_path() {
+        let temp_dir = std::env::temp_dir();
+
+        let entry_program = Program {
+            imports: vec![ImportDecl {
+                path: "./utils".to_string(),
+                alias: None,
+                span: dummy_span(),
+            }],
+            functions: vec![FnDef {
+                visibility: Visibility::Private,
+                name: "main".to_string(),
+                return_type: "void".to_string(),
+                return_type_span: dummy_span(),
+                body: Vec::new(),
+                span: dummy_span(),
+            }],
+        };
+
+        let mut entry_module = crate::resolver::ResolvedModule::for_testing(
+            temp_dir.join("main.lak"),
+            "main".to_string(),
+            entry_program,
+            "".to_string(),
+        );
+        entry_module
+            .add_resolved_import_for_testing("./utils".to_string(), temp_dir.join("utils.lak"));
+
+        let modules = [entry_module];
+        let result = ModuleTable::from_resolved_modules(&modules, &modules[0]);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert_eq!(
+            err.kind(),
+            crate::semantic::SemanticErrorKind::InternalError
+        );
+        assert_eq!(
+            err.message(),
+            "Internal error: resolved module for './utils' not found in resolution map. This is a compiler bug."
+        );
+    }
+
+    #[test]
+    fn test_module_table_basic_operations() {
+        // Test the ModuleTable API directly
+        let table = ModuleTable::new();
+        assert!(table.is_empty());
+        assert_eq!(table.len(), 0);
+        assert!(table.get_module("utils").is_none());
+    }
+
+    #[test]
+    fn test_module_table_get_real_module_name() {
+        // Test that get_real_module_name returns the correct name
+        let program = Program {
+            imports: Vec::new(),
+            functions: vec![FnDef {
+                visibility: Visibility::Public,
+                name: "greet".to_string(),
+                return_type: "void".to_string(),
+                return_type_span: dummy_span(),
+                body: Vec::new(),
+                span: dummy_span(),
+            }],
+        };
+
+        let temp_dir = std::env::temp_dir();
+        let module = crate::resolver::ResolvedModule::for_testing(
+            temp_dir.join("mymod.lak"),
+            "mymod".to_string(),
+            program,
+            "".to_string(),
+        );
+
+        let exports = ModuleExports::from_module(&module).unwrap();
+        assert_eq!(exports.name(), "mymod");
+        assert!(exports.get_function("greet").is_some());
+        assert!(exports.get_function("nonexistent").is_none());
+    }
+
+    #[test]
+    fn test_module_table_get_module_function() {
+        // Directly test get_module_function via ModuleTable
+        let table = ModuleTable::new();
+        assert!(table.get_module_function("utils", "greet").is_none());
+    }
+
+    #[test]
+    fn test_from_resolved_modules_success() {
+        let temp_dir = std::env::temp_dir();
+
+        // Create an imported module with a public function
+        let imported_program = Program {
+            imports: Vec::new(),
+            functions: vec![FnDef {
+                visibility: Visibility::Public,
+                name: "greet".to_string(),
+                return_type: "void".to_string(),
+                return_type_span: dummy_span(),
+                body: Vec::new(),
+                span: dummy_span(),
+            }],
+        };
+        let imported_path = temp_dir.join("utils.lak");
+        let imported_module = crate::resolver::ResolvedModule::for_testing(
+            imported_path.clone(),
+            "utils".to_string(),
+            imported_program,
+            "".to_string(),
+        );
+
+        // Create entry module with import
+        let entry_program = Program {
+            imports: vec![ImportDecl {
+                path: "./utils".to_string(),
+                alias: None,
+                span: dummy_span(),
+            }],
+            functions: vec![FnDef {
+                visibility: Visibility::Private,
+                name: "main".to_string(),
+                return_type: "void".to_string(),
+                return_type_span: dummy_span(),
+                body: Vec::new(),
+                span: dummy_span(),
+            }],
+        };
+        let mut entry_module = crate::resolver::ResolvedModule::for_testing(
+            temp_dir.join("main.lak"),
+            "main".to_string(),
+            entry_program,
+            "".to_string(),
+        );
+        entry_module.add_resolved_import_for_testing("./utils".to_string(), imported_path);
+
+        let modules = [imported_module, entry_module];
+        let result = ModuleTable::from_resolved_modules(&modules, &modules[1]);
+        assert!(result.is_ok());
+        let table = result.unwrap();
+        assert_eq!(table.len(), 1);
+        assert!(table.get_module("utils").is_some());
+        assert!(table.get_module_function("utils", "greet").is_some());
+        assert!(table.get_module_function("utils", "helper").is_none());
+    }
+
+    #[test]
+    fn test_from_resolved_modules_duplicate_key() {
+        let temp_dir = std::env::temp_dir();
+
+        // Create two modules that would both resolve to "utils" name
+        let utils_program = Program {
+            imports: Vec::new(),
+            functions: vec![FnDef {
+                visibility: Visibility::Public,
+                name: "greet".to_string(),
+                return_type: "void".to_string(),
+                return_type_span: dummy_span(),
+                body: Vec::new(),
+                span: dummy_span(),
+            }],
+        };
+
+        let utils_path1 = temp_dir.join("utils.lak");
+        let utils_path2 = temp_dir.join("lib").join("utils.lak");
+
+        let utils_program2 = Program {
+            imports: Vec::new(),
+            functions: vec![FnDef {
+                visibility: Visibility::Public,
+                name: "greet".to_string(),
+                return_type: "void".to_string(),
+                return_type_span: dummy_span(),
+                body: Vec::new(),
+                span: dummy_span(),
+            }],
+        };
+
+        let utils_module1 = crate::resolver::ResolvedModule::for_testing(
+            utils_path1.clone(),
+            "utils".to_string(),
+            utils_program,
+            "".to_string(),
+        );
+        let utils_module2 = crate::resolver::ResolvedModule::for_testing(
+            utils_path2.clone(),
+            "utils".to_string(),
+            utils_program2,
+            "".to_string(),
+        );
+
+        // Entry module imports both, which creates duplicate "utils" key
+        let entry_program = Program {
+            imports: vec![
+                ImportDecl {
+                    path: "./utils".to_string(),
+                    alias: None,
+                    span: dummy_span(),
+                },
+                ImportDecl {
+                    path: "./lib/utils".to_string(),
+                    alias: None,
+                    span: dummy_span(),
+                },
+            ],
+            functions: vec![FnDef {
+                visibility: Visibility::Private,
+                name: "main".to_string(),
+                return_type: "void".to_string(),
+                return_type_span: dummy_span(),
+                body: Vec::new(),
+                span: dummy_span(),
+            }],
+        };
+        let mut entry_module = crate::resolver::ResolvedModule::for_testing(
+            temp_dir.join("main.lak"),
+            "main".to_string(),
+            entry_program,
+            "".to_string(),
+        );
+        entry_module.add_resolved_import_for_testing("./utils".to_string(), utils_path1);
+        entry_module.add_resolved_import_for_testing("./lib/utils".to_string(), utils_path2);
+
+        let modules = [utils_module1, utils_module2, entry_module];
+        let result = ModuleTable::from_resolved_modules(&modules, &modules[2]);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert_eq!(
+            err.kind(),
+            crate::semantic::SemanticErrorKind::DuplicateModuleImport
+        );
+        assert_eq!(
+            err.message(),
+            "Module name 'utils' is already imported from './utils'"
+        );
+    }
+
+    #[test]
+    fn test_from_resolved_modules_with_alias() {
+        let temp_dir = std::env::temp_dir();
+
+        // Create an imported module with a public function
+        let imported_program = Program {
+            imports: Vec::new(),
+            functions: vec![FnDef {
+                visibility: Visibility::Public,
+                name: "greet".to_string(),
+                return_type: "void".to_string(),
+                return_type_span: dummy_span(),
+                body: Vec::new(),
+                span: dummy_span(),
+            }],
+        };
+        let imported_path = temp_dir.join("utils.lak");
+        let imported_module = crate::resolver::ResolvedModule::for_testing(
+            imported_path.clone(),
+            "utils".to_string(),
+            imported_program,
+            "".to_string(),
+        );
+
+        // Create entry module with aliased import: import "./utils" as u
+        let entry_program = Program {
+            imports: vec![ImportDecl {
+                path: "./utils".to_string(),
+                alias: Some("u".to_string()),
+                span: dummy_span(),
+            }],
+            functions: vec![FnDef {
+                visibility: Visibility::Private,
+                name: "main".to_string(),
+                return_type: "void".to_string(),
+                return_type_span: dummy_span(),
+                body: Vec::new(),
+                span: dummy_span(),
+            }],
+        };
+        let mut entry_module = crate::resolver::ResolvedModule::for_testing(
+            temp_dir.join("main.lak"),
+            "main".to_string(),
+            entry_program,
+            "".to_string(),
+        );
+        entry_module.add_resolved_import_for_testing("./utils".to_string(), imported_path);
+
+        let modules = [imported_module, entry_module];
+        let result = ModuleTable::from_resolved_modules(&modules, &modules[1]);
+        assert!(result.is_ok());
+        let table = result.unwrap();
+        assert_eq!(table.len(), 1);
+        // Module is accessible by alias "u", not by real name "utils"
+        assert!(table.get_module("u").is_some());
+        assert!(table.get_module("utils").is_none());
+        // Function lookup via alias works
+        assert!(table.get_module_function("u", "greet").is_some());
+        // get_real_module_name resolves alias to real name
+        assert_eq!(table.get_real_module_name("u"), Some("utils"));
+        assert_eq!(table.get_real_module_name("utils"), None);
+    }
+
+    #[test]
+    fn test_get_real_module_name_with_populated_table() {
+        let mut table = ModuleTable::new();
+        let exports = ModuleExports::for_testing(
+            "utils".to_string(),
+            vec![("greet".to_string(), "void".to_string(), dummy_span())],
+        )
+        .unwrap();
+        // Insert with alias key "u" but real name is "utils"
+        table.insert_for_testing("u".to_string(), exports);
+        assert_eq!(table.get_real_module_name("u"), Some("utils"));
+        assert_eq!(table.get_real_module_name("utils"), None);
+        assert_eq!(table.get_real_module_name("nonexistent"), None);
     }
 }

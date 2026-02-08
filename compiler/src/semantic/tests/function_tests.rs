@@ -129,7 +129,7 @@ fn test_missing_main_function_with_other_functions() {
     assert_eq!(err.kind(), SemanticErrorKind::MissingMainFunction);
     assert_eq!(
         err.message(),
-        "No main function found. Defined functions: [\"helper\"]"
+        "No main function found. Defined functions: 'helper'"
     );
 }
 
@@ -411,5 +411,264 @@ fn test_valid_multiple_functions() {
 
     let mut analyzer = SemanticAnalyzer::new();
     let result = analyzer.analyze(&program);
+    assert!(result.is_ok());
+}
+
+// ============================================================================
+// Module call analysis tests (mode-dependent branching)
+// ============================================================================
+
+#[test]
+fn test_module_call_in_single_file_mode() {
+    // In SingleFile mode, a ModuleCall expression should return ModuleNotImported
+    let program = program_with_main(vec![Stmt::new(
+        StmtKind::Expr(Expr::new(
+            ExprKind::ModuleCall {
+                module: "utils".to_string(),
+                function: "greet".to_string(),
+                args: vec![],
+            },
+            dummy_span(),
+        )),
+        dummy_span(),
+    )]);
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze(&program);
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert_eq!(err.kind(), SemanticErrorKind::ModuleNotImported);
+    assert_eq!(
+        err.message(),
+        "Module-qualified function call 'utils.greet()' requires an import statement. Add: import \"./utils\""
+    );
+}
+
+#[test]
+fn test_module_call_in_imported_module_without_table() {
+    // In ImportedModule(None) mode, a ModuleCall should return CrossModuleCallInImportedModule
+    let program = Program {
+        imports: vec![],
+        functions: vec![FnDef {
+            visibility: Visibility::Public,
+            name: "helper".to_string(),
+            return_type: "void".to_string(),
+            return_type_span: dummy_span(),
+            body: vec![Stmt::new(
+                StmtKind::Expr(Expr::new(
+                    ExprKind::ModuleCall {
+                        module: "other".to_string(),
+                        function: "foo".to_string(),
+                        args: vec![],
+                    },
+                    dummy_span(),
+                )),
+                dummy_span(),
+            )],
+            span: dummy_span(),
+        }],
+    };
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze_module(&program, None);
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert_eq!(
+        err.kind(),
+        SemanticErrorKind::CrossModuleCallInImportedModule
+    );
+}
+
+#[test]
+fn test_module_call_undefined_module_in_entry() {
+    // In EntryWithModules mode, calling a module that's not in the table
+    // should return UndefinedModule
+    let program = program_with_main(vec![Stmt::new(
+        StmtKind::Expr(Expr::new(
+            ExprKind::ModuleCall {
+                module: "nonexistent".to_string(),
+                function: "foo".to_string(),
+                args: vec![],
+            },
+            dummy_span(),
+        )),
+        dummy_span(),
+    )]);
+
+    let module_table = crate::semantic::ModuleTable::new();
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze_with_modules(&program, module_table);
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert_eq!(err.kind(), SemanticErrorKind::UndefinedModule);
+    assert_eq!(err.message(), "Module 'nonexistent' is not defined");
+}
+
+#[test]
+fn test_module_call_undefined_function_in_entry() {
+    // Module exists but function doesn't → UndefinedModuleFunction
+    let program = program_with_main(vec![Stmt::new(
+        StmtKind::Expr(Expr::new(
+            ExprKind::ModuleCall {
+                module: "utils".to_string(),
+                function: "nonexistent".to_string(),
+                args: vec![],
+            },
+            dummy_span(),
+        )),
+        dummy_span(),
+    )]);
+
+    let mut module_table = crate::semantic::ModuleTable::new();
+    let exports = crate::semantic::module_table::ModuleExports::for_testing(
+        "utils".to_string(),
+        vec![("greet".to_string(), "void".to_string(), dummy_span())],
+    )
+    .unwrap();
+    module_table.insert_for_testing("utils".to_string(), exports);
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze_with_modules(&program, module_table);
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert_eq!(err.kind(), SemanticErrorKind::UndefinedModuleFunction);
+    assert_eq!(
+        err.message(),
+        "Function 'nonexistent' not found in module 'utils'"
+    );
+    assert_eq!(
+        err.help().unwrap(),
+        "Check that the function exists in 'utils' and is marked 'pub'"
+    );
+}
+
+#[test]
+fn test_module_call_non_void_function_as_stmt() {
+    // Module function returns i32, called as statement → TypeMismatch
+    let program = program_with_main(vec![Stmt::new(
+        StmtKind::Expr(Expr::new(
+            ExprKind::ModuleCall {
+                module: "utils".to_string(),
+                function: "get_value".to_string(),
+                args: vec![],
+            },
+            dummy_span(),
+        )),
+        dummy_span(),
+    )]);
+
+    let mut module_table = crate::semantic::ModuleTable::new();
+    let exports = crate::semantic::module_table::ModuleExports::for_testing(
+        "utils".to_string(),
+        vec![("get_value".to_string(), "i32".to_string(), dummy_span())],
+    )
+    .unwrap();
+    module_table.insert_for_testing("utils".to_string(), exports);
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze_with_modules(&program, module_table);
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert_eq!(err.kind(), SemanticErrorKind::TypeMismatch);
+    assert_eq!(
+        err.message(),
+        "Function 'utils.get_value' returns 'i32', but only void functions can be called as statements"
+    );
+}
+
+#[test]
+fn test_module_call_in_imported_module_with_table() {
+    // ImportedModule(Some(table)) mode - cross-module call with empty table should fail
+    let program = Program {
+        imports: vec![],
+        functions: vec![FnDef {
+            visibility: Visibility::Public,
+            name: "helper".to_string(),
+            return_type: "void".to_string(),
+            return_type_span: dummy_span(),
+            body: vec![Stmt::new(
+                StmtKind::Expr(Expr::new(
+                    ExprKind::ModuleCall {
+                        module: "other".to_string(),
+                        function: "foo".to_string(),
+                        args: vec![],
+                    },
+                    dummy_span(),
+                )),
+                dummy_span(),
+            )],
+            span: dummy_span(),
+        }],
+    };
+
+    let module_table = crate::semantic::ModuleTable::new();
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze_module(&program, Some(module_table));
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    // With empty table, module "other" is not found → UndefinedModule
+    assert_eq!(err.kind(), SemanticErrorKind::UndefinedModule);
+    assert_eq!(err.message(), "Module 'other' is not defined");
+}
+
+// ============================================================================
+// Module call success tests
+// ============================================================================
+
+#[test]
+fn test_module_call_success_in_entry() {
+    // EntryWithModules mode: valid module function call should succeed
+    let mut module_table = crate::semantic::ModuleTable::new();
+    let exports = crate::semantic::module_table::ModuleExports::for_testing(
+        "utils".to_string(),
+        vec![("greet".to_string(), "void".to_string(), dummy_span())],
+    )
+    .unwrap();
+    module_table.insert_for_testing("utils".to_string(), exports);
+
+    let program = Program {
+        imports: vec![],
+        functions: vec![FnDef {
+            visibility: Visibility::Private,
+            name: "main".to_string(),
+            return_type: "void".to_string(),
+            return_type_span: dummy_span(),
+            body: vec![Stmt::new(
+                StmtKind::Expr(Expr::new(
+                    ExprKind::ModuleCall {
+                        module: "utils".to_string(),
+                        function: "greet".to_string(),
+                        args: vec![],
+                    },
+                    dummy_span(),
+                )),
+                dummy_span(),
+            )],
+            span: dummy_span(),
+        }],
+    };
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze_with_modules(&program, module_table);
+    assert!(result.is_ok());
+}
+
+#[test]
+fn test_analyze_module_success() {
+    // ImportedModule mode: valid module program should succeed
+    let program = Program {
+        imports: vec![],
+        functions: vec![FnDef {
+            visibility: Visibility::Public,
+            name: "greet".to_string(),
+            return_type: "void".to_string(),
+            return_type_span: dummy_span(),
+            body: vec![],
+            span: dummy_span(),
+        }],
+    };
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze_module(&program, None);
     assert!(result.is_ok());
 }

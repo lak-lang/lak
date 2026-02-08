@@ -10,9 +10,10 @@ Validates an AST for semantic correctness before code generation. Performs name 
 
 | File | Responsibility |
 |------|----------------|
-| `mod.rs` | `SemanticAnalyzer` struct, `analyze()` entry point |
+| `mod.rs` | `SemanticAnalyzer` struct, `analyze()`, `analyze_with_modules()`, `analyze_module()` entry points |
 | `error.rs` | `SemanticError`, `SemanticErrorKind` |
 | `symbol.rs` | `SymbolTable`, `FunctionInfo`, `VariableInfo` |
+| `module_table.rs` | `ModuleTable`, `ModuleExports`, `FunctionExport` (import tracking) |
 | `tests/` | Unit tests (see below) |
 
 ### Test Structure
@@ -33,6 +34,8 @@ The analyzer runs in three sequential phases:
 2. **Main validation**: Verify `main` exists and has correct signature (`-> void`)
 3. **Body analysis**: Analyze each function body (variables, types, expressions)
 
+Note: `analyze_module()` (used for imported modules) skips phase 2 (main validation) since imported modules are libraries, not entry points.
+
 ## Error Types
 
 `SemanticErrorKind`:
@@ -49,6 +52,13 @@ The analyzer runs in three sequential phases:
 | `InvalidExpression` | Expression in invalid context (e.g., literal as statement) |
 | `MissingMainFunction` | No main function found |
 | `InvalidMainSignature` | Main has wrong signature |
+| `InternalError` | Compiler bug (should never occur in normal operation) |
+| `ModuleAccessNotImplemented` | Non-call member access on modules not yet implemented |
+| `ModuleNotImported` | Module-qualified function call requires an import |
+| `UndefinedModule` | Module not found (not imported) |
+| `UndefinedModuleFunction` | Function not found in module |
+| `DuplicateModuleImport` | Duplicate module import |
+| `CrossModuleCallInImportedModule` | Cross-module call in imported module not supported |
 
 ## Symbol Table
 
@@ -71,6 +81,8 @@ Variables are looked up from innermost to outermost scope.
 Currently supports:
 - `i32`: values must be in range `i32::MIN..=i32::MAX`
 - `i64`: all lexer-parsed integers are valid
+- `string`: string literals
+- `bool`: boolean literals
 
 Type checking occurs in:
 - `let` statements: initializer must match declared type
@@ -78,18 +90,21 @@ Type checking occurs in:
 
 ## Built-in Functions
 
-`println` is the only built-in function:
-- Requires exactly 1 argument
-- Argument must be a string literal
+- `println`: Requires exactly 1 argument (string, i32, i64, or bool)
+- `panic`: Requires exactly 1 argument (string only)
 
-User-defined function calls are validated for existence only (no parameters yet).
+User-defined function calls are validated for: existence, zero arguments (parameters not yet supported), non-main target, and void return type.
 
 ## Expression Statement Validation
 
-Only function calls are valid as expression statements. The following are rejected:
+Only function calls and module-qualified function calls are valid as expression statements. The following are rejected:
 - String literals (no effect)
 - Integer literals (no effect)
+- Boolean literals (no effect)
 - Bare identifiers (no effect)
+- Binary operations (no effect)
+- Unary operations (no effect)
+- Member access (only module function calls are supported, not general member access)
 
 ## Guarantees to Codegen
 
@@ -99,6 +114,8 @@ If `analyze()` returns `Ok(())`, codegen can assume:
 - All variable types match their usage
 - All integer literals fit their target types
 - All function calls reference defined functions
+- All module references are valid (imported and resolved)
+- All module function calls reference existing public functions
 
 ## Extension Guidelines
 

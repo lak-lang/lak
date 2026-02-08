@@ -207,10 +207,11 @@ fn test_build_path_with_spaces() {
         .output()
         .unwrap();
 
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        output.status.success(),
-        "Build failed with stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
+        stderr.contains("Module names must be valid identifiers"),
+        "Expected 'Module names must be valid identifiers' error for filename with spaces, got: {}",
+        stderr
     );
-    assert!(temp.path().join("hello world").exists());
 }

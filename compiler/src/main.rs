@@ -17,9 +17,10 @@
 //!
 //! 1. **Lexing** ([`lexer`]) - Converts source text into tokens
 //! 2. **Parsing** ([`parser`]) - Builds an AST from tokens
-//! 3. **Semantic Analysis** ([`semantic`]) - Validates the AST for correctness
-//! 4. **Code Generation** ([`codegen`]) - Generates LLVM IR from the AST
-//! 5. **Linking** - Uses the system linker to produce an executable
+//! 3. **Module Resolution** ([`resolver`]) - Loads and parses imported modules, detects cycles
+//! 4. **Semantic Analysis** ([`semantic`]) - Validates the AST for correctness
+//! 5. **Code Generation** ([`codegen`]) - Generates LLVM IR from the AST
+//! 6. **Linking** - Uses the system linker to produce an executable
 //!
 //! # Error Reporting
 //!
@@ -31,7 +32,7 @@ use ariadne::{Color, Config, IndexType, Label, Report, ReportKind, Source};
 use clap::{Parser, Subcommand};
 use inkwell::context::Context;
 use lak::codegen::{Codegen, CodegenError};
-use lak::resolver::{ModuleResolver, ResolverError};
+use lak::resolver::{ModuleResolver, ResolvedModule, ResolverError};
 use lak::semantic::{SemanticAnalyzer, SemanticError, SemanticErrorKind};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus};
@@ -112,8 +113,30 @@ enum CompileError {
     Codegen(CodegenError),
     /// An error during linking.
     Link(LinkError),
-    /// An I/O error (file read, path validation, etc.).
-    Io(String),
+    /// A path is not valid UTF-8.
+    /// Uses `PathBuf` instead of `String` because the path cannot be converted to valid UTF-8.
+    PathNotUtf8 {
+        path: PathBuf,
+        context: &'static str,
+    },
+    /// Failed to read a source file.
+    FileReadError {
+        path: String,
+        source: std::io::Error,
+    },
+    /// Failed to resolve (canonicalize) a file path.
+    PathResolutionError {
+        path: String,
+        source: std::io::Error,
+    },
+    /// Failed to create a temporary directory.
+    TempDirCreationError(std::io::Error),
+    /// Failed to run the compiled executable.
+    ExecutableRunError(std::io::Error),
+    /// Entry module not found after resolution.
+    EntryModuleNotFound { path: String },
+    /// Cannot determine filename from path or filename is not valid UTF-8.
+    FilenameError { path: String, reason: &'static str },
 }
 
 /// Context for a semantic error in an imported module.
@@ -133,6 +156,122 @@ enum LinkError {
         stdout: String,
         stderr: String,
     },
+}
+
+impl std::fmt::Display for LinkError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LinkError::ExecutionFailed(io_err) => {
+                write!(f, "Failed to run linker: {}", io_err)
+            }
+            LinkError::Failed {
+                exit_code,
+                stdout,
+                stderr,
+            } => {
+                write!(f, "Linker failed with exit code {}", exit_code)?;
+                if !stdout.is_empty() {
+                    write!(f, "\n[stdout]\n{}", stdout)?;
+                }
+                if !stderr.is_empty() {
+                    write!(f, "\n[stderr]\n{}", stderr)?;
+                }
+                Ok(())
+            }
+        }
+    }
+}
+
+impl CompileError {
+    fn path_not_utf8(path: impl Into<PathBuf>, context: &'static str) -> Self {
+        CompileError::PathNotUtf8 {
+            path: path.into(),
+            context,
+        }
+    }
+
+    fn file_read_error(path: impl Into<String>, source: std::io::Error) -> Self {
+        CompileError::FileReadError {
+            path: path.into(),
+            source,
+        }
+    }
+
+    fn path_resolution_error(path: impl Into<String>, source: std::io::Error) -> Self {
+        CompileError::PathResolutionError {
+            path: path.into(),
+            source,
+        }
+    }
+
+    fn temp_dir_creation_error(source: std::io::Error) -> Self {
+        CompileError::TempDirCreationError(source)
+    }
+
+    fn executable_run_error(source: std::io::Error) -> Self {
+        CompileError::ExecutableRunError(source)
+    }
+
+    fn entry_module_not_found(path: impl Into<String>) -> Self {
+        CompileError::EntryModuleNotFound { path: path.into() }
+    }
+
+    fn filename_error(path: impl Into<String>, reason: &'static str) -> Self {
+        CompileError::FilenameError {
+            path: path.into(),
+            reason,
+        }
+    }
+
+    fn module_semantic(module: &ResolvedModule, error: SemanticError) -> Self {
+        CompileError::ModuleSemantic(Box::new(ModuleSemanticContext {
+            error,
+            filename: module.path().display().to_string(),
+            source: module.source().to_string(),
+        }))
+    }
+}
+
+impl std::fmt::Display for CompileError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CompileError::Resolve(e) => write!(f, "{}", e),
+            CompileError::Semantic(e) => write!(f, "{}", e),
+            CompileError::ModuleSemantic(ctx) => write!(f, "{}: {}", ctx.filename, ctx.error),
+            CompileError::Codegen(e) => write!(f, "{}", e),
+            CompileError::Link(e) => write!(f, "{}", e),
+            CompileError::PathNotUtf8 { path, context } => {
+                write!(
+                    f,
+                    "{} path '{}' is not valid UTF-8",
+                    context,
+                    path.display()
+                )
+            }
+            CompileError::FileReadError { path, source } => {
+                write!(f, "Failed to read file '{}': {}", path, source)
+            }
+            CompileError::PathResolutionError { path, source } => {
+                write!(f, "Failed to resolve path '{}': {}", path, source)
+            }
+            CompileError::TempDirCreationError(source) => {
+                write!(f, "Failed to create temporary directory: {}", source)
+            }
+            CompileError::ExecutableRunError(source) => {
+                write!(f, "Failed to run executable: {}", source)
+            }
+            CompileError::EntryModuleNotFound { path } => {
+                write!(
+                    f,
+                    "Entry module '{}' not found after resolution. This is a compiler bug.",
+                    path
+                )
+            }
+            CompileError::FilenameError { path, reason } => {
+                write!(f, "{}: {}", reason, path)
+            }
+        }
+    }
 }
 
 /// Context needed for compiling a source file.
@@ -210,6 +349,11 @@ fn report_semantic_error(filename: &str, source: &str, e: &SemanticError) {
         } else {
             e.message()
         };
+        let help_msg: Option<&str> = if is_missing_main {
+            Some("add a main function: fn main() -> void { ... }")
+        } else {
+            e.help()
+        };
 
         let mut report = Report::build(ReportKind::Error, (filename, span_range.clone()))
             .with_config(Config::default().with_index_type(IndexType::Byte))
@@ -220,8 +364,8 @@ fn report_semantic_error(filename: &str, source: &str, e: &SemanticError) {
                     .with_color(Color::Red),
             );
 
-        if is_missing_main {
-            report = report.with_help("add a main function: fn main() -> void { ... }");
+        if let Some(help) = help_msg {
+            report = report.with_help(help);
         }
 
         if let Err(report_err) = report.finish().eprint((filename, Source::from(source))) {
@@ -273,33 +417,19 @@ fn report_error(filename: &str, source: &str, error: &CompileError) {
                         .finish()
                         .eprint((report_filename, Source::from(report_source)))
                 {
-                    eprintln!("Error: {} (at {}:{})", e.message(), span.line, span.column);
+                    eprintln!(
+                        "Error: {}: {} (at {}:{})",
+                        e.short_message(),
+                        e.message(),
+                        span.line,
+                        span.column
+                    );
                     eprintln!("(Failed to display detailed error report: {})", report_err);
                 }
             } else {
-                // No span available - show error report pointing to end of file.
-                let end = report_source.len().saturating_sub(1);
-                let span_range = if report_source.is_empty() {
-                    0..0
-                } else {
-                    end..report_source.len()
-                };
-
-                if let Err(report_err) =
-                    Report::build(ReportKind::Error, (report_filename, span_range.clone()))
-                        .with_config(Config::default().with_index_type(IndexType::Byte))
-                        .with_message(e.short_message())
-                        .with_label(
-                            Label::new((report_filename, span_range))
-                                .with_message(e.message())
-                                .with_color(Color::Red),
-                        )
-                        .finish()
-                        .eprint((report_filename, Source::from(report_source)))
-                {
-                    eprintln!("Error in {}: {}", report_filename, e.message());
-                    eprintln!("(Failed to display detailed error report: {})", report_err);
-                }
+                // No span available - use plain error output (resolver errors without spans
+                // are typically I/O errors unrelated to source locations)
+                eprintln!("Error: {}", e.message());
             }
         }
         CompileError::Semantic(e) => {
@@ -330,7 +460,13 @@ fn report_error(filename: &str, source: &str, error: &CompileError) {
                         .eprint((filename, Source::from(source)))
                 {
                     // Fallback to basic error output if report printing fails
-                    eprintln!("Error: {} (at {}:{})", e.message(), span.line, span.column);
+                    eprintln!(
+                        "Error: {}: {} (at {}:{})",
+                        e.short_message(),
+                        e.message(),
+                        span.line,
+                        span.column
+                    );
                     eprintln!("(Failed to display detailed error report: {})", report_err);
                 }
             } else {
@@ -338,27 +474,17 @@ fn report_error(filename: &str, source: &str, error: &CompileError) {
                 eprintln!("Error in {}: {}", filename, e.message());
             }
         }
-        CompileError::Link(e) => match e {
-            LinkError::ExecutionFailed(io_err) => {
-                eprintln!("Error: Failed to run linker: {}", io_err);
-            }
-            LinkError::Failed {
-                exit_code,
-                stdout,
-                stderr,
-            } => {
-                eprint!("Error: Linker failed with exit code {}", exit_code);
-                if !stdout.is_empty() {
-                    eprint!("\n[stdout]\n{}", stdout);
-                }
-                if !stderr.is_empty() {
-                    eprint!("\n[stderr]\n{}", stderr);
-                }
-                eprintln!();
-            }
-        },
-        CompileError::Io(msg) => {
-            eprintln!("Error: {}", msg);
+        CompileError::Link(e) => {
+            eprintln!("Error: {}", e);
+        }
+        CompileError::PathNotUtf8 { .. }
+        | CompileError::FileReadError { .. }
+        | CompileError::PathResolutionError { .. }
+        | CompileError::TempDirCreationError(_)
+        | CompileError::ExecutableRunError(_)
+        | CompileError::EntryModuleNotFound { .. }
+        | CompileError::FilenameError { .. } => {
+            eprintln!("Error: {}", error);
         }
     }
 }
@@ -415,12 +541,12 @@ fn get_exit_code_with_signal(status: &ExitStatus) -> i32 {
 /// * `Ok(())` - Linking succeeded
 /// * `Err(CompileError)` - Linking failed
 fn link(object_path: &Path, output_path: &Path) -> Result<(), CompileError> {
-    let object_str = object_path.to_str().ok_or_else(|| {
-        CompileError::Io(format!("Object path {:?} is not valid UTF-8", object_path))
-    })?;
-    let output_str = output_path.to_str().ok_or_else(|| {
-        CompileError::Io(format!("Output path {:?} is not valid UTF-8", output_path))
-    })?;
+    let object_str = object_path
+        .to_str()
+        .ok_or_else(|| CompileError::path_not_utf8(object_path, "Object file"))?;
+    let output_str = output_path
+        .to_str()
+        .ok_or_else(|| CompileError::path_not_utf8(output_path, "Output file"))?;
 
     let output = Command::new("cc")
         .args([object_str, LAK_RUNTIME_PATH, "-o", output_str])
@@ -461,12 +587,9 @@ fn compile_to_executable(
 ) -> Result<(), CompileError> {
     // Phase 1: Resolve modules (load and parse all imported files)
     let entry_path = Path::new(&context.filename);
-    let canonical_entry = entry_path.canonicalize().map_err(|e| {
-        CompileError::Io(format!(
-            "Failed to resolve path '{}': {}",
-            context.filename, e
-        ))
-    })?;
+    let canonical_entry = entry_path
+        .canonicalize()
+        .map_err(|e| CompileError::path_resolution_error(&context.filename, e))?;
 
     let mut resolver = ModuleResolver::new();
     resolver
@@ -479,7 +602,9 @@ fn compile_to_executable(
     let entry_module = modules
         .iter()
         .find(|m| m.path() == canonical_entry)
-        .ok_or_else(|| CompileError::Io("Entry module not found after resolution".to_string()))?;
+        .ok_or_else(|| {
+            CompileError::entry_module_not_found(canonical_entry.display().to_string())
+        })?;
 
     // Phase 2a: Semantic analysis on imported modules (basic validation)
     for module in &modules {
@@ -489,15 +614,8 @@ fn compile_to_executable(
             // Build module table if the imported module has its own imports
             let module_table = if !module.program().imports.is_empty() {
                 Some(
-                    lak::semantic::ModuleTable::from_resolved_modules(&modules, module).map_err(
-                        |e| {
-                            CompileError::ModuleSemantic(Box::new(ModuleSemanticContext {
-                                error: e,
-                                filename: module.path().display().to_string(),
-                                source: module.source().to_string(),
-                            }))
-                        },
-                    )?,
+                    lak::semantic::ModuleTable::from_resolved_modules(&modules, module)
+                        .map_err(|e| CompileError::module_semantic(module, e))?,
                 )
             } else {
                 None
@@ -505,13 +623,7 @@ fn compile_to_executable(
 
             module_analyzer
                 .analyze_module(module.program(), module_table)
-                .map_err(|e| {
-                    CompileError::ModuleSemantic(Box::new(ModuleSemanticContext {
-                        error: e,
-                        filename: module.path().display().to_string(),
-                        source: module.source().to_string(),
-                    }))
-                })?;
+                .map_err(|e| CompileError::module_semantic(module, e))?;
         }
     }
 
@@ -556,12 +668,13 @@ fn compile_to_executable(
 /// This function orchestrates the entire compilation pipeline:
 ///
 /// 1. Read the source file
-/// 2. Tokenize the source code
-/// 3. Parse tokens into an AST
-/// 4. Generate LLVM IR
-/// 5. Write to an object file
-/// 6. Link with the system linker (`cc`) and Lak runtime
-/// 7. Clean up temporary files
+/// 2. Resolve modules (load and parse all imports, detect cycles)
+/// 3. Run semantic analysis on imported modules
+/// 4. Run semantic analysis on entry module
+/// 5. Generate LLVM IR
+/// 6. Write to an object file
+/// 7. Link with the system linker (`cc`) and Lak runtime
+/// 8. Clean up temporary files
 ///
 /// # Arguments
 ///
@@ -581,12 +694,7 @@ fn compile_to_executable(
 /// - `example.o` - Temporary object file (deleted after linking)
 fn build(file: &str, output: Option<&str>) -> Result<(), Box<CompileErrorWithContext>> {
     let source = std::fs::read_to_string(file).map_err(|e| {
-        Box::new(
-            CompileContext::new(file, "").with_error(CompileError::Io(format!(
-                "Failed to read file '{}': {}",
-                file, e
-            ))),
-        )
+        Box::new(CompileContext::new(file, "").with_error(CompileError::file_read_error(file, e)))
     })?;
 
     let context = CompileContext::new(file, source);
@@ -595,17 +703,17 @@ fn build(file: &str, output: Option<&str>) -> Result<(), Box<CompileErrorWithCon
     let stem = source_path
         .file_stem()
         .ok_or_else(|| {
-            Box::new(context.clone().with_error(CompileError::Io(format!(
-                "Cannot determine filename from path: {}",
-                file
-            ))))
+            Box::new(context.clone().with_error(CompileError::filename_error(
+                file,
+                "Cannot determine filename from path",
+            )))
         })?
         .to_str()
         .ok_or_else(|| {
-            Box::new(context.clone().with_error(CompileError::Io(format!(
-                "Filename contains invalid UTF-8: {}",
-                file
-            ))))
+            Box::new(context.clone().with_error(CompileError::filename_error(
+                file,
+                "Filename contains invalid UTF-8",
+            )))
         })?;
 
     let object_path = PathBuf::from(format!("{}.o", stem));
@@ -650,22 +758,18 @@ fn build(file: &str, output: Option<&str>) -> Result<(), Box<CompileErrorWithCon
 /// * `Err(CompileErrorWithContext)` - Compilation or execution failed
 fn run(file: &str) -> Result<i32, Box<CompileErrorWithContext>> {
     let source = std::fs::read_to_string(file).map_err(|e| {
-        Box::new(
-            CompileContext::new(file, "").with_error(CompileError::Io(format!(
-                "Failed to read file '{}': {}",
-                file, e
-            ))),
-        )
+        Box::new(CompileContext::new(file, "").with_error(CompileError::file_read_error(file, e)))
     })?;
 
     let context = CompileContext::new(file, source);
 
     // Create temporary directory
     let temp_dir = TempDir::new().map_err(|e| {
-        Box::new(context.clone().with_error(CompileError::Io(format!(
-            "Failed to create temporary directory: {}",
-            e
-        ))))
+        Box::new(
+            context
+                .clone()
+                .with_error(CompileError::temp_dir_creation_error(e)),
+        )
     })?;
 
     let object_path = temp_dir.path().join("program.o");
@@ -676,15 +780,16 @@ fn run(file: &str) -> Result<i32, Box<CompileErrorWithContext>> {
 
     // Run the executable
     let exec_str = executable_path.to_str().ok_or_else(|| {
-        Box::new(context.clone().with_error(CompileError::Io(format!(
-            "Executable path {:?} is not valid UTF-8",
-            executable_path
-        ))))
+        Box::new(
+            context
+                .clone()
+                .with_error(CompileError::path_not_utf8(&executable_path, "Executable")),
+        )
     })?;
 
-    let status = Command::new(exec_str).status().map_err(|e| {
-        Box::new(context.with_error(CompileError::Io(format!("Failed to run executable: {}", e))))
-    })?;
+    let status = Command::new(exec_str)
+        .status()
+        .map_err(|e| Box::new(context.with_error(CompileError::executable_run_error(e))))?;
 
     let exit_code = get_exit_code_with_signal(&status);
 
@@ -692,4 +797,95 @@ fn run(file: &str) -> Result<i32, Box<CompileErrorWithContext>> {
     drop(temp_dir);
 
     Ok(exit_code)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_display_entry_module_not_found() {
+        let err = CompileError::entry_module_not_found("/tmp/main.lak");
+        assert_eq!(
+            err.to_string(),
+            "Entry module '/tmp/main.lak' not found after resolution. This is a compiler bug."
+        );
+    }
+
+    #[test]
+    fn test_display_file_read_error() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
+        let err = CompileError::file_read_error("test.lak", io_err);
+        assert_eq!(
+            err.to_string(),
+            "Failed to read file 'test.lak': file not found"
+        );
+    }
+
+    #[test]
+    fn test_display_path_resolution_error() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "no such file");
+        let err = CompileError::path_resolution_error("test.lak", io_err);
+        assert_eq!(
+            err.to_string(),
+            "Failed to resolve path 'test.lak': no such file"
+        );
+    }
+
+    #[test]
+    fn test_display_temp_dir_creation_error() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "permission denied");
+        let err = CompileError::temp_dir_creation_error(io_err);
+        assert_eq!(
+            err.to_string(),
+            "Failed to create temporary directory: permission denied"
+        );
+    }
+
+    #[test]
+    fn test_display_executable_run_error() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "not found");
+        let err = CompileError::executable_run_error(io_err);
+        assert_eq!(err.to_string(), "Failed to run executable: not found");
+    }
+
+    #[test]
+    fn test_display_filename_error() {
+        let err =
+            CompileError::filename_error("/some/path.lak", "Cannot determine filename from path");
+        assert_eq!(
+            err.to_string(),
+            "Cannot determine filename from path: /some/path.lak"
+        );
+    }
+
+    #[test]
+    fn test_display_link_error_execution_failed() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "cc not found");
+        let err = LinkError::ExecutionFailed(io_err);
+        assert_eq!(err.to_string(), "Failed to run linker: cc not found");
+    }
+
+    #[test]
+    fn test_display_link_error_failed_empty_output() {
+        let err = LinkError::Failed {
+            exit_code: "1".to_string(),
+            stdout: "".to_string(),
+            stderr: "".to_string(),
+        };
+        assert_eq!(err.to_string(), "Linker failed with exit code 1");
+    }
+
+    #[test]
+    fn test_display_link_error_failed_with_output() {
+        let err = LinkError::Failed {
+            exit_code: "1".to_string(),
+            stdout: "some output".to_string(),
+            stderr: "some error".to_string(),
+        };
+        assert_eq!(
+            err.to_string(),
+            "Linker failed with exit code 1\n[stdout]\nsome output\n[stderr]\nsome error"
+        );
+    }
 }

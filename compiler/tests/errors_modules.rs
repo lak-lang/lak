@@ -2,6 +2,14 @@
 //!
 //! These tests verify that the compiler correctly reports errors for
 //! various module-related issues.
+//!
+//! # Testing Approach
+//!
+//! These tests use `tempdir()` and invoke the compiler binary as a subprocess.
+//! This is necessary because multi-module compilation requires real files on disk
+//! (the resolver reads imported modules from the filesystem). The in-process
+//! `compile_and_run()` / `compile_error()` helpers from `common/mod.rs` only
+//! support single-file compilation, so they cannot test import-related errors.
 
 mod common;
 
@@ -675,11 +683,11 @@ fn main() -> void {
 }
 
 #[test]
-fn test_error_name_mangling_collision() {
-    // Tests the name mangling collision scenario:
-    // Module "a" with function "b__greet" mangles to "a__b__greet"
-    // Module "a__b" with function "greet" also mangles to "a__b__greet"
-    // This documents the current behavior when mangled names collide.
+fn test_name_mangling_no_collision() {
+    // Verifies that the length-prefix mangling scheme prevents collisions:
+    // Module "a" with function "b__greet" → "_L1_a_b__greet"
+    // Module "a__b" with function "greet" → "_L4_a__b_greet"
+    // These are distinct, so both functions should work correctly.
     let temp = tempdir().unwrap();
 
     // Create a.lak with a function containing double underscores
@@ -693,7 +701,7 @@ fn test_error_name_mangling_collision() {
     )
     .unwrap();
 
-    // Create a__b.lak with a function that collides after mangling
+    // Create a__b.lak with a function that would collide under naive mangling
     let a_b_module_path = temp.path().join("a__b.lak");
     fs::write(
         &a_b_module_path,
@@ -725,23 +733,21 @@ fn main() -> void {
         .output()
         .unwrap();
 
-    // This documents the current behavior: name mangling collision
-    // Both a.b__greet() and a__b.greet() mangle to "a__b__greet"
-    // The compiler should ideally detect and report this collision,
-    // but currently it may silently produce incorrect results.
-    // This test ensures we're aware of the limitation.
-    if output.status.success() {
-        // If compilation succeeds, check if output is potentially wrong
-        let exec_path = temp.path().join("main");
-        let run_output = Command::new(&exec_path).output().unwrap();
-        let stdout = String::from_utf8_lossy(&run_output.stdout);
-        // Document whatever the current behavior is
-        assert!(
-            !stdout.is_empty(),
-            "Expected some output from the collision test"
-        );
-    }
-    // If compilation fails, that's also acceptable behavior for a collision
+    assert!(
+        output.status.success(),
+        "Length-prefix mangling should prevent collisions. stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    // Run the executable and verify both functions produce correct output
+    let exec_path = temp.path().join("main");
+    let run_output = Command::new(&exec_path).output().unwrap();
+    assert!(
+        run_output.status.success(),
+        "Executable should run successfully"
+    );
+    let stdout = String::from_utf8_lossy(&run_output.stdout);
+    assert_eq!(stdout, "from a.b__greet\nfrom a__b.greet\n");
 }
 
 #[test]
@@ -775,6 +781,36 @@ fn main() -> void {}
     assert!(
         stderr.contains("./nonexistent.lak"),
         "Expected error message to mention the module path with .lak extension, got: {}",
+        stderr
+    );
+}
+
+#[test]
+fn test_error_invalid_entry_module_name() {
+    // Tests that entry modules with invalid identifiers as filenames are rejected
+    let temp = tempdir().unwrap();
+
+    let invalid_path = temp.path().join("my-app.lak");
+    fs::write(
+        &invalid_path,
+        r#"fn main() -> void {
+    println("Hello")
+}
+"#,
+    )
+    .unwrap();
+
+    let output = Command::new(lak_binary())
+        .current_dir(temp.path())
+        .args(["build", "my-app.lak"])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Module names must be valid identifiers"),
+        "Expected 'Module names must be valid identifiers' error for entry module with hyphen, got: {}",
         stderr
     );
 }

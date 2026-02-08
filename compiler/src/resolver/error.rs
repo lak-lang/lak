@@ -3,6 +3,8 @@
 //! This module defines [`ResolverError`], which represents errors that can occur
 //! during module resolution.
 
+use std::path::Path;
+
 use crate::token::Span;
 
 /// The kind of module resolution error.
@@ -26,6 +28,28 @@ pub enum ResolverErrorKind {
     StandardLibraryNotSupported,
 }
 
+/// Source context for errors that occur in a different file than the entry module.
+///
+/// Used for lex/parse errors in imported modules where the error's source
+/// location is in a different file.
+#[derive(Debug)]
+pub struct SourceContext {
+    /// The filename of the source file.
+    filename: String,
+    /// The source content of the file.
+    content: String,
+}
+
+impl SourceContext {
+    /// Creates a new SourceContext.
+    fn new(filename: impl Into<String>, content: impl Into<String>) -> Self {
+        SourceContext {
+            filename: filename.into(),
+            content: content.into(),
+        }
+    }
+}
+
 /// An error that occurred during module resolution.
 #[derive(Debug)]
 pub struct ResolverError {
@@ -35,10 +59,9 @@ pub struct ResolverError {
     span: Option<Span>,
     /// The kind of error, for structured error handling.
     kind: ResolverErrorKind,
-    /// The filename of the source file where the error occurred (if different from the entry module).
-    source_filename: Option<String>,
-    /// The source content of the file where the error occurred (if available).
-    source_content: Option<String>,
+    /// Source context for errors in imported modules (filename and content of the file
+    /// where the error occurred).
+    source_context: Option<SourceContext>,
 }
 
 impl ResolverError {
@@ -48,8 +71,7 @@ impl ResolverError {
             message: message.into(),
             span: None,
             kind,
-            source_filename: None,
-            source_content: None,
+            source_context: None,
         }
     }
 
@@ -59,8 +81,7 @@ impl ResolverError {
             message: message.into(),
             span: Some(span),
             kind,
-            source_filename: None,
-            source_content: None,
+            source_context: None,
         }
     }
 
@@ -79,8 +100,7 @@ impl ResolverError {
             message: message.into(),
             span: Some(span),
             kind,
-            source_filename: Some(source_filename.into()),
-            source_content: Some(source_content.into()),
+            source_context: Some(SourceContext::new(source_filename, source_content)),
         }
     }
 
@@ -101,12 +121,14 @@ impl ResolverError {
 
     /// Returns the source filename where the error occurred, if different from the entry module.
     pub fn source_filename(&self) -> Option<&str> {
-        self.source_filename.as_deref()
+        self.source_context
+            .as_ref()
+            .map(|ctx| ctx.filename.as_str())
     }
 
     /// Returns the source content of the file where the error occurred, if available.
     pub fn source_content(&self) -> Option<&str> {
-        self.source_content.as_deref()
+        self.source_context.as_ref().map(|ctx| ctx.content.as_str())
     }
 
     /// Returns a short, human-readable description of the error kind.
@@ -154,20 +176,27 @@ impl ResolverError {
         )
     }
 
-    /// Creates an "I/O error" error.
-    pub fn io_error(message: &str) -> Self {
-        Self::new(
+    /// Creates an I/O error for failing to resolve an import path.
+    pub fn io_error_resolve_import(import_path: &str, error: &std::io::Error, span: Span) -> Self {
+        Self::with_span(
             ResolverErrorKind::IoError,
-            format!("I/O error: {}", message),
+            format!(
+                "I/O error: Failed to resolve import path '{}': {}",
+                import_path, error
+            ),
+            span,
         )
     }
 
-    /// Creates an "I/O error" error with span.
-    pub fn io_error_with_span(message: &str, span: Span) -> Self {
-        Self::with_span(
+    /// Creates an I/O error for failing to canonicalize a file path.
+    pub fn io_error_canonicalize(path: &Path, error: &std::io::Error) -> Self {
+        Self::new(
             ResolverErrorKind::IoError,
-            format!("I/O error: {}", message),
-            span,
+            format!(
+                "I/O error: Failed to resolve path '{}': {}",
+                path.display(),
+                error
+            ),
         )
     }
 
@@ -198,6 +227,110 @@ impl ResolverError {
             span,
         )
     }
+
+    // =========================================================================
+    // File read errors
+    // =========================================================================
+
+    /// Creates an I/O error for failing to read a module file.
+    pub fn io_error_read_file(path: &Path, error: &std::io::Error, span: Option<Span>) -> Self {
+        let message = format!("I/O error: Failed to read '{}': {}", path.display(), error);
+        match span {
+            Some(s) => Self::with_span(ResolverErrorKind::IoError, message, s),
+            None => Self::new(ResolverErrorKind::IoError, message),
+        }
+    }
+
+    /// Creates a circular import error without span.
+    pub fn circular_import_no_span(cycle: &str) -> Self {
+        Self::new(
+            ResolverErrorKind::CircularImport,
+            format!("Circular import detected: {}", cycle),
+        )
+    }
+
+    // =========================================================================
+    // Module lex/parse errors
+    // =========================================================================
+
+    /// Shared helper for lex/parse errors in modules.
+    fn module_phase_error(
+        kind: ResolverErrorKind,
+        phase: &str,
+        path: &Path,
+        error_message: &str,
+        span: Span,
+        source_content: Option<String>,
+    ) -> Self {
+        let message = format!(
+            "{} error in module '{}': {}",
+            phase,
+            path.display(),
+            error_message
+        );
+        if let Some(content) = source_content {
+            Self::with_source_context(kind, message, span, path.display().to_string(), content)
+        } else {
+            Self::with_span(kind, message, span)
+        }
+    }
+
+    /// Creates a lex error for a module.
+    ///
+    /// When `source_content` is `Some`, attaches source context for error reporting
+    /// (used for imported modules). When `None`, creates a plain error (used for entry modules).
+    pub fn lex_error_in_module(
+        path: &Path,
+        error_message: &str,
+        span: Span,
+        source_content: Option<String>,
+    ) -> Self {
+        Self::module_phase_error(
+            ResolverErrorKind::LexError,
+            "Lexical",
+            path,
+            error_message,
+            span,
+            source_content,
+        )
+    }
+
+    /// Creates a parse error for a module.
+    ///
+    /// When `source_content` is `Some`, attaches source context for error reporting
+    /// (used for imported modules). When `None`, creates a plain error (used for entry modules).
+    pub fn parse_error_in_module(
+        path: &Path,
+        error_message: &str,
+        span: Span,
+        source_content: Option<String>,
+    ) -> Self {
+        Self::module_phase_error(
+            ResolverErrorKind::ParseError,
+            "Parse",
+            path,
+            error_message,
+            span,
+            source_content,
+        )
+    }
+
+    // =========================================================================
+    // Module name errors (without span)
+    // =========================================================================
+
+    /// Creates an "invalid module name" error without span.
+    ///
+    /// Used for entry modules where the import span is not available.
+    pub fn invalid_module_name_no_span(path: &Path) -> Self {
+        Self::new(
+            ResolverErrorKind::InvalidModuleName,
+            format!(
+                "Cannot extract module name from path '{}'. Module names must be valid identifiers.",
+                path.display()
+            ),
+        )
+    }
 }
 
 impl std::fmt::Display for ResolverError {
@@ -211,3 +344,183 @@ impl std::fmt::Display for ResolverError {
 }
 
 impl std::error::Error for ResolverError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::token::Span;
+
+    fn dummy_span() -> Span {
+        Span::new(0, 0, 1, 1)
+    }
+
+    // =========================================================================
+    // File read error helpers
+    // =========================================================================
+
+    #[test]
+    fn test_io_error_read_file_without_span_constructor() {
+        let path = Path::new("/tmp/missing.lak");
+        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
+        let err = ResolverError::io_error_read_file(path, &io_err, None);
+        assert_eq!(err.kind(), ResolverErrorKind::IoError);
+        assert!(err.span().is_none());
+        assert_eq!(
+            err.message(),
+            "I/O error: Failed to read '/tmp/missing.lak': file not found"
+        );
+        assert!(err.source_filename().is_none());
+        assert!(err.source_content().is_none());
+    }
+
+    #[test]
+    fn test_io_error_read_file_with_span_constructor() {
+        let path = Path::new("/tmp/missing.lak");
+        let io_err = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "access denied");
+        let err = ResolverError::io_error_read_file(path, &io_err, Some(dummy_span()));
+        assert_eq!(err.kind(), ResolverErrorKind::IoError);
+        assert!(err.span().is_some());
+        assert_eq!(
+            err.message(),
+            "I/O error: Failed to read '/tmp/missing.lak': access denied"
+        );
+        assert!(err.source_filename().is_none());
+    }
+
+    // =========================================================================
+    // Circular import helpers
+    // =========================================================================
+
+    #[test]
+    fn test_circular_import_no_span_constructor() {
+        let err = ResolverError::circular_import_no_span("a -> b -> a");
+        assert_eq!(err.kind(), ResolverErrorKind::CircularImport);
+        assert!(err.span().is_none());
+        assert_eq!(err.message(), "Circular import detected: a -> b -> a");
+    }
+
+    // =========================================================================
+    // Module lex/parse error helpers
+    // =========================================================================
+
+    #[test]
+    fn test_lex_error_in_module_constructor() {
+        let path = Path::new("/tmp/entry.lak");
+        let err =
+            ResolverError::lex_error_in_module(path, "unexpected character", dummy_span(), None);
+        assert_eq!(err.kind(), ResolverErrorKind::LexError);
+        assert!(err.span().is_some());
+        assert_eq!(
+            err.message(),
+            "Lexical error in module '/tmp/entry.lak': unexpected character"
+        );
+        assert!(err.source_filename().is_none());
+        assert!(err.source_content().is_none());
+    }
+
+    #[test]
+    fn test_lex_error_in_imported_module_constructor() {
+        let path = Path::new("/tmp/utils.lak");
+        let source = "fn bad() { @ }".to_string();
+        let err = ResolverError::lex_error_in_module(
+            path,
+            "unexpected '@'",
+            dummy_span(),
+            Some(source.clone()),
+        );
+        assert_eq!(err.kind(), ResolverErrorKind::LexError);
+        assert!(err.span().is_some());
+        assert_eq!(
+            err.message(),
+            "Lexical error in module '/tmp/utils.lak': unexpected '@'"
+        );
+        // source_context should be set
+        assert_eq!(err.source_filename(), Some("/tmp/utils.lak"));
+        assert_eq!(err.source_content(), Some("fn bad() { @ }"));
+    }
+
+    #[test]
+    fn test_parse_error_in_module_constructor() {
+        let path = Path::new("/tmp/entry.lak");
+        let err = ResolverError::parse_error_in_module(path, "expected '}'", dummy_span(), None);
+        assert_eq!(err.kind(), ResolverErrorKind::ParseError);
+        assert!(err.span().is_some());
+        assert_eq!(
+            err.message(),
+            "Parse error in module '/tmp/entry.lak': expected '}'"
+        );
+        assert!(err.source_filename().is_none());
+        assert!(err.source_content().is_none());
+    }
+
+    #[test]
+    fn test_parse_error_in_imported_module_constructor() {
+        let path = Path::new("/tmp/helper.lak");
+        let source = "fn broken( {}".to_string();
+        let err = ResolverError::parse_error_in_module(
+            path,
+            "expected ')'",
+            dummy_span(),
+            Some(source.clone()),
+        );
+        assert_eq!(err.kind(), ResolverErrorKind::ParseError);
+        assert!(err.span().is_some());
+        assert_eq!(
+            err.message(),
+            "Parse error in module '/tmp/helper.lak': expected ')'"
+        );
+        // source_context should be set
+        assert_eq!(err.source_filename(), Some("/tmp/helper.lak"));
+        assert_eq!(err.source_content(), Some("fn broken( {}"));
+    }
+
+    // =========================================================================
+    // Module name error helpers
+    // =========================================================================
+
+    #[test]
+    fn test_invalid_module_name_no_span_constructor() {
+        let path = Path::new("///");
+        let err = ResolverError::invalid_module_name_no_span(path);
+        assert_eq!(err.kind(), ResolverErrorKind::InvalidModuleName);
+        assert!(err.span().is_none());
+        assert_eq!(
+            err.message(),
+            "Cannot extract module name from path '///'. Module names must be valid identifiers."
+        );
+    }
+
+    // =========================================================================
+    // Display trait
+    // =========================================================================
+
+    #[test]
+    fn test_display_with_span() {
+        let err = ResolverError::file_not_found("./missing", dummy_span());
+        let display = format!("{}", err);
+        assert_eq!(
+            display,
+            "1:1: Cannot find module './missing'. Check that the file exists."
+        );
+    }
+
+    #[test]
+    fn test_display_without_span() {
+        let err = ResolverError::circular_import_no_span("a -> b -> a");
+        let display = format!("{}", err);
+        assert_eq!(display, "Circular import detected: a -> b -> a");
+    }
+
+    #[test]
+    fn test_io_error_canonicalize_constructor() {
+        let path = Path::new("/tmp/nonexistent.lak");
+        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
+        let err = ResolverError::io_error_canonicalize(path, &io_err);
+        assert_eq!(err.kind(), ResolverErrorKind::IoError);
+        assert!(err.span().is_none());
+        assert_eq!(
+            err.message(),
+            "I/O error: Failed to resolve path '/tmp/nonexistent.lak': file not found"
+        );
+    }
+}

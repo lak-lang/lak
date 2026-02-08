@@ -741,3 +741,333 @@ fn test_internal_unary_op_failed_constructor() {
         "Internal error: failed to generate unary '-' instruction. This is a compiler bug: LLVM error"
     );
 }
+
+// ==================================
+// Module compilation error constructor tests
+// ==================================
+
+#[test]
+fn test_internal_entry_module_not_found_constructor() {
+    let path = std::path::Path::new("/tmp/test.lak");
+    let err = CodegenError::internal_entry_module_not_found(path);
+    assert_eq!(err.kind(), CodegenErrorKind::InternalError);
+    assert!(err.span().is_none());
+    assert_eq!(
+        err.message(),
+        "Internal error: entry module '/tmp/test.lak' not found in module list. This is a compiler bug."
+    );
+}
+
+#[test]
+fn test_internal_import_path_not_resolved_constructor() {
+    let err = CodegenError::internal_import_path_not_resolved("./utils", dummy_span());
+    assert_eq!(err.kind(), CodegenErrorKind::InternalError);
+    assert!(err.span().is_some());
+    assert_eq!(
+        err.message(),
+        "Internal error: import path './utils' not found in resolved imports. This is a compiler bug."
+    );
+}
+
+#[test]
+fn test_internal_resolved_module_not_found_for_path_constructor() {
+    let path = std::path::Path::new("/tmp/utils.lak");
+    let err = CodegenError::internal_resolved_module_not_found_for_path(path, dummy_span());
+    assert_eq!(err.kind(), CodegenErrorKind::InternalError);
+    assert!(err.span().is_some());
+    assert_eq!(
+        err.message(),
+        "Internal error: resolved module not found for path '/tmp/utils.lak'. This is a compiler bug."
+    );
+}
+
+#[test]
+fn test_internal_module_alias_not_found_constructor() {
+    let err = CodegenError::internal_module_alias_not_found("u", dummy_span());
+    assert_eq!(err.kind(), CodegenErrorKind::InternalError);
+    assert!(err.span().is_some());
+    assert_eq!(
+        err.message(),
+        "Internal error: module alias 'u' not found in alias map. This is a compiler bug."
+    );
+}
+
+#[test]
+fn test_internal_variable_alloca_failed_constructor() {
+    let err = CodegenError::internal_variable_alloca_failed("x", "LLVM error", dummy_span());
+    assert_eq!(err.kind(), CodegenErrorKind::InternalError);
+    assert!(err.span().is_some());
+    assert_eq!(
+        err.message(),
+        "Internal error: failed to allocate variable 'x'. This is a compiler bug: LLVM error"
+    );
+}
+
+#[test]
+fn test_internal_non_integer_value_constructor() {
+    let err = CodegenError::internal_non_integer_value("binary", dummy_span());
+    assert_eq!(err.kind(), CodegenErrorKind::InternalError);
+    assert!(err.span().is_some());
+    assert_eq!(
+        err.message(),
+        "Internal error: expected integer value in binary operation, but got non-integer. Semantic analysis should have caught this. This is a compiler bug."
+    );
+}
+
+// ==================================
+// wrap_in_unary_context tests
+// ==================================
+
+#[test]
+fn test_wrap_in_unary_context_non_unary_error() {
+    let base = CodegenError::internal_variable_not_found("x", dummy_span());
+    let wrapped = CodegenError::wrap_in_unary_context(&base, UnaryOperator::Neg, dummy_span());
+    assert_eq!(wrapped.kind(), CodegenErrorKind::InternalError);
+    assert_eq!(
+        wrapped.message(),
+        "in unary '-' operation: Internal error: undefined variable 'x' in codegen. \
+         Semantic analysis should have caught this. This is a compiler bug."
+    );
+}
+
+#[test]
+fn test_wrap_in_unary_context_already_unary_error() {
+    let base = CodegenError::internal_unary_op_string(UnaryOperator::Neg, dummy_span());
+    let wrapped = CodegenError::wrap_in_unary_context(&base, UnaryOperator::Neg, dummy_span());
+    assert_eq!(wrapped.kind(), CodegenErrorKind::InternalError);
+    // Should not double-wrap: message should be the original
+    assert_eq!(wrapped.message(), base.message());
+}
+
+// ==================================
+// mangle_name tests
+// ==================================
+
+#[test]
+fn test_mangle_name_basic() {
+    assert_eq!(mangle_name("utils", "greet"), "_L5_utils_greet");
+}
+
+#[test]
+fn test_mangle_name_single_char_module() {
+    assert_eq!(mangle_name("a", "b"), "_L1_a_b");
+}
+
+#[test]
+fn test_mangle_name_with_underscores_in_function() {
+    assert_eq!(mangle_name("a", "b__c"), "_L1_a_b__c");
+}
+
+#[test]
+fn test_mangle_name_with_underscores_in_module() {
+    assert_eq!(mangle_name("a__b", "c"), "_L4_a__b_c");
+}
+
+#[test]
+fn test_mangle_name_no_collision_between_similar_names() {
+    // Module "a" with function "b__c" should differ from module "a__b" with function "c"
+    let name1 = mangle_name("a", "b__c");
+    let name2 = mangle_name("a__b", "c");
+    assert_ne!(
+        name1, name2,
+        "Length-prefix scheme should prevent collisions"
+    );
+}
+
+#[test]
+fn test_mangle_name_long_module() {
+    assert_eq!(
+        mangle_name("my_long_module", "func"),
+        "_L14_my_long_module_func"
+    );
+}
+
+#[test]
+fn test_internal_non_pointer_value_constructor() {
+    let err = CodegenError::internal_non_pointer_value("println_string load", dummy_span());
+    assert_eq!(err.kind(), CodegenErrorKind::InternalError);
+    assert!(err.span().is_some());
+    assert_eq!(
+        err.message(),
+        "Internal error: expected pointer value in println_string load operation, but got non-pointer. Semantic analysis should have caught this. This is a compiler bug."
+    );
+}
+
+#[test]
+fn test_builtin_names_matches_declare_builtins() {
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "test");
+    codegen.declare_builtins();
+
+    let mut declared: Vec<&str> = builtins::BUILTIN_NAMES.to_vec();
+    declared.sort();
+
+    let mut actual: Vec<String> = codegen
+        .module
+        .get_functions()
+        .map(|f| f.get_name().to_str().unwrap().to_string())
+        .collect();
+    actual.sort();
+
+    assert_eq!(
+        declared,
+        actual.iter().map(|s| s.as_str()).collect::<Vec<&str>>(),
+        "BUILTIN_NAMES must match the functions declared by declare_builtins()"
+    );
+}
+
+// ==================================
+// compile_modules tests
+// ==================================
+
+#[test]
+fn test_compile_modules_basic() {
+    use crate::ast::ImportDecl;
+    use crate::resolver::ResolvedModule;
+
+    let temp_dir = std::env::temp_dir();
+
+    // Create an imported module with a public function that calls println
+    let imported_program = Program {
+        imports: vec![],
+        functions: vec![FnDef {
+            visibility: Visibility::Public,
+            name: "greet".to_string(),
+            return_type: "void".to_string(),
+            return_type_span: dummy_span(),
+            body: vec![expr_stmt(ExprKind::Call {
+                callee: "println".to_string(),
+                args: vec![Expr::new(
+                    ExprKind::StringLiteral("hello from utils".to_string()),
+                    dummy_span(),
+                )],
+            })],
+            span: dummy_span(),
+        }],
+    };
+    let imported_path = temp_dir.join("utils.lak");
+    let imported_module = ResolvedModule::for_testing(
+        imported_path.clone(),
+        "utils".to_string(),
+        imported_program,
+        "".to_string(),
+    );
+
+    // Create entry module that imports and calls utils.greet()
+    let entry_program = Program {
+        imports: vec![ImportDecl {
+            path: "./utils".to_string(),
+            alias: None,
+            span: dummy_span(),
+        }],
+        functions: vec![FnDef {
+            visibility: Visibility::Private,
+            name: "main".to_string(),
+            return_type: "void".to_string(),
+            return_type_span: dummy_span(),
+            body: vec![expr_stmt(ExprKind::ModuleCall {
+                module: "utils".to_string(),
+                function: "greet".to_string(),
+                args: vec![],
+            })],
+            span: dummy_span(),
+        }],
+    };
+    let entry_path = temp_dir.join("main.lak");
+    let mut entry_module = ResolvedModule::for_testing(
+        entry_path.clone(),
+        "main".to_string(),
+        entry_program,
+        "".to_string(),
+    );
+    entry_module.add_resolved_import_for_testing("./utils".to_string(), imported_path);
+
+    let modules = [imported_module, entry_module];
+
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "test");
+    codegen
+        .compile_modules(&modules, &entry_path)
+        .expect("compile_modules should succeed");
+
+    // Verify main exists
+    assert!(codegen.module.get_function("main").is_some());
+    // Verify mangled function exists
+    assert!(codegen.module.get_function("_L5_utils_greet").is_some());
+}
+
+#[test]
+fn test_compile_modules_with_alias() {
+    use crate::ast::ImportDecl;
+    use crate::resolver::ResolvedModule;
+
+    let temp_dir = std::env::temp_dir();
+
+    // Create an imported module with a public function
+    let imported_program = Program {
+        imports: vec![],
+        functions: vec![FnDef {
+            visibility: Visibility::Public,
+            name: "greet".to_string(),
+            return_type: "void".to_string(),
+            return_type_span: dummy_span(),
+            body: vec![expr_stmt(ExprKind::Call {
+                callee: "println".to_string(),
+                args: vec![Expr::new(
+                    ExprKind::StringLiteral("hello".to_string()),
+                    dummy_span(),
+                )],
+            })],
+            span: dummy_span(),
+        }],
+    };
+    let imported_path = temp_dir.join("utils.lak");
+    let imported_module = ResolvedModule::for_testing(
+        imported_path.clone(),
+        "utils".to_string(),
+        imported_program,
+        "".to_string(),
+    );
+
+    // Create entry module with aliased import: import "./utils" as u
+    let entry_program = Program {
+        imports: vec![ImportDecl {
+            path: "./utils".to_string(),
+            alias: Some("u".to_string()),
+            span: dummy_span(),
+        }],
+        functions: vec![FnDef {
+            visibility: Visibility::Private,
+            name: "main".to_string(),
+            return_type: "void".to_string(),
+            return_type_span: dummy_span(),
+            body: vec![expr_stmt(ExprKind::ModuleCall {
+                module: "u".to_string(),
+                function: "greet".to_string(),
+                args: vec![],
+            })],
+            span: dummy_span(),
+        }],
+    };
+    let entry_path = temp_dir.join("main.lak");
+    let mut entry_module = ResolvedModule::for_testing(
+        entry_path.clone(),
+        "main".to_string(),
+        entry_program,
+        "".to_string(),
+    );
+    entry_module.add_resolved_import_for_testing("./utils".to_string(), imported_path);
+
+    let modules = [imported_module, entry_module];
+
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "test");
+    codegen
+        .compile_modules(&modules, &entry_path)
+        .expect("compile_modules with alias should succeed");
+
+    // Verify main exists
+    assert!(codegen.module.get_function("main").is_some());
+    // Verify mangled function uses real module name, not alias
+    assert!(codegen.module.get_function("_L5_utils_greet").is_some());
+}

@@ -4,6 +4,7 @@
 //! function calls, literals, and variable references.
 
 use super::Codegen;
+use super::builtins::BUILTIN_NAMES;
 use super::error::CodegenError;
 use super::mangle_name;
 use crate::ast::{BinaryOperator, Expr, ExprKind, Type, UnaryOperator};
@@ -19,7 +20,9 @@ impl<'ctx> Codegen<'ctx> {
     ///
     /// # Errors
     ///
-    /// Returns an internal error for non-call expressions (literals, identifiers).
+    /// Returns an internal error for non-call expressions (literals, identifiers,
+    /// binary/unary ops, member access). Both regular function calls and
+    /// module-qualified function calls are valid.
     /// Semantic analysis guarantees that only valid expression statements reach codegen.
     pub(super) fn generate_expr(&mut self, expr: &Expr) -> Result<(), CodegenError> {
         match &expr.kind {
@@ -77,7 +80,7 @@ impl<'ctx> Codegen<'ctx> {
         span: crate::token::Span,
     ) -> Result<(), CodegenError> {
         // When generating code for an imported module, function calls within
-        // that module need to use mangled names (e.g., "utils__helper" instead
+        // that module need to use mangled names (e.g., "_L5_utils_helper" instead
         // of "helper"), since all imported module functions are declared with
         // mangled names in the LLVM module.
         let function = if let Some(ref prefix) = self.current_module_prefix {
@@ -85,14 +88,7 @@ impl<'ctx> Codegen<'ctx> {
             self.module.get_function(&mangled).or_else(|| {
                 // Only allow fallback to unmangled name for known builtins.
                 // Builtins are declared with their original names (not mangled).
-                const BUILTINS: &[&str] = &[
-                    "lak_println",
-                    "lak_println_i32",
-                    "lak_println_i64",
-                    "lak_println_bool",
-                    "lak_panic",
-                ];
-                if BUILTINS.contains(&callee) {
+                if BUILTIN_NAMES.contains(&callee) {
                     self.module.get_function(callee)
                 } else {
                     None
@@ -114,7 +110,7 @@ impl<'ctx> Codegen<'ctx> {
 
     /// Generates a call to a module-qualified function.
     ///
-    /// The function name is mangled as `{real_module}__{function}`.
+    /// The function name is mangled using the length-prefix scheme via `mangle_name()`.
     /// If the module name is an alias, it is resolved to the real module name first.
     ///
     /// # Arguments
@@ -289,12 +285,16 @@ impl<'ctx> Codegen<'ctx> {
         }
 
         // Generate values for both operands
-        let left_value = self
-            .generate_expr_value(left, expected_ty)?
-            .into_int_value();
-        let right_value = self
-            .generate_expr_value(right, expected_ty)?
-            .into_int_value();
+        let left_basic = self.generate_expr_value(left, expected_ty)?;
+        let left_value = match left_basic {
+            BasicValueEnum::IntValue(v) => v,
+            _ => return Err(CodegenError::internal_non_integer_value("binary", span)),
+        };
+        let right_basic = self.generate_expr_value(right, expected_ty)?;
+        let right_value = match right_basic {
+            BasicValueEnum::IntValue(v) => v,
+            _ => return Err(CodegenError::internal_non_integer_value("binary", span)),
+        };
 
         // Generate the appropriate LLVM instruction based on the operator
         let result = match op {
@@ -358,21 +358,13 @@ impl<'ctx> Codegen<'ctx> {
         }
 
         // Generate value for the operand, adding context to any errors
-        let operand_value = self
+        let operand_basic = self
             .generate_expr_value(operand, expected_ty)
-            .map_err(|e| {
-                // Add unary operation context if not already present
-                if e.message().contains("unary") {
-                    e
-                } else {
-                    CodegenError::new(
-                        e.kind(),
-                        format!("in unary '{}' operation: {}", op, e.message()),
-                        span,
-                    )
-                }
-            })?
-            .into_int_value();
+            .map_err(|e| CodegenError::wrap_in_unary_context(&e, op, span))?;
+        let operand_value = match operand_basic {
+            BasicValueEnum::IntValue(v) => v,
+            _ => return Err(CodegenError::internal_non_integer_value("unary", span)),
+        };
 
         // Generate the appropriate LLVM instruction based on the operator
         let result = match op {

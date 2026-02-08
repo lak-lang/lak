@@ -5,7 +5,7 @@
 
 use super::Codegen;
 use super::binding::VarBinding;
-use super::error::{CodegenError, CodegenErrorKind};
+use super::error::CodegenError;
 use crate::ast::{Expr, Stmt, StmtKind, Type};
 use crate::token::Span;
 
@@ -50,8 +50,7 @@ impl<'ctx> Codegen<'ctx> {
             return Err(CodegenError::internal_duplicate_variable(name, span));
         }
 
-        let binding = VarBinding::new(&self.builder, self.context, ty, name)
-            .map_err(|e| CodegenError::new(CodegenErrorKind::InternalError, e, span))?;
+        let binding = VarBinding::new(&self.builder, self.context, ty, name, span)?;
 
         let init_value = self.generate_expr_value(init, ty)?;
 

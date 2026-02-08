@@ -30,7 +30,7 @@ use crate::token::Span;
 ///
 /// # Error Categories
 ///
-/// Error kinds fall into four categories based on their typical span behavior:
+/// Error kinds fall into five categories based on their typical span behavior:
 ///
 /// - **Name resolution errors** (have span): [`DuplicateFunction`](Self::DuplicateFunction),
 ///   [`DuplicateVariable`](Self::DuplicateVariable), [`UndefinedVariable`](Self::UndefinedVariable),
@@ -40,6 +40,11 @@ use crate::token::Span;
 ///   [`InvalidExpression`](Self::InvalidExpression)
 /// - **Structural errors**: [`MissingMainFunction`](Self::MissingMainFunction) (no span),
 ///   [`InvalidMainSignature`](Self::InvalidMainSignature) (has span pointing to return type)
+/// - **Module errors** (have span): [`ModuleAccessNotImplemented`](Self::ModuleAccessNotImplemented),
+///   [`ModuleNotImported`](Self::ModuleNotImported), [`UndefinedModule`](Self::UndefinedModule),
+///   [`UndefinedModuleFunction`](Self::UndefinedModuleFunction),
+///   [`DuplicateModuleImport`](Self::DuplicateModuleImport),
+///   [`CrossModuleCallInImportedModule`](Self::CrossModuleCallInImportedModule)
 /// - **Internal errors** (have span): [`InternalError`](Self::InternalError) - indicates a compiler bug
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SemanticErrorKind {
@@ -67,8 +72,8 @@ pub enum SemanticErrorKind {
     InternalError,
     /// Module-qualified access is not yet implemented.
     ModuleAccessNotImplemented,
-    /// Module-qualified function call not yet implemented
-    ModuleCallNotImplemented,
+    /// Module-qualified function call requires an import (module not imported).
+    ModuleNotImported,
     /// Module not found (not imported).
     UndefinedModule,
     /// Function not found in module.
@@ -91,7 +96,7 @@ pub enum SemanticErrorKind {
 /// - [`new()`](Self::new) - For errors with a specific source location
 /// - [`without_span()`](Self::without_span) - For errors without a source location
 /// - [`missing_main()`](Self::missing_main) - Convenience for missing main function errors
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SemanticError {
     /// A human-readable description of the error.
     message: String,
@@ -101,6 +106,10 @@ pub struct SemanticError {
     kind: SemanticErrorKind,
     /// Optional help text with suggestions for fixing the error.
     help: Option<String>,
+    /// Whether this error already includes unary operation context.
+    /// Used by `wrap_in_unary_context()` to prevent double-wrapping
+    /// (e.g., avoiding "in unary '-' operation: in unary '-' operation: ...").
+    has_unary_context: bool,
 }
 
 impl SemanticError {
@@ -114,6 +123,7 @@ impl SemanticError {
             span: Some(span),
             kind,
             help: None,
+            has_unary_context: false,
         }
     }
 
@@ -131,6 +141,7 @@ impl SemanticError {
             span: Some(span),
             kind,
             help: Some(help.into()),
+            has_unary_context: false,
         }
     }
 
@@ -144,6 +155,7 @@ impl SemanticError {
             span: None,
             kind,
             help: None,
+            has_unary_context: false,
         }
     }
 
@@ -158,6 +170,7 @@ impl SemanticError {
             span: None,
             kind: SemanticErrorKind::MissingMainFunction,
             help: None,
+            has_unary_context: false,
         }
     }
 
@@ -181,6 +194,17 @@ impl SemanticError {
         self.help.as_deref()
     }
 
+    /// Returns whether this error already includes unary operation context.
+    pub fn has_unary_context(&self) -> bool {
+        self.has_unary_context
+    }
+
+    /// Sets the unary context flag, preventing double-wrapping by `wrap_in_unary_context()`.
+    fn with_unary_context(mut self) -> Self {
+        self.has_unary_context = true;
+        self
+    }
+
     /// Returns a short, human-readable description of the error kind.
     ///
     /// This is used as the report title in error messages, while `message()`
@@ -199,7 +223,7 @@ impl SemanticError {
             SemanticErrorKind::InvalidMainSignature => "Invalid main signature",
             SemanticErrorKind::InternalError => "Internal error",
             SemanticErrorKind::ModuleAccessNotImplemented => "Module access not implemented",
-            SemanticErrorKind::ModuleCallNotImplemented => "Module call not implemented",
+            SemanticErrorKind::ModuleNotImported => "Module not imported",
             SemanticErrorKind::UndefinedModule => "Undefined module",
             SemanticErrorKind::UndefinedModuleFunction => "Undefined module function",
             SemanticErrorKind::DuplicateModuleImport => "Duplicate module import",
@@ -486,7 +510,7 @@ impl SemanticError {
         actual_ty: &str,
         span: Span,
     ) -> Self {
-        Self::new_with_help(
+        let err = Self::new_with_help(
             SemanticErrorKind::TypeMismatch,
             format!(
                 "Unary operator '{}' cannot be used with '{}' type",
@@ -494,17 +518,19 @@ impl SemanticError {
             ),
             span,
             "unary negation (-) only works with numeric types (i32, i64)",
-        )
+        );
+        err.with_unary_context()
     }
 
     /// Creates an error for unary operation used as statement.
     pub fn invalid_expression_unary_op(span: Span) -> Self {
-        Self::new_with_help(
+        let err = Self::new_with_help(
             SemanticErrorKind::InvalidExpression,
             "This expression computes a value but the result is not used",
             span,
             "assign the result to a variable: `let result = ...`",
-        )
+        );
+        err.with_unary_context()
     }
 
     // =========================================================================
@@ -591,7 +617,7 @@ impl SemanticError {
             SemanticErrorKind::ModuleAccessNotImplemented,
             "Module-qualified access (e.g., module.function) is not yet implemented",
             span,
-            "module resolution will be implemented in a future version",
+            "only module function calls are supported: module.function()",
         )
     }
 
@@ -612,12 +638,13 @@ impl SemanticError {
         )
     }
 
-    pub fn module_call_not_implemented(module: &str, function: &str, span: Span) -> Self {
+    /// Creates a "module not imported" error for module-qualified calls without an import statement.
+    pub fn module_not_imported(module: &str, function: &str, span: Span) -> Self {
         Self::new(
-            SemanticErrorKind::ModuleCallNotImplemented,
+            SemanticErrorKind::ModuleNotImported,
             format!(
-                "Module-qualified function call '{}.{}()' is not yet supported. Module import resolution is not implemented.",
-                module, function
+                "Module-qualified function call '{}.{}()' requires an import statement. Add: import \"./{}\"",
+                module, function, module
             ),
             span,
         )
@@ -679,6 +706,100 @@ impl SemanticError {
             ),
             span,
         )
+    }
+
+    // =========================================================================
+    // Module table internal errors
+    // =========================================================================
+
+    /// Creates an internal error for empty FunctionExport name.
+    pub fn internal_function_export_empty_name(span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::InternalError,
+            "Internal error: FunctionExport name must not be empty. This is a compiler bug.",
+            span,
+        )
+    }
+
+    /// Creates an internal error for empty FunctionExport return type.
+    pub fn internal_function_export_empty_return_type(span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::InternalError,
+            "Internal error: FunctionExport return type must not be empty. This is a compiler bug.",
+            span,
+        )
+    }
+
+    /// Creates an internal error for resolved path not found.
+    pub fn internal_resolved_path_not_found(import_path: &str, span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::InternalError,
+            format!(
+                "Internal error: resolved path for import '{}' not found. \
+                 This is a compiler bug.",
+                import_path
+            ),
+            span,
+        )
+    }
+
+    /// Creates an internal error for resolved module not found.
+    pub fn internal_resolved_module_not_found(import_path: &str, span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::InternalError,
+            format!(
+                "Internal error: resolved module for '{}' not found in resolution map. \
+                 This is a compiler bug.",
+                import_path
+            ),
+            span,
+        )
+    }
+
+    // =========================================================================
+    // Missing main function helpers
+    // =========================================================================
+
+    /// Creates a "missing main function" error when the program has no functions.
+    pub fn missing_main_no_functions() -> Self {
+        Self::missing_main("No main function found: program contains no function definitions")
+    }
+
+    /// Creates a "missing main function" error listing defined functions.
+    pub fn missing_main_with_functions(function_names: &[&str]) -> Self {
+        let quoted: Vec<String> = function_names.iter().map(|n| format!("'{}'", n)).collect();
+        Self::missing_main(format!(
+            "No main function found. Defined functions: {}",
+            quoted.join(", ")
+        ))
+    }
+
+    // =========================================================================
+    // Error context wrapping
+    // =========================================================================
+
+    /// Wraps an error with unary operation context.
+    ///
+    /// If the error already has unary context, it is returned as-is to avoid
+    /// double-wrapping. Otherwise, a new error is created with the unary
+    /// operation context prepended to the original message.
+    pub fn wrap_in_unary_context(
+        base_error: &Self,
+        op: crate::ast::UnaryOperator,
+        span: Span,
+    ) -> Self {
+        if base_error.has_unary_context {
+            base_error.clone()
+        } else {
+            let message = format!("in unary '{}' operation: {}", op, base_error.message());
+            let error_span = base_error.span().unwrap_or(span);
+            let err = if let Some(help) = base_error.help() {
+                Self::new_with_help(base_error.kind(), message, error_span, help)
+            } else {
+                Self::new(base_error.kind(), message, error_span)
+            };
+            err.with_unary_context()
+        }
     }
 }
 

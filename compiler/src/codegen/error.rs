@@ -20,6 +20,8 @@
 //! - **Internal errors** (without span): [`internal_builtin_not_found()`](CodegenError::internal_builtin_not_found),
 //!   [`internal_return_build_failed()`](CodegenError::internal_return_build_failed), etc.
 
+use std::path::Path;
+
 use crate::token::Span;
 
 /// The kind of code generation error.
@@ -57,7 +59,7 @@ pub enum CodegenErrorKind {
 /// - [`new()`](Self::new) - For errors with a specific source location
 /// - [`without_span()`](Self::without_span) - For errors without a source location
 ///   (infrastructure errors)
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CodegenError {
     /// A human-readable description of the error.
     message: String,
@@ -65,6 +67,10 @@ pub struct CodegenError {
     span: Option<Span>,
     /// The kind of error, for structured error handling.
     kind: CodegenErrorKind,
+    /// Whether this error already includes unary operation context.
+    /// Used by `wrap_in_unary_context()` to prevent double-wrapping
+    /// (e.g., avoiding "in unary '-' operation: in unary '-' operation: ...").
+    has_unary_context: bool,
 }
 
 impl CodegenError {
@@ -87,6 +93,7 @@ impl CodegenError {
             message: message.into(),
             span: Some(span),
             kind,
+            has_unary_context: false,
         }
     }
 
@@ -108,6 +115,7 @@ impl CodegenError {
             message: message.into(),
             span: None,
             kind,
+            has_unary_context: false,
         }
     }
 
@@ -124,6 +132,17 @@ impl CodegenError {
     /// Returns the kind of error.
     pub fn kind(&self) -> CodegenErrorKind {
         self.kind
+    }
+
+    /// Returns whether this error already includes unary operation context.
+    pub fn has_unary_context(&self) -> bool {
+        self.has_unary_context
+    }
+
+    /// Sets the unary context flag, preventing double-wrapping by `wrap_in_unary_context()`.
+    fn with_unary_context(mut self) -> Self {
+        self.has_unary_context = true;
+        self
     }
 
     /// Returns a short, human-readable description of the error kind.
@@ -589,7 +608,7 @@ impl CodegenError {
 
     /// Creates an internal error for unary operation on string type.
     pub fn internal_unary_op_string(op: crate::ast::UnaryOperator, span: Span) -> Self {
-        Self::new(
+        let err = Self::new(
             CodegenErrorKind::InternalError,
             format!(
                 "Internal error: unary operator '{}' applied to string type in codegen. \
@@ -597,7 +616,8 @@ impl CodegenError {
                 op
             ),
             span,
-        )
+        );
+        err.with_unary_context()
     }
 
     /// Creates an internal error for failed unary operation.
@@ -606,14 +626,15 @@ impl CodegenError {
         error: &str,
         span: Span,
     ) -> Self {
-        Self::new(
+        let err = Self::new(
             CodegenErrorKind::InternalError,
             format!(
                 "Internal error: failed to generate unary '{}' instruction. This is a compiler bug: {}",
                 op, error
             ),
             span,
-        )
+        );
+        err.with_unary_context()
     }
 
     // =========================================================================
@@ -705,6 +726,123 @@ impl CodegenError {
             ),
             span,
         )
+    }
+
+    // =========================================================================
+    // Module compilation internal errors
+    // =========================================================================
+
+    /// Creates an internal error for entry module not found in module list.
+    pub fn internal_entry_module_not_found(entry_path: &Path) -> Self {
+        Self::without_span(
+            CodegenErrorKind::InternalError,
+            format!(
+                "Internal error: entry module '{}' not found in module list. This is a compiler bug.",
+                entry_path.display()
+            ),
+        )
+    }
+
+    /// Creates an internal error for import path not found in resolved imports.
+    pub fn internal_import_path_not_resolved(import_path: &str, span: Span) -> Self {
+        Self::new(
+            CodegenErrorKind::InternalError,
+            format!(
+                "Internal error: import path '{}' not found in resolved imports. \
+                 This is a compiler bug.",
+                import_path
+            ),
+            span,
+        )
+    }
+
+    /// Creates an internal error for resolved module not found for a canonical path.
+    pub fn internal_resolved_module_not_found_for_path(canonical_path: &Path, span: Span) -> Self {
+        Self::new(
+            CodegenErrorKind::InternalError,
+            format!(
+                "Internal error: resolved module not found for path '{}'. \
+                 This is a compiler bug.",
+                canonical_path.display()
+            ),
+            span,
+        )
+    }
+
+    /// Creates an internal error for module alias not found in alias map.
+    pub fn internal_module_alias_not_found(alias_or_name: &str, span: Span) -> Self {
+        Self::new(
+            CodegenErrorKind::InternalError,
+            format!(
+                "Internal error: module alias '{}' not found in alias map. \
+                 This is a compiler bug.",
+                alias_or_name
+            ),
+            span,
+        )
+    }
+
+    /// Creates an internal error for failed variable allocation.
+    pub fn internal_variable_alloca_failed(name: &str, error: &str, span: Span) -> Self {
+        Self::new(
+            CodegenErrorKind::InternalError,
+            format!(
+                "Internal error: failed to allocate variable '{}'. This is a compiler bug: {}",
+                name, error
+            ),
+            span,
+        )
+    }
+
+    /// Creates an internal error for non-integer value where integer was expected.
+    pub fn internal_non_integer_value(operation: &str, span: Span) -> Self {
+        Self::new(
+            CodegenErrorKind::InternalError,
+            format!(
+                "Internal error: expected integer value in {} operation, but got non-integer. \
+                 Semantic analysis should have caught this. This is a compiler bug.",
+                operation
+            ),
+            span,
+        )
+    }
+
+    /// Creates an internal error for non-pointer value where pointer was expected.
+    pub fn internal_non_pointer_value(operation: &str, span: Span) -> Self {
+        Self::new(
+            CodegenErrorKind::InternalError,
+            format!(
+                "Internal error: expected pointer value in {} operation, but got non-pointer. \
+                 Semantic analysis should have caught this. This is a compiler bug.",
+                operation
+            ),
+            span,
+        )
+    }
+
+    /// Wraps an error with unary operation context.
+    ///
+    /// If the error already has unary context, a new error is created that
+    /// preserves the original kind, message, and span (without adding
+    /// additional wrapping context).
+    /// Otherwise, a new error is created with unary context prepended.
+    /// Note: This method does not propagate help text (CodegenError has no help field).
+    pub fn wrap_in_unary_context(
+        base_error: &Self,
+        op: crate::ast::UnaryOperator,
+        span: Span,
+    ) -> Self {
+        if base_error.has_unary_context {
+            base_error.clone()
+        } else {
+            let message = format!("in unary '{}' operation: {}", op, base_error.message());
+            Self::new(
+                base_error.kind(),
+                message,
+                base_error.span().unwrap_or(span),
+            )
+            .with_unary_context()
+        }
     }
 }
 

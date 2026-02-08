@@ -26,8 +26,6 @@ pub struct ResolvedModule {
     program: Program,
     /// The source code (needed for error reporting).
     source: String,
-    /// Module names that this module imports.
-    dependencies: Vec<String>,
     /// Map from import path strings to their resolved canonical paths.
     resolved_imports: HashMap<String, PathBuf>,
 }
@@ -53,11 +51,6 @@ impl ResolvedModule {
         &self.source
     }
 
-    /// Returns the module names that this module imports.
-    pub fn dependencies(&self) -> &[String] {
-        &self.dependencies
-    }
-
     /// Returns the mapping from import path strings to canonical paths.
     pub fn resolved_imports(&self) -> &HashMap<String, PathBuf> {
         &self.resolved_imports
@@ -79,9 +72,16 @@ impl ResolvedModule {
             name,
             program,
             source,
-            dependencies: Vec::new(),
             resolved_imports: HashMap::new(),
         }
+    }
+}
+
+#[cfg(test)]
+impl ResolvedModule {
+    /// Adds a resolved import mapping for testing purposes.
+    pub fn add_resolved_import_for_testing(&mut self, import_path: String, canonical: PathBuf) {
+        self.resolved_imports.insert(import_path, canonical);
     }
 }
 
@@ -108,7 +108,7 @@ impl ModuleResolver {
     pub fn resolve_from_entry(&mut self, entry_path: &Path) -> Result<(), ResolverError> {
         let canonical = entry_path
             .canonicalize()
-            .map_err(|e| ResolverError::io_error(&e.to_string()))?;
+            .map_err(|e| ResolverError::io_error_canonicalize(entry_path, &e))?;
 
         self.resolve_module(&canonical, None, None)
     }
@@ -124,7 +124,7 @@ impl ModuleResolver {
     ) -> Result<(), ResolverError> {
         let canonical = entry_path
             .canonicalize()
-            .map_err(|e| ResolverError::io_error(&e.to_string()))?;
+            .map_err(|e| ResolverError::io_error_canonicalize(entry_path, &e))?;
 
         self.resolve_module(&canonical, None, Some(source))
     }
@@ -141,10 +141,7 @@ impl ModuleResolver {
             let cycle = self.format_cycle(path);
             return match import_span {
                 Some(span) => Err(ResolverError::circular_import(&cycle, span)),
-                None => Err(ResolverError::new(
-                    ResolverErrorKind::CircularImport,
-                    format!("Circular import detected: {}", cycle),
-                )),
+                None => Err(ResolverError::circular_import_no_span(&cycle)),
             };
         }
 
@@ -173,101 +170,44 @@ impl ModuleResolver {
         // Load and parse file
         let source = match pre_read_source {
             Some(s) => s,
-            None => std::fs::read_to_string(path).map_err(|e| {
-                let file_display = path.display();
-                if let Some(span) = import_span {
-                    ResolverError::io_error_with_span(
-                        &format!("Failed to read '{}': {}", file_display, e),
-                        span,
-                    )
-                } else {
-                    ResolverError::io_error(&format!("Failed to read '{}': {}", file_display, e))
-                }
-            })?,
+            None => std::fs::read_to_string(path)
+                .map_err(|e| ResolverError::io_error_read_file(path, &e, import_span))?,
         };
 
         let mut lexer = Lexer::new(&source);
         let tokens = lexer.tokenize().map_err(|e| {
-            if import_span.is_some() {
-                // For imported modules, use the original error span within the imported file
-                // and carry the imported file's source context for proper error reporting.
-                ResolverError::with_source_context(
-                    ResolverErrorKind::LexError,
-                    format!(
-                        "Lexical error in module '{}': {}",
-                        path.display(),
-                        e.message()
-                    ),
-                    e.span(),
-                    path.display().to_string(),
-                    source.clone(),
-                )
-            } else {
-                // For the entry module, use the original error span directly.
-                ResolverError::with_span(
-                    ResolverErrorKind::LexError,
-                    format!(
-                        "Lexical error in module '{}': {}",
-                        path.display(),
-                        e.message()
-                    ),
-                    e.span(),
-                )
-            }
+            let source_content = import_span.map(|_| source.clone());
+            ResolverError::lex_error_in_module(path, e.message(), e.span(), source_content)
         })?;
 
         let mut parser = Parser::new(tokens);
         let program = parser.parse().map_err(|e| {
-            if import_span.is_some() {
-                ResolverError::with_source_context(
-                    ResolverErrorKind::ParseError,
-                    format!(
-                        "Parse error in module '{}': {}",
-                        path.display(),
-                        e.message()
-                    ),
-                    e.span(),
-                    path.display().to_string(),
-                    source.clone(),
-                )
-            } else {
-                ResolverError::with_span(
-                    ResolverErrorKind::ParseError,
-                    format!(
-                        "Parse error in module '{}': {}",
-                        path.display(),
-                        e.message()
-                    ),
-                    e.span(),
-                )
-            }
+            let source_content = import_span.map(|_| source.clone());
+            ResolverError::parse_error_in_module(path, e.message(), e.span(), source_content)
         })?;
 
         // Extract module name
-        // For entry modules (import_span is None), skip validation and use file stem as-is
-        // since entry modules are never referenced by name in import statements
+        // For entry modules (import_span is None), validate and use file stem.
+        // Entry modules are validated to ensure the filename is a valid identifier
+        // (e.g., reject "hello world.lak") for consistent module naming.
         let module_name = if let Some(span) = import_span {
             Self::module_name_from_path(path, span)?
         } else {
-            // Entry module: use file stem without validation
-            path.file_stem()
+            let file_stem = path
+                .file_stem()
                 .and_then(|s| s.to_str())
-                .ok_or_else(|| {
-                    ResolverError::io_error(&format!(
-                        "Cannot extract module name from entry path '{}'",
-                        path.display()
-                    ))
-                })?
-                .to_string()
+                .ok_or_else(|| ResolverError::invalid_module_name_no_span(path))?;
+            if !is_valid_identifier(file_stem) {
+                return Err(ResolverError::invalid_module_name_no_span(path));
+            }
+            file_stem.to_string()
         };
 
         // Collect dependencies and resolve them
-        let mut dependencies = Vec::new();
         let mut resolved_imports = HashMap::new();
         for import in &program.imports {
             let import_path = Self::resolve_import_path(&import.path, path, import.span)?;
-            let import_module_name = Self::module_name_from_path(&import_path, import.span)?;
-            dependencies.push(import_module_name);
+            Self::module_name_from_path(&import_path, import.span)?;
             resolved_imports.insert(import.path.clone(), import_path.clone());
 
             // Recursively resolve imported module
@@ -280,7 +220,6 @@ impl ModuleResolver {
             name: module_name,
             program,
             source,
-            dependencies,
             resolved_imports,
         };
         self.modules.insert(path.to_path_buf(), module);
@@ -316,10 +255,7 @@ impl ModuleResolver {
                 if e.kind() == std::io::ErrorKind::NotFound {
                     ResolverError::file_not_found(import_path, span)
                 } else {
-                    ResolverError::io_error_with_span(
-                        &format!("Failed to resolve import path '{}': {}", import_path, e),
-                        span,
-                    )
+                    ResolverError::io_error_resolve_import(import_path, &e, span)
                 }
             })
         } else {
@@ -350,27 +286,20 @@ impl ModuleResolver {
 
     /// Formats a circular import error message.
     fn format_cycle(&self, path: &Path) -> String {
-        let mut cycle_parts = Vec::new();
-        let mut found = false;
+        let path_to_name = |p: &Path| -> String {
+            p.file_stem()
+                .and_then(|s| s.to_str())
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| p.display().to_string())
+        };
 
-        for p in &self.resolving {
-            if p == path {
-                found = true;
-            }
-            if found {
-                if let Some(name) = p.file_stem().and_then(|s| s.to_str()) {
-                    cycle_parts.push(name.to_string());
-                } else {
-                    cycle_parts.push(p.display().to_string());
-                }
-            }
-        }
-
-        if let Some(name) = path.file_stem().and_then(|s| s.to_str()) {
-            cycle_parts.push(name.to_string());
-        } else {
-            cycle_parts.push(path.display().to_string());
-        }
+        let mut cycle_parts: Vec<String> = self
+            .resolving
+            .iter()
+            .skip_while(|p| p.as_path() != path)
+            .map(|p| path_to_name(p))
+            .collect();
+        cycle_parts.push(path_to_name(path));
 
         cycle_parts.join(" -> ")
     }
@@ -464,5 +393,128 @@ mod tests {
             extract_module_name("./valid_name"),
             Some("valid_name".to_string())
         );
+    }
+
+    // =========================================================================
+    // format_cycle tests
+    // =========================================================================
+
+    #[test]
+    fn test_format_cycle_two_modules() {
+        let mut resolver = ModuleResolver::new();
+        resolver.resolving.push(PathBuf::from("/tmp/a.lak"));
+        resolver.resolving.push(PathBuf::from("/tmp/b.lak"));
+        let result = resolver.format_cycle(Path::new("/tmp/a.lak"));
+        assert_eq!(result, "a -> b -> a");
+    }
+
+    #[test]
+    fn test_format_cycle_self_import() {
+        let mut resolver = ModuleResolver::new();
+        resolver.resolving.push(PathBuf::from("/tmp/a.lak"));
+        let result = resolver.format_cycle(Path::new("/tmp/a.lak"));
+        assert_eq!(result, "a -> a");
+    }
+
+    #[test]
+    fn test_format_cycle_three_modules() {
+        let mut resolver = ModuleResolver::new();
+        resolver.resolving.push(PathBuf::from("/tmp/a.lak"));
+        resolver.resolving.push(PathBuf::from("/tmp/b.lak"));
+        resolver.resolving.push(PathBuf::from("/tmp/c.lak"));
+        let result = resolver.format_cycle(Path::new("/tmp/a.lak"));
+        assert_eq!(result, "a -> b -> c -> a");
+    }
+
+    #[test]
+    fn test_format_cycle_starts_mid_stack() {
+        let mut resolver = ModuleResolver::new();
+        resolver.resolving.push(PathBuf::from("/tmp/a.lak"));
+        resolver.resolving.push(PathBuf::from("/tmp/b.lak"));
+        resolver.resolving.push(PathBuf::from("/tmp/c.lak"));
+        let result = resolver.format_cycle(Path::new("/tmp/b.lak"));
+        assert_eq!(result, "b -> c -> b");
+    }
+
+    #[test]
+    fn test_format_cycle_path_without_extension() {
+        let mut resolver = ModuleResolver::new();
+        resolver.resolving.push(PathBuf::from("/tmp/a"));
+        resolver.resolving.push(PathBuf::from("/tmp/b"));
+        let result = resolver.format_cycle(Path::new("/tmp/a"));
+        assert_eq!(result, "a -> b -> a");
+    }
+
+    // =========================================================================
+    // resolve_import_path tests
+    // =========================================================================
+
+    fn dummy_span() -> crate::token::Span {
+        crate::token::Span::new(0, 0, 1, 1)
+    }
+
+    #[test]
+    fn test_resolve_import_path_adds_lak_extension() {
+        let temp = tempfile::tempdir().unwrap();
+        let utils_path = temp.path().join("utils.lak");
+        std::fs::write(&utils_path, "").unwrap();
+
+        let importing_file = temp.path().join("main.lak");
+        let result = ModuleResolver::resolve_import_path("./utils", &importing_file, dummy_span());
+        assert!(result.is_ok(), "Expected Ok, got: {:?}", result);
+        let resolved = result.unwrap();
+        assert_eq!(resolved, utils_path.canonicalize().unwrap());
+    }
+
+    #[test]
+    fn test_resolve_import_path_with_explicit_extension() {
+        let temp = tempfile::tempdir().unwrap();
+        let utils_path = temp.path().join("utils.lak");
+        std::fs::write(&utils_path, "").unwrap();
+
+        let importing_file = temp.path().join("main.lak");
+        let result =
+            ModuleResolver::resolve_import_path("./utils.lak", &importing_file, dummy_span());
+        assert!(result.is_ok(), "Expected Ok, got: {:?}", result);
+        let resolved = result.unwrap();
+        assert_eq!(resolved, utils_path.canonicalize().unwrap());
+    }
+
+    #[test]
+    fn test_resolve_import_path_file_not_found() {
+        let temp = tempfile::tempdir().unwrap();
+        let importing_file = temp.path().join("main.lak");
+        let result =
+            ModuleResolver::resolve_import_path("./nonexistent", &importing_file, dummy_span());
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert_eq!(err.kind(), ResolverErrorKind::FileNotFound);
+    }
+
+    #[test]
+    fn test_resolve_import_path_parent_directory() {
+        let temp = tempfile::tempdir().unwrap();
+        let parent_module = temp.path().join("helper.lak");
+        std::fs::write(&parent_module, "").unwrap();
+
+        let sub_dir = temp.path().join("sub");
+        std::fs::create_dir(&sub_dir).unwrap();
+        let importing_file = sub_dir.join("main.lak");
+
+        let result =
+            ModuleResolver::resolve_import_path("../helper", &importing_file, dummy_span());
+        assert!(result.is_ok(), "Expected Ok, got: {:?}", result);
+        let resolved = result.unwrap();
+        assert_eq!(resolved, parent_module.canonicalize().unwrap());
+    }
+
+    #[test]
+    fn test_resolve_import_path_standard_library_rejected() {
+        let temp = tempfile::tempdir().unwrap();
+        let importing_file = temp.path().join("main.lak");
+        let result = ModuleResolver::resolve_import_path("math", &importing_file, dummy_span());
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert_eq!(err.kind(), ResolverErrorKind::StandardLibraryNotSupported);
     }
 }

@@ -1,7 +1,7 @@
 //! Built-in function code generation.
 //!
-//! This module implements code generation for Lak's built-in functions,
-//! such as `println`.
+//! This module implements code generation for Lak's built-in functions:
+//! println (string, i32, i64, bool variants) and panic.
 
 use super::Codegen;
 use super::error::CodegenError;
@@ -9,9 +9,73 @@ use crate::ast::{Expr, ExprKind, Type};
 use crate::token::Span;
 use inkwell::AddressSpace;
 use inkwell::module::Linkage;
-use inkwell::values::BasicMetadataValueEnum;
+use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum};
+
+/// Names of all builtin runtime functions declared by `declare_builtins()`.
+///
+/// This list is used by `generate_user_function_call()` in `expr.rs` to
+/// determine which functions should be looked up with unmangled names
+/// when generating code for imported modules.
+///
+/// This list must be kept in sync with the functions declared in `declare_builtins()`.
+/// Enforced by `test_builtin_names_matches_declare_builtins` in `tests.rs`.
+pub(super) const BUILTIN_NAMES: &[&str] = &[
+    "lak_println",
+    "lak_println_i32",
+    "lak_println_i64",
+    "lak_println_bool",
+    "lak_panic",
+];
 
 impl<'ctx> Codegen<'ctx> {
+    /// Loads a value from a stack allocation and extracts it as an `IntValue`.
+    fn load_and_extract_int_value(
+        &self,
+        ty: inkwell::types::IntType<'ctx>,
+        alloca: inkwell::values::PointerValue<'ctx>,
+        var_name: &str,
+        context_label: &str,
+        span: Span,
+    ) -> Result<inkwell::values::IntValue<'ctx>, CodegenError> {
+        let loaded = self
+            .builder
+            .build_load(ty, alloca, &format!("{}_load", var_name))
+            .map_err(|e| {
+                CodegenError::internal_variable_load_failed(var_name, &e.to_string(), span)
+            })?;
+        match loaded {
+            BasicValueEnum::IntValue(v) => Ok(v),
+            _ => Err(CodegenError::internal_non_integer_value(
+                context_label,
+                span,
+            )),
+        }
+    }
+
+    /// Loads a value from a stack allocation and extracts it as a `PointerValue`.
+    fn load_and_extract_pointer_value(
+        &self,
+        alloca: inkwell::values::PointerValue<'ctx>,
+        var_name: &str,
+        context_label: &str,
+        span: Span,
+    ) -> Result<inkwell::values::PointerValue<'ctx>, CodegenError> {
+        let ptr_type = self.context.ptr_type(AddressSpace::default());
+        let loaded = self
+            .builder
+            .build_load(ptr_type, alloca, &format!("{}_load", var_name))
+            .map_err(|e| {
+                CodegenError::internal_variable_load_failed(var_name, &e.to_string(), span)
+            })?;
+        match loaded {
+            BasicValueEnum::PointerValue(v) => Ok(v),
+            _ => Err(CodegenError::internal_non_pointer_value(
+                context_label,
+                span,
+            )),
+        }
+    }
+
     /// Declares the Lak runtime `lak_println` function for use in generated code.
     ///
     /// This creates an external function declaration with the signature:
@@ -208,13 +272,12 @@ impl<'ctx> Codegen<'ctx> {
                     .get(name)
                     .ok_or_else(|| CodegenError::internal_variable_not_found(name, arg.span))?;
 
-                let ptr_type = self.context.ptr_type(AddressSpace::default());
-                self.builder
-                    .build_load(ptr_type, binding.alloca(), &format!("{}_load", name))
-                    .map_err(|e| {
-                        CodegenError::internal_variable_load_failed(name, &e.to_string(), arg.span)
-                    })?
-                    .into_pointer_value()
+                self.load_and_extract_pointer_value(
+                    binding.alloca(),
+                    name,
+                    "println_string load",
+                    arg.span,
+                )?
             }
             _ => {
                 return Err(CodegenError::internal_println_invalid_string_arg(arg.span));
@@ -259,17 +322,25 @@ impl<'ctx> Codegen<'ctx> {
                     ));
                 }
 
-                let i32_type = self.context.i32_type();
-                self.builder
-                    .build_load(i32_type, binding.alloca(), &format!("{}_load", name))
-                    .map_err(|e| {
-                        CodegenError::internal_variable_load_failed(name, &e.to_string(), arg.span)
-                    })?
-                    .into_int_value()
+                self.load_and_extract_int_value(
+                    self.context.i32_type(),
+                    binding.alloca(),
+                    name,
+                    "println_i32 load",
+                    arg.span,
+                )?
             }
             ExprKind::BinaryOp { .. } | ExprKind::UnaryOp { .. } => {
                 // For binary/unary operations, generate the expression value
-                self.generate_expr_value(arg, &Type::I32)?.into_int_value()
+                match self.generate_expr_value(arg, &Type::I32)? {
+                    BasicValueEnum::IntValue(v) => v,
+                    _ => {
+                        return Err(CodegenError::internal_non_integer_value(
+                            "println_i32 expr",
+                            arg.span,
+                        ));
+                    }
+                }
             }
             // This branch is currently unreachable: integer literals are always typed as i64
             // by get_expr_type() and routed to generate_println_i64().
@@ -317,13 +388,13 @@ impl<'ctx> Codegen<'ctx> {
                     ));
                 }
 
-                let bool_type = self.context.bool_type();
-                self.builder
-                    .build_load(bool_type, binding.alloca(), &format!("{}_load", name))
-                    .map_err(|e| {
-                        CodegenError::internal_variable_load_failed(name, &e.to_string(), arg.span)
-                    })?
-                    .into_int_value()
+                self.load_and_extract_int_value(
+                    self.context.bool_type(),
+                    binding.alloca(),
+                    name,
+                    "println_bool load",
+                    arg.span,
+                )?
             }
             _ => {
                 return Err(CodegenError::internal_println_invalid_bool_arg(arg.span));
@@ -368,17 +439,25 @@ impl<'ctx> Codegen<'ctx> {
                     ));
                 }
 
-                let i64_type = self.context.i64_type();
-                self.builder
-                    .build_load(i64_type, binding.alloca(), &format!("{}_load", name))
-                    .map_err(|e| {
-                        CodegenError::internal_variable_load_failed(name, &e.to_string(), arg.span)
-                    })?
-                    .into_int_value()
+                self.load_and_extract_int_value(
+                    self.context.i64_type(),
+                    binding.alloca(),
+                    name,
+                    "println_i64 load",
+                    arg.span,
+                )?
             }
             ExprKind::BinaryOp { .. } | ExprKind::UnaryOp { .. } => {
                 // For binary/unary operations, generate the expression value
-                self.generate_expr_value(arg, &Type::I64)?.into_int_value()
+                match self.generate_expr_value(arg, &Type::I64)? {
+                    BasicValueEnum::IntValue(v) => v,
+                    _ => {
+                        return Err(CodegenError::internal_non_integer_value(
+                            "println_i64 expr",
+                            arg.span,
+                        ));
+                    }
+                }
             }
             _ => {
                 return Err(CodegenError::internal_println_invalid_i64_arg(arg.span));
@@ -442,13 +521,7 @@ impl<'ctx> Codegen<'ctx> {
                     .get(name)
                     .ok_or_else(|| CodegenError::internal_variable_not_found(name, arg.span))?;
 
-                let ptr_type = self.context.ptr_type(AddressSpace::default());
-                self.builder
-                    .build_load(ptr_type, binding.alloca(), &format!("{}_load", name))
-                    .map_err(|e| {
-                        CodegenError::internal_variable_load_failed(name, &e.to_string(), arg.span)
-                    })?
-                    .into_pointer_value()
+                self.load_and_extract_pointer_value(binding.alloca(), name, "panic load", arg.span)?
             }
             _ => {
                 return Err(CodegenError::internal_panic_invalid_arg(arg.span));

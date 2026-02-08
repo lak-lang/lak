@@ -253,8 +253,13 @@ fn test_run_path_with_spaces() {
         .output()
         .unwrap();
 
-    assert!(output.status.success());
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "ok\n");
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Module names must be valid identifiers"),
+        "Expected 'Module names must be valid identifiers' error for filename with spaces, got: {}",
+        stderr
+    );
 }
 
 // ========================================
@@ -312,4 +317,93 @@ fn test_run_unary_minus_in_expressions() {
 
     assert!(output.status.success());
     assert_eq!(String::from_utf8_lossy(&output.stdout), "-5\n-20\n");
+}
+
+#[test]
+fn test_run_module_file_not_found() {
+    let temp = tempdir().unwrap();
+    let source_path = temp.path().join("main.lak");
+
+    fs::write(
+        &source_path,
+        r#"import "./missing"
+
+fn main() -> void {}
+"#,
+    )
+    .unwrap();
+
+    let output = Command::new(lak_binary())
+        .current_dir(temp.path())
+        .args(["run", source_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Module not found"),
+        "Expected 'Module not found' error, got: {}",
+        stderr
+    );
+    assert!(
+        stderr.contains("Cannot find module './missing'"),
+        "Expected error message to mention the module path, got: {}",
+        stderr
+    );
+}
+
+#[test]
+fn test_run_circular_import() {
+    let temp = tempdir().unwrap();
+
+    let a_path = temp.path().join("a.lak");
+    fs::write(
+        &a_path,
+        r#"import "./b"
+
+pub fn foo() -> void {
+    b.bar()
+}
+"#,
+    )
+    .unwrap();
+
+    let b_path = temp.path().join("b.lak");
+    fs::write(
+        &b_path,
+        r#"import "./a"
+
+pub fn bar() -> void {
+    a.foo()
+}
+"#,
+    )
+    .unwrap();
+
+    let main_path = temp.path().join("main.lak");
+    fs::write(
+        &main_path,
+        r#"import "./a"
+
+fn main() -> void {
+    a.foo()
+}
+"#,
+    )
+    .unwrap();
+
+    let output = Command::new(lak_binary())
+        .current_dir(temp.path())
+        .args(["run", main_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Circular import"),
+        "Expected 'Circular import' error, got: {}",
+        stderr
+    );
 }

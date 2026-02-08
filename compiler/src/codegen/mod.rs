@@ -10,14 +10,14 @@
 //!
 //! - Creates an LLVM module and builder
 //! - Generates a `main` function as the program entry point
-//! - Compiles function calls (currently only `println`)
+//! - Compiles function calls (`println`, `panic`, user-defined functions, module-qualified calls)
 //! - Handles variable declarations (`let` statements) with stack allocation
 //! - Writes the output to a native object file
 //!
 //! # Architecture
 //!
 //! The generated code follows the C calling convention and links against
-//! the Lak runtime library for I/O operations (using `lak_println`).
+//! the Lak runtime library for I/O and panic operations.
 //!
 //! # Example
 //!
@@ -120,10 +120,8 @@ pub struct Codegen<'ctx> {
     builder: inkwell::builder::Builder<'ctx>,
     /// Symbol table mapping variable names to their allocations.
     ///
-    /// This table is cleared when generating the main function to implement
-    /// function-scoped variables. Currently only main is supported; this will
-    /// be cleared for each function once multiple user-defined functions are
-    /// implemented.
+    /// This table is cleared at the start of each function body to implement
+    /// function-scoped variables.
     variables: HashMap<String, VarBinding<'ctx>>,
     /// Mapping from module alias to real module name.
     ///
@@ -134,7 +132,7 @@ pub struct Codegen<'ctx> {
     ///
     /// When generating code for an imported module's functions, this is set
     /// to the module name so that intra-module function calls can be resolved
-    /// to their mangled names (e.g., "utils__helper" for a call to "helper"
+    /// to their mangled names (e.g., "_L5_utils_helper" for a call to "helper"
     /// within the "utils" module).
     current_module_prefix: Option<String>,
 }
@@ -180,6 +178,9 @@ impl<'ctx> Codegen<'ctx> {
     }
 
     /// Declares all built-in functions used by the runtime.
+    ///
+    /// When adding a new builtin here, also update `BUILTIN_NAMES` in `builtins.rs`
+    /// and the sync test `test_builtin_names_matches_declare_builtins` in `tests.rs`.
     fn declare_builtins(&mut self) {
         self.declare_lak_println();
         self.declare_lak_println_i32();
@@ -235,12 +236,12 @@ impl<'ctx> Codegen<'ctx> {
     /// All functions from all modules are compiled into a single LLVM module.
     ///
     /// Name mangling: Functions from imported modules use the pattern
-    /// `{module_name}__{function_name}` to avoid name collisions.
+    /// `_L{module_len}_{module_name}_{function_name}` to avoid name collisions.
     ///
     /// # Arguments
     ///
     /// * `modules` - All resolved modules
-    /// * `entry_module_name` - The name of the entry point module
+    /// * `entry_path` - The canonical path of the entry point module
     pub fn compile_modules(
         &mut self,
         modules: &[ResolvedModule],
@@ -251,24 +252,19 @@ impl<'ctx> Codegen<'ctx> {
 
         // Validate that entry module exists in the module list
         if !modules.iter().any(|m| m.path() == entry_path) {
-            return Err(CodegenError::without_span(
-                CodegenErrorKind::InternalError,
-                format!(
-                    "Internal error: entry module '{}' not found in module list. This is a compiler bug.",
-                    entry_path.display()
-                ),
-            ));
+            return Err(CodegenError::internal_entry_module_not_found(entry_path));
         }
 
         // Pass 1: Declare all user-defined functions from all modules
         for module in modules {
+            let is_entry = module.path() == entry_path;
             for function in &module.program().functions {
-                if module.path() == entry_path && function.name == "main" {
+                if is_entry && function.name == "main" {
                     // Skip main from entry module - it has special signature
                     continue;
                 }
                 // Use mangled name for functions from imported modules
-                let mangled_name = if module.path() == entry_path {
+                let mangled_name = if is_entry {
                     function.name.clone()
                 } else {
                     mangle_name(module.name(), &function.name)
@@ -284,26 +280,15 @@ impl<'ctx> Codegen<'ctx> {
             for import in &module.program().imports {
                 let canonical_path =
                     module.resolved_imports().get(&import.path).ok_or_else(|| {
-                        CodegenError::without_span(
-                            CodegenErrorKind::InternalError,
-                            format!(
-                                "Internal error: import path '{}' not found in resolved imports. \
-                                 This is a compiler bug.",
-                                import.path
-                            ),
-                        )
+                        CodegenError::internal_import_path_not_resolved(&import.path, import.span)
                     })?;
                 let imported_module = modules
                     .iter()
                     .find(|m| m.path() == canonical_path.as_path())
                     .ok_or_else(|| {
-                        CodegenError::without_span(
-                            CodegenErrorKind::InternalError,
-                            format!(
-                                "Internal error: resolved module not found for path '{}'. \
-                                 This is a compiler bug.",
-                                canonical_path.display()
-                            ),
+                        CodegenError::internal_resolved_module_not_found_for_path(
+                            canonical_path,
+                            import.span,
                         )
                     })?;
                 let real_name = imported_module.name().to_string();
@@ -322,12 +307,13 @@ impl<'ctx> Codegen<'ctx> {
             for function in &module.program().functions {
                 if is_entry && function.name == "main" {
                     self.generate_main(function)?;
-                } else if is_entry {
-                    self.generate_function_body(&function.name, function)?;
                 } else {
-                    // Generate function with mangled name
-                    let mangled_name = mangle_name(module.name(), &function.name);
-                    self.generate_function_body(&mangled_name, function)?;
+                    let llvm_name = if is_entry {
+                        function.name.clone()
+                    } else {
+                        mangle_name(module.name(), &function.name)
+                    };
+                    self.generate_function_body(&llvm_name, function)?;
                 }
             }
         }
@@ -420,7 +406,7 @@ impl<'ctx> Codegen<'ctx> {
     ///
     /// - `Type::I32` → LLVM `i32`
     /// - `Type::I64` → LLVM `i64`
-    /// - `Type::String` → LLVM `ptr` (i8*)
+    /// - `Type::String` → LLVM `ptr` (opaque pointer)
     /// - `Type::Bool` → LLVM `i1`
     fn get_llvm_type(&self, ty: &Type) -> BasicTypeEnum<'ctx> {
         match ty {
@@ -444,16 +430,6 @@ impl<'ctx> Codegen<'ctx> {
         self.module_aliases
             .get(alias_or_name)
             .cloned()
-            .ok_or_else(|| {
-                CodegenError::new(
-                    CodegenErrorKind::InternalError,
-                    format!(
-                        "Internal error: module alias '{}' not found in alias map. \
-                         This is a compiler bug.",
-                        alias_or_name
-                    ),
-                    span,
-                )
-            })
+            .ok_or_else(|| CodegenError::internal_module_alias_not_found(alias_or_name, span))
     }
 }

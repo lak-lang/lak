@@ -59,7 +59,7 @@ fn test_compile_error_missing_main_with_other_functions() {
         stage,
         msg
     );
-    assert_eq!(msg, "No main function found. Defined functions: [\"hoge\"]");
+    assert_eq!(msg, "No main function found. Defined functions: 'hoge'");
     assert_eq!(short_msg, "Missing main function");
     assert_eq!(
         kind,
@@ -796,11 +796,7 @@ fn test_compile_error_unary_minus_on_string_variable() {
         stage,
         msg
     );
-    assert!(
-        msg.contains("Unary operator '-'") && msg.contains("'string'"),
-        "Expected unary operator string type error, got: {}",
-        msg
-    );
+    assert_eq!(msg, "Unary operator '-' cannot be used with 'string' type");
     assert_eq!(short_msg, "Type mismatch");
     assert_eq!(
         kind,
@@ -824,11 +820,7 @@ fn test_compile_error_unary_minus_on_string_variable_in_println() {
         stage,
         msg
     );
-    assert!(
-        msg.contains("Unary operator '-'") && msg.contains("'string'"),
-        "Expected unary operator string type error, got: {}",
-        msg
-    );
+    assert_eq!(msg, "Unary operator '-' cannot be used with 'string' type");
     assert_eq!(short_msg, "Type mismatch");
     assert_eq!(
         kind,
@@ -851,11 +843,7 @@ fn test_compile_error_unary_minus_on_string_literal() {
         stage,
         msg
     );
-    assert!(
-        msg.contains("Unary operator '-'") && msg.contains("'string'"),
-        "Expected unary operator string type error, got: {}",
-        msg
-    );
+    assert_eq!(msg, "Unary operator '-' cannot be used with 'string' type");
     assert_eq!(short_msg, "Type mismatch");
     assert_eq!(
         kind,
@@ -878,11 +866,7 @@ fn test_compile_error_unary_minus_on_string_literal_in_println() {
         stage,
         msg
     );
-    assert!(
-        msg.contains("Unary operator '-'") && msg.contains("'string'"),
-        "Expected unary operator string type error, got: {}",
-        msg
-    );
+    assert_eq!(msg, "Unary operator '-' cannot be used with 'string' type");
     assert_eq!(short_msg, "Type mismatch");
     assert_eq!(
         kind,
@@ -1270,8 +1254,7 @@ fn test_compile_error_unary_minus_on_bool_variable() {
 
 #[test]
 fn test_compile_error_member_call_not_implemented() {
-    // Module-qualified function call (module.function()) returns ModuleCallNotImplemented
-    // because module import resolution is not yet implemented
+    // Module-qualified function call (module.function()) without an import returns ModuleNotImported
     let result = compile_error_with_kind(
         r#"import "./math" as math
 
@@ -1288,13 +1271,13 @@ fn main() -> void {
     );
     assert_eq!(
         msg,
-        "Module-qualified function call 'math.add()' is not yet supported. Module import resolution is not implemented."
+        "Module-qualified function call 'math.add()' requires an import statement. Add: import \"./math\""
     );
-    assert_eq!(short_msg, "Module call not implemented");
+    assert_eq!(short_msg, "Module not imported");
     assert_eq!(
         kind,
-        CompileErrorKind::Semantic(SemanticErrorKind::ModuleCallNotImplemented),
-        "Expected ModuleCallNotImplemented error kind"
+        CompileErrorKind::Semantic(SemanticErrorKind::ModuleNotImported),
+        "Expected ModuleNotImported error kind"
     );
 }
 

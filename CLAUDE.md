@@ -117,7 +117,7 @@ Use the following prefixes based on the type of change:
 
 - **Prefer exact matching over partial matching**: Use `assert_eq!()` instead of `assert!(contains())` for error message tests. Exact matching ensures unintended changes are detected immediately.
 - **Test brittleness is acceptable**: If tests break due to internal changes, fix them. The cost of fixing tests is lower than the cost of undetected unintended changes.
-- **E2E tests should verify ANSI codes**: ariadne outputs colored error messages. E2E tests should verify the exact output including ANSI escape codes (e.g., `\x1b[31mError:\x1b[0m ...`).
+- **E2E tests should verify ANSI codes**: ariadne outputs colored error messages. E2E tests use `.contains()` to verify exact substrings of each output element — short titles (e.g., `\x1b[31mError:\x1b[0m Missing main function`), labels, and help text. Full output exact matching is impractical due to ariadne's formatting, but each verified substring must be an exact match including ANSI escape codes.
 
 ## Code Comments
 

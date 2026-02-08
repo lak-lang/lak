@@ -14,7 +14,7 @@
 //! # Pipeline Position
 //!
 //! ```text
-//! Source → Lexer → Parser → Semantic Analyzer → Codegen → Executable
+//! Source → Lexer → Parser → [Module Resolver] → Semantic Analyzer → Codegen → Executable
 //! ```
 //!
 //! The semantic analyzer sits between the parser and code generator. It takes
@@ -165,15 +165,10 @@ impl SemanticAnalyzer {
         // Check main exists
         let main_fn = self.symbols.lookup_function("main").ok_or_else(|| {
             if program.functions.is_empty() {
-                SemanticError::missing_main(
-                    "No main function found: program contains no function definitions",
-                )
+                SemanticError::missing_main_no_functions()
             } else {
                 let names: Vec<_> = program.functions.iter().map(|f| f.name.as_str()).collect();
-                SemanticError::missing_main(format!(
-                    "No main function found. Defined functions: {:?}",
-                    names
-                ))
+                SemanticError::missing_main_with_functions(&names)
             }
         })?;
 
@@ -246,16 +241,10 @@ impl SemanticAnalyzer {
                 name, expr.span,
             )),
             ExprKind::BinaryOp { .. } => {
-                // Binary operations as statements have no effect
                 Err(SemanticError::invalid_expression_binary_op(expr.span))
             }
-            ExprKind::UnaryOp { .. } => {
-                // Unary operations as statements have no effect
-                Err(SemanticError::invalid_expression_unary_op(expr.span))
-            }
+            ExprKind::UnaryOp { .. } => Err(SemanticError::invalid_expression_unary_op(expr.span)),
             ExprKind::MemberAccess { .. } => {
-                // Member access as statement has no effect
-                // Also, module-qualified function calls are not yet supported
                 Err(SemanticError::module_access_not_implemented(expr.span))
             }
             ExprKind::ModuleCall {
@@ -268,7 +257,7 @@ impl SemanticAnalyzer {
 
     fn analyze_call(&self, callee: &str, args: &[Expr], span: Span) -> Result<(), SemanticError> {
         // Built-in function: println
-        // println accepts any type (string, i32, i64)
+        // println accepts any type (string, i32, i64, bool)
         if callee == "println" {
             if args.len() != 1 {
                 return Err(SemanticError::invalid_argument_println_count(span));
@@ -449,7 +438,7 @@ impl SemanticAnalyzer {
             }
             AnalysisMode::SingleFile => {
                 // No module table means module resolution is not enabled
-                return Err(SemanticError::module_call_not_implemented(
+                return Err(SemanticError::module_not_imported(
                     module_name,
                     function_name,
                     span,
@@ -607,19 +596,8 @@ impl SemanticAnalyzer {
         }
 
         // Check the operand has the expected type, adding unary context to errors
-        self.check_expr_type(operand, expected_ty).map_err(|e| {
-            // Add unary operation context if not already present
-            if e.message().contains("unary") || e.message().contains("Unary") {
-                e
-            } else {
-                SemanticError::new_with_help(
-                    e.kind(),
-                    format!("in unary '{}' operation: {}", op, e.message()),
-                    span,
-                    e.help().unwrap_or(""),
-                )
-            }
-        })?;
+        self.check_expr_type(operand, expected_ty)
+            .map_err(|e| SemanticError::wrap_in_unary_context(&e, op, span))?;
 
         Ok(())
     }

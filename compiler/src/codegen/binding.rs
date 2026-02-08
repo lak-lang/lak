@@ -3,7 +3,9 @@
 //! This module defines [`VarBinding`], which represents a variable's stack
 //! allocation and type information during code generation.
 
+use super::error::CodegenError;
 use crate::ast::Type;
+use crate::token::Span;
 use inkwell::AddressSpace;
 use inkwell::context::Context;
 use inkwell::types::BasicTypeEnum;
@@ -19,6 +21,7 @@ use inkwell::values::PointerValue;
 /// The LLVM type of `alloca` must correspond to `ty`:
 /// - `Type::I32` → `alloca` points to an LLVM `i32`
 /// - `Type::I64` → `alloca` points to an LLVM `i64`
+/// - `Type::Bool` → `alloca` points to an LLVM `i1`
 /// - `Type::String` → `alloca` points to an LLVM `ptr` (pointer to string data)
 ///
 /// This invariant is enforced by creating bindings only through
@@ -43,17 +46,19 @@ impl<'ctx> VarBinding<'ctx> {
     /// * `context` - The LLVM context
     /// * `ty` - The Lak type for this variable
     /// * `name` - The variable name (used for LLVM IR naming)
+    /// * `span` - The source span for error reporting
     ///
     /// # Returns
     ///
     /// * `Ok(VarBinding)` - A new binding with a correctly-typed stack allocation.
-    /// * `Err(String)` - If LLVM fails to create the alloca instruction.
+    /// * `Err(CodegenError)` - If LLVM fails to create the alloca instruction.
     pub(super) fn new(
         builder: &inkwell::builder::Builder<'ctx>,
         context: &'ctx Context,
         ty: &Type,
         name: &str,
-    ) -> Result<Self, String> {
+        span: Span,
+    ) -> Result<Self, CodegenError> {
         let llvm_type: BasicTypeEnum = match ty {
             Type::I32 => context.i32_type().into(),
             Type::I64 => context.i64_type().into(),
@@ -61,10 +66,7 @@ impl<'ctx> VarBinding<'ctx> {
             Type::Bool => context.bool_type().into(),
         };
         let alloca = builder.build_alloca(llvm_type, name).map_err(|e| {
-            format!(
-                "Internal error: failed to allocate variable '{}'. This is a compiler bug: {}",
-                name, e
-            )
+            CodegenError::internal_variable_alloca_failed(name, &e.to_string(), span)
         })?;
         Ok(VarBinding {
             alloca,
