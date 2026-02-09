@@ -156,6 +156,13 @@ impl Parser {
                     let literal_span = self.current_span();
                     self.advance(); // consume the literal
 
+                    let span = Span::new(
+                        start_span.start,
+                        literal_span.end,
+                        start_span.line,
+                        start_span.column,
+                    );
+
                     let signed_value = if unsigned_value <= i64::MAX as u64 {
                         -(unsigned_value as i64)
                     } else if unsigned_value == i64::MIN.unsigned_abs() {
@@ -163,16 +170,9 @@ impl Parser {
                     } else {
                         return Err(ParseError::integer_literal_out_of_range_negative(
                             unsigned_value,
-                            literal_span,
+                            span,
                         ));
                     };
-
-                    let span = Span::new(
-                        start_span.start,
-                        literal_span.end,
-                        start_span.line,
-                        start_span.column,
-                    );
 
                     return Ok(Expr::new(ExprKind::IntLiteral(signed_value), span));
                 }

@@ -215,3 +215,46 @@ fn test_build_path_with_spaces() {
         stderr
     );
 }
+
+#[test]
+fn test_build_negation_overflow_span_includes_minus() {
+    let temp = tempdir().unwrap();
+    let source_path = temp.path().join("neg_overflow.lak");
+
+    fs::write(
+        &source_path,
+        r#"fn main() -> void {
+    println(-9223372036854775809)
+}"#,
+    )
+    .unwrap();
+
+    let output = Command::new(lak_binary())
+        .current_dir(temp.path())
+        .args(["build", "neg_overflow.lak"])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    // Verify short_message in report title
+    assert!(
+        stderr.contains("\x1b[31mError:\x1b[0m Parse error in module"),
+        "Expected 'Parse error in module' in stderr: {}",
+        stderr
+    );
+    // Verify detailed message in label
+    assert!(
+        stderr.contains("is too large to negate"),
+        "Expected negation overflow message in stderr: {}",
+        stderr
+    );
+    // Verify the span starts at the `-` sign (column 13), not the digit (column 14).
+    // ariadne renders the location header as `neg_overflow.lak:2:13` when the span
+    // includes the minus sign.
+    assert!(
+        stderr.contains("neg_overflow.lak:2:13"),
+        "Expected span to start at column 13 (minus sign), not column 14: {}",
+        stderr
+    );
+}
