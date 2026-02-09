@@ -85,8 +85,12 @@ pub fn compile_and_run(source: &str) -> Result<String, String> {
         .ok_or_else(|| format!("Executable path {:?} is not valid UTF-8", executable_path))?;
 
     #[cfg(all(target_os = "windows", target_env = "msvc"))]
-    let link_output = Command::new(env!("LAK_MSVC_LINKER"))
-        .args([
+    let link_output = {
+        let mut cmd = Command::new(env!("LAK_MSVC_LINKER"));
+        if let Some(lib) = option_env!("LAK_MSVC_LIB") {
+            cmd.env("LIB", lib);
+        }
+        cmd.args([
             "/NOLOGO",
             object_str,
             LAK_RUNTIME_PATH,
@@ -95,7 +99,8 @@ pub fn compile_and_run(source: &str) -> Result<String, String> {
             "/DEFAULTLIB:legacy_stdio_definitions",
         ])
         .output()
-        .map_err(|e| format!("Failed to run linker: {}", e))?;
+        .map_err(|e| format!("Failed to run linker: {}", e))?
+    };
 
     #[cfg(not(all(target_os = "windows", target_env = "msvc")))]
     let link_output = Command::new("cc")
@@ -104,9 +109,13 @@ pub fn compile_and_run(source: &str) -> Result<String, String> {
         .map_err(|e| format!("Failed to run linker: {}", e))?;
 
     if !link_output.status.success() {
+        let stdout = String::from_utf8_lossy(&link_output.stdout);
+        let stderr = String::from_utf8_lossy(&link_output.stderr);
         return Err(format!(
-            "Linker failed: {}",
-            String::from_utf8_lossy(&link_output.stderr)
+            "Linker failed (exit code {:?}):\n[stdout] {}\n[stderr] {}",
+            link_output.status.code(),
+            stdout,
+            stderr
         ));
     }
 

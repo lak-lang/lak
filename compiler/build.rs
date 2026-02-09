@@ -53,6 +53,21 @@ fn main() {
             .expect("Failed to determine MSVC tools directory from C compiler path");
         let link_exe = tools_dir.join("link.exe");
         println!("cargo:rustc-env=LAK_MSVC_LINKER={}", link_exe.display());
+
+        // Capture MSVC environment variables needed by link.exe at runtime.
+        // The LIB variable tells link.exe where to find system libraries
+        // (msvcrt.lib, legacy_stdio_definitions.lib, etc.). Without it,
+        // linking fails in CI environments where vcvarsall.bat has not been run.
+        for (key, value) in compiler.env() {
+            if key == "LIB" {
+                println!(
+                    "cargo:rustc-env=LAK_MSVC_LIB={}",
+                    value
+                        .to_str()
+                        .expect("MSVC LIB environment variable is not valid UTF-8")
+                );
+            }
+        }
     }
 
     // Rebuild if the runtime library changes

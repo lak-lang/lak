@@ -549,8 +549,12 @@ fn link(object_path: &Path, output_path: &Path) -> Result<(), CompileError> {
         .ok_or_else(|| CompileError::path_not_utf8(output_path, "Output file"))?;
 
     #[cfg(all(target_os = "windows", target_env = "msvc"))]
-    let output = Command::new(env!("LAK_MSVC_LINKER"))
-        .args([
+    let output = {
+        let mut cmd = Command::new(env!("LAK_MSVC_LINKER"));
+        if let Some(lib) = option_env!("LAK_MSVC_LIB") {
+            cmd.env("LIB", lib);
+        }
+        cmd.args([
             "/NOLOGO",
             object_str,
             LAK_RUNTIME_PATH,
@@ -559,7 +563,8 @@ fn link(object_path: &Path, output_path: &Path) -> Result<(), CompileError> {
             "/DEFAULTLIB:legacy_stdio_definitions",
         ])
         .output()
-        .map_err(|e| CompileError::Link(LinkError::ExecutionFailed(e)))?;
+        .map_err(|e| CompileError::Link(LinkError::ExecutionFailed(e)))?
+    };
 
     #[cfg(not(all(target_os = "windows", target_env = "msvc")))]
     let output = Command::new("cc")
