@@ -39,7 +39,7 @@ Token classification enum.
 |----------|----------|
 | Keywords | `Fn`, `Let` |
 | Identifiers | `Identifier(String)` |
-| Literals | `StringLiteral(String)`, `IntLiteral(i64)` |
+| Literals | `StringLiteral(String)`, `IntLiteral(u64)` |
 | Punctuation | `LeftParen`, `RightParen`, `LeftBrace`, `RightBrace`, `Comma`, `Colon`, `Equals`, `Arrow` |
 | Special | `Newline`, `Eof` |
 

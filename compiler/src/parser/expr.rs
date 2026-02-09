@@ -150,7 +150,34 @@ impl Parser {
                 self.advance(); // consume '-'
                 self.skip_newlines(); // allow newlines after operator
 
-                // Parse the operand with unary precedence
+                // Fold negation into integer literal to allow i64::MIN
+                if let TokenKind::IntLiteral(unsigned_value) = self.current_kind() {
+                    let unsigned_value = *unsigned_value;
+                    let literal_span = self.current_span();
+                    self.advance(); // consume the literal
+
+                    let signed_value = if unsigned_value <= i64::MAX as u64 {
+                        -(unsigned_value as i64)
+                    } else if unsigned_value == i64::MIN.unsigned_abs() {
+                        i64::MIN
+                    } else {
+                        return Err(ParseError::integer_literal_out_of_range_negative(
+                            unsigned_value,
+                            literal_span,
+                        ));
+                    };
+
+                    let span = Span::new(
+                        start_span.start,
+                        literal_span.end,
+                        start_span.line,
+                        start_span.column,
+                    );
+
+                    return Ok(Expr::new(ExprKind::IntLiteral(signed_value), span));
+                }
+
+                // Not a literal — parse as normal unary operation
                 let operand = self.parse_expr_pratt(PRECEDENCE_UNARY)?;
 
                 let span = Span::new(
@@ -282,10 +309,21 @@ impl Parser {
                 self.advance();
                 Ok(Expr::new(ExprKind::StringLiteral(value), start_span))
             }
-            TokenKind::IntLiteral(value) => {
-                let value = *value;
+            TokenKind::IntLiteral(unsigned_value) => {
+                let unsigned_value = *unsigned_value;
                 self.advance();
-                Ok(Expr::new(ExprKind::IntLiteral(value), start_span))
+
+                if unsigned_value > i64::MAX as u64 {
+                    return Err(ParseError::integer_literal_out_of_range_positive(
+                        unsigned_value,
+                        start_span,
+                    ));
+                }
+
+                Ok(Expr::new(
+                    ExprKind::IntLiteral(unsigned_value as i64),
+                    start_span,
+                ))
             }
             TokenKind::BoolLiteral(value) => {
                 let value = *value;

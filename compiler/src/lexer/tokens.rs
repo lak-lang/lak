@@ -295,7 +295,7 @@ impl<'a> Lexer<'a> {
     ///
     /// # Errors
     ///
-    /// Returns a [`LexError`] if the integer is too large to fit in an i64.
+    /// Returns a [`LexError`] if the integer is too large to fit in a u64.
     fn read_number(
         &mut self,
         start_pos: usize,
@@ -309,7 +309,7 @@ impl<'a> Lexer<'a> {
         let value_str = &self.input[start_pos..self.pos];
         let span = Span::new(start_pos, self.pos, start_line, start_column);
 
-        let value: i64 = value_str
+        let value: u64 = value_str
             .parse()
             .map_err(|_: std::num::ParseIntError| LexError::integer_overflow(value_str, span))?;
 

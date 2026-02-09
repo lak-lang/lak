@@ -670,8 +670,8 @@ impl SemanticAnalyzer {
                 }
             }
             Type::I64 => {
-                // Invariant: The lexer parses integer literals into i64, so any
-                // value that made it past lexing is guaranteed to be within i64 range.
+                // Invariant: The parser converts u64 tokens to i64 AST nodes,
+                // so any value that made it past parsing is guaranteed to be within i64 range.
             }
             Type::String => {
                 // This branch should never be reached because check_expr_type

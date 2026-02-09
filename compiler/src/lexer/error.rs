@@ -39,7 +39,7 @@ pub enum LexErrorKind {
     UnknownEscapeSequence,
     /// String literal not closed before end of line or file.
     UnterminatedString,
-    /// Integer literal exceeds i64 range.
+    /// Integer literal exceeds representable range.
     IntegerOverflow,
 }
 
@@ -197,7 +197,7 @@ impl LexError {
         Self::new(
             LexErrorKind::IntegerOverflow,
             format!(
-                "Integer literal '{}' is out of range for i64 (exceeds maximum value)",
+                "Integer literal '{}' is too large (exceeds maximum representable value)",
                 value_str
             ),
             span,

@@ -42,7 +42,7 @@ Tests are organized by category in `tests/` directory:
 |----------|--------|
 | Keywords | `fn`, `let` |
 | Identifiers | ASCII alphabetic (a-z, A-Z)/underscore start, ASCII alphanumeric/underscore continue (non-ASCII rejected) |
-| Integer literals | ASCII digit sequences, stored as `i64` (overflow → error) |
+| Integer literals | ASCII digit sequences, stored as `u64` (overflow → error) |
 | String literals | Double-quoted, supports `\n`, `\t`, `\r`, `\\`, `\"` |
 | Punctuation | `(`, `)`, `{`, `}`, `,`, `:`, `=`, `->` |
 | Special | `Newline` (auto-inserted), `Eof` |
@@ -67,7 +67,7 @@ Errors occur for:
 - Unexpected characters
 - Unterminated string literals
 - Unknown escape sequences
-- Integer overflow (exceeds `i64::MAX`)
+- Integer overflow (exceeds `u64::MAX`)
 
 ## Lifetime `'a`
 

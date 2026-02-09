@@ -151,6 +151,28 @@ fn test_parse_error_display() {
     assert_eq!(display, "7:12: Expected '(', found '}'");
 }
 
+#[test]
+fn test_parse_error_integer_literal_out_of_range_positive_constructor() {
+    let err =
+        ParseError::integer_literal_out_of_range_positive(9223372036854775808, span_at(2, 15));
+    assert_eq!(err.kind(), ParseErrorKind::IntegerLiteralOutOfRange);
+    assert_eq!(
+        err.message(),
+        "Integer literal '9223372036854775808' is out of range for i64 (exceeds maximum value 9223372036854775807)"
+    );
+}
+
+#[test]
+fn test_parse_error_integer_literal_out_of_range_negative_constructor() {
+    let err =
+        ParseError::integer_literal_out_of_range_negative(9223372036854775809, span_at(2, 15));
+    assert_eq!(err.kind(), ParseErrorKind::IntegerLiteralOutOfRange);
+    assert_eq!(
+        err.message(),
+        "Integer literal '9223372036854775809' is too large to negate (minimum value is -9223372036854775808, maximum absolute value is 9223372036854775808)"
+    );
+}
+
 // ============================================================================
 // ParseError short_message tests
 // ============================================================================
@@ -183,6 +205,12 @@ fn test_parse_error_short_message_expected_type() {
 fn test_parse_error_short_message_missing_function_call_parentheses() {
     let err = ParseError::missing_fn_call_parens_string("println", dummy_span());
     assert_eq!(err.short_message(), "Missing function call parentheses");
+}
+
+#[test]
+fn test_parse_error_short_message_integer_literal_out_of_range() {
+    let err = ParseError::integer_literal_out_of_range_positive(9223372036854775808, dummy_span());
+    assert_eq!(err.short_message(), "Integer overflow");
 }
 
 #[test]

@@ -43,6 +43,8 @@ pub enum ParseErrorKind {
     NestedMemberAccessNotSupported,
     /// Empty import path is not allowed.
     EmptyImportPath,
+    /// Integer literal exceeds representable range.
+    IntegerLiteralOutOfRange,
     /// Internal parser inconsistency (compiler bug).
     InternalError,
 }
@@ -114,6 +116,7 @@ impl ParseError {
             ParseErrorKind::MissingFunctionCallParentheses => "Missing function call parentheses",
             ParseErrorKind::NestedMemberAccessNotSupported => "Nested member access not supported",
             ParseErrorKind::EmptyImportPath => "Empty import path",
+            ParseErrorKind::IntegerLiteralOutOfRange => "Integer overflow",
             ParseErrorKind::InternalError => "Internal error",
         }
     }
@@ -250,6 +253,37 @@ impl ParseError {
         Self::new(
             ParseErrorKind::EmptyImportPath,
             "Import path cannot be empty",
+            span,
+        )
+    }
+
+    // =========================================================================
+    // Integer literal errors
+    // =========================================================================
+
+    /// Creates an error for a positive integer literal that exceeds i64::MAX.
+    pub fn integer_literal_out_of_range_positive(unsigned_value: u64, span: Span) -> Self {
+        Self::new(
+            ParseErrorKind::IntegerLiteralOutOfRange,
+            format!(
+                "Integer literal '{}' is out of range for i64 (exceeds maximum value {})",
+                unsigned_value,
+                i64::MAX
+            ),
+            span,
+        )
+    }
+
+    /// Creates an error for a negative integer literal that exceeds i64::MIN.
+    pub fn integer_literal_out_of_range_negative(unsigned_value: u64, span: Span) -> Self {
+        Self::new(
+            ParseErrorKind::IntegerLiteralOutOfRange,
+            format!(
+                "Integer literal '{}' is too large to negate (minimum value is {}, maximum absolute value is {})",
+                unsigned_value,
+                i64::MIN,
+                i64::MIN.unsigned_abs()
+            ),
             span,
         )
     }

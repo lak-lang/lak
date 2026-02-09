@@ -203,6 +203,33 @@ fn test_int_literal_large() {
     }
 }
 
+#[test]
+fn test_int_literal_i64_min() {
+    // -9223372036854775808 is i64::MIN, only representable via negation folding
+    let program = parse("fn main() -> void { let x: i64 = -9223372036854775808 }").unwrap();
+    match &program.functions[0].body[0].kind {
+        StmtKind::Let { init, .. } => {
+            assert!(matches!(init.kind, ExprKind::IntLiteral(i64::MIN)));
+        }
+        _ => panic!("Expected Let statement"),
+    }
+}
+
+#[test]
+fn test_int_literal_neg_i64_max() {
+    // -9223372036854775807 hits the unsigned_value <= i64::MAX branch
+    let program = parse("fn main() -> void { let x: i64 = -9223372036854775807 }").unwrap();
+    match &program.functions[0].body[0].kind {
+        StmtKind::Let { init, .. } => {
+            assert!(matches!(
+                init.kind,
+                ExprKind::IntLiteral(-9223372036854775807)
+            ));
+        }
+        _ => panic!("Expected Let statement"),
+    }
+}
+
 // ===================
 // Variable reference parsing
 // ===================
@@ -373,15 +400,12 @@ fn test_binary_op_with_variables() {
 
 #[test]
 fn test_unary_minus_literal() {
+    // -5 is folded into IntLiteral(-5) by the parser
     let program = parse("fn main() -> void { let x: i32 = -5 }").unwrap();
     match &program.functions[0].body[0].kind {
-        StmtKind::Let { init, .. } => match &init.kind {
-            ExprKind::UnaryOp { op, operand } => {
-                assert_eq!(*op, UnaryOperator::Neg);
-                assert!(matches!(operand.kind, ExprKind::IntLiteral(5)));
-            }
-            _ => panic!("Expected UnaryOp"),
-        },
+        StmtKind::Let { init, .. } => {
+            assert!(matches!(init.kind, ExprKind::IntLiteral(-5)));
+        }
         _ => panic!("Expected Let statement"),
     }
 }
@@ -403,24 +427,14 @@ fn test_unary_minus_identifier() {
 
 #[test]
 fn test_unary_minus_precedence() {
-    // -2 * 3 should parse as (-2) * 3
+    // -2 * 3 should parse as (-2) * 3, with -2 folded into IntLiteral(-2)
     let program = parse("fn main() -> void { let x: i32 = -2 * 3 }").unwrap();
     match &program.functions[0].body[0].kind {
         StmtKind::Let { init, .. } => match &init.kind {
             ExprKind::BinaryOp { left, op, right } => {
                 assert_eq!(*op, BinaryOperator::Mul);
+                assert!(matches!(left.kind, ExprKind::IntLiteral(-2)));
                 assert!(matches!(right.kind, ExprKind::IntLiteral(3)));
-                // left should be -2
-                match &left.kind {
-                    ExprKind::UnaryOp {
-                        op: unary_op,
-                        operand,
-                    } => {
-                        assert_eq!(*unary_op, UnaryOperator::Neg);
-                        assert!(matches!(operand.kind, ExprKind::IntLiteral(2)));
-                    }
-                    _ => panic!("Expected UnaryOp for -2"),
-                }
             }
             _ => panic!("Expected BinaryOp"),
         },
@@ -430,27 +444,15 @@ fn test_unary_minus_precedence() {
 
 #[test]
 fn test_double_unary_minus() {
-    // --5 should parse as -(-5)
+    // --5 should parse as UnaryOp(Neg, IntLiteral(-5)) due to folding
     let program = parse("fn main() -> void { let x: i32 = --5 }").unwrap();
     match &program.functions[0].body[0].kind {
         StmtKind::Let { init, .. } => match &init.kind {
-            ExprKind::UnaryOp {
-                op: outer_op,
-                operand: outer_operand,
-            } => {
-                assert_eq!(*outer_op, UnaryOperator::Neg);
-                match &outer_operand.kind {
-                    ExprKind::UnaryOp {
-                        op: inner_op,
-                        operand: inner_operand,
-                    } => {
-                        assert_eq!(*inner_op, UnaryOperator::Neg);
-                        assert!(matches!(inner_operand.kind, ExprKind::IntLiteral(5)));
-                    }
-                    _ => panic!("Expected inner UnaryOp"),
-                }
+            ExprKind::UnaryOp { op, operand } => {
+                assert_eq!(*op, UnaryOperator::Neg);
+                assert!(matches!(operand.kind, ExprKind::IntLiteral(-5)));
             }
-            _ => panic!("Expected outer UnaryOp"),
+            _ => panic!("Expected UnaryOp"),
         },
         _ => panic!("Expected Let statement"),
     }
@@ -485,24 +487,14 @@ fn test_unary_minus_with_parens() {
 
 #[test]
 fn test_subtraction_vs_unary_minus() {
-    // 5 - -3 should parse as BinaryOp(Sub, 5, UnaryOp(Neg, 3))
+    // 5 - -3 should parse as BinaryOp(Sub, 5, IntLiteral(-3)) due to folding
     let program = parse("fn main() -> void { let x: i32 = 5 - -3 }").unwrap();
     match &program.functions[0].body[0].kind {
         StmtKind::Let { init, .. } => match &init.kind {
             ExprKind::BinaryOp { left, op, right } => {
                 assert_eq!(*op, BinaryOperator::Sub);
                 assert!(matches!(left.kind, ExprKind::IntLiteral(5)));
-                // right should be -3 (UnaryOp)
-                match &right.kind {
-                    ExprKind::UnaryOp {
-                        op: unary_op,
-                        operand,
-                    } => {
-                        assert_eq!(*unary_op, UnaryOperator::Neg);
-                        assert!(matches!(operand.kind, ExprKind::IntLiteral(3)));
-                    }
-                    _ => panic!("Expected UnaryOp for -3, got: {:?}", right.kind),
-                }
+                assert!(matches!(right.kind, ExprKind::IntLiteral(-3)));
             }
             _ => panic!("Expected BinaryOp"),
         },
@@ -512,20 +504,14 @@ fn test_subtraction_vs_unary_minus() {
 
 #[test]
 fn test_unary_minus_in_function_arg() {
-    // foo(-5) should parse correctly
+    // println(-42) should fold to IntLiteral(-42)
     let program = parse("fn main() -> void { println(-42) }").unwrap();
     match &program.functions[0].body[0].kind {
         StmtKind::Expr(expr) => match &expr.kind {
             ExprKind::Call { callee, args } => {
                 assert_eq!(callee, "println");
                 assert_eq!(args.len(), 1);
-                match &args[0].kind {
-                    ExprKind::UnaryOp { op, operand } => {
-                        assert_eq!(*op, UnaryOperator::Neg);
-                        assert!(matches!(operand.kind, ExprKind::IntLiteral(42)));
-                    }
-                    _ => panic!("Expected UnaryOp as argument"),
-                }
+                assert!(matches!(args[0].kind, ExprKind::IntLiteral(-42)));
             }
             _ => panic!("Expected Call expression"),
         },
@@ -535,23 +521,19 @@ fn test_unary_minus_in_function_arg() {
 
 #[test]
 fn test_unary_minus_with_newline() {
-    // -\n5 should parse correctly due to skip_newlines()
+    // -\n5 should fold to IntLiteral(-5) (skip_newlines then fold)
     let program = parse("fn main() -> void { let x: i32 = -\n5 }").unwrap();
     match &program.functions[0].body[0].kind {
-        StmtKind::Let { init, .. } => match &init.kind {
-            ExprKind::UnaryOp { op, operand } => {
-                assert_eq!(*op, UnaryOperator::Neg);
-                assert!(matches!(operand.kind, ExprKind::IntLiteral(5)));
-            }
-            _ => panic!("Expected UnaryOp, got: {:?}", init.kind),
-        },
+        StmtKind::Let { init, .. } => {
+            assert!(matches!(init.kind, ExprKind::IntLiteral(-5)));
+        }
         _ => panic!("Expected Let statement"),
     }
 }
 
 #[test]
 fn test_triple_unary_minus() {
-    // ---5 should parse as -(-(-5))
+    // ---5 should parse as UnaryOp(Neg, UnaryOp(Neg, IntLiteral(-5))) due to folding
     let program = parse("fn main() -> void { let x: i32 = ---5 }").unwrap();
     match &program.functions[0].body[0].kind {
         StmtKind::Let { init, .. } => match &init.kind {
@@ -560,15 +542,9 @@ fn test_triple_unary_minus() {
                 match &operand.kind {
                     ExprKind::UnaryOp { op: op2, operand } => {
                         assert_eq!(*op2, UnaryOperator::Neg);
-                        match &operand.kind {
-                            ExprKind::UnaryOp { op: op3, operand } => {
-                                assert_eq!(*op3, UnaryOperator::Neg);
-                                assert!(matches!(operand.kind, ExprKind::IntLiteral(5)));
-                            }
-                            _ => panic!("Expected innermost UnaryOp"),
-                        }
+                        assert!(matches!(operand.kind, ExprKind::IntLiteral(-5)));
                     }
-                    _ => panic!("Expected middle UnaryOp"),
+                    _ => panic!("Expected inner UnaryOp"),
                 }
             }
             _ => panic!("Expected outer UnaryOp"),

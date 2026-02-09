@@ -81,7 +81,7 @@ pub enum TokenKind {
     Percent,
 
     /// An integer literal (e.g., 42, 100).
-    IntLiteral(i64),
+    IntLiteral(u64),
 
     /// A boolean literal (`true` or `false`).
     BoolLiteral(bool),

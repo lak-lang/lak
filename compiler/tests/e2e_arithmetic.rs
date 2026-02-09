@@ -920,7 +920,7 @@ fn test_unary_minus_i64_min_overflow() {
     fs::write(
         &source_path,
         r#"fn main() -> void {
-    let x: i64 = -9223372036854775807 - 1
+    let x: i64 = -9223372036854775808
     let y: i64 = -x
     println(y)
 }"#,
@@ -1252,4 +1252,39 @@ fn test_chained_overflow_i32() {
         String::from_utf8_lossy(&output.stderr),
         "panic: integer overflow\n"
     );
+}
+
+#[test]
+fn test_i64_min_literal() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i64 = -9223372036854775808
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "-9223372036854775808\n");
+}
+
+#[test]
+fn test_i64_min_direct_println() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    println(-9223372036854775808)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "-9223372036854775808\n");
+}
+
+#[test]
+fn test_i32_min_literal() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = -2147483648
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "-2147483648\n");
 }

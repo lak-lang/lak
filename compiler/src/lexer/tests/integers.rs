@@ -39,3 +39,21 @@ fn test_let_statement_tokens() {
         ]
     );
 }
+
+#[test]
+fn test_integer_literal_i64_min_abs() {
+    let kinds = tokenize_kinds("9223372036854775808");
+    assert_eq!(
+        kinds,
+        vec![TokenKind::IntLiteral(9223372036854775808), TokenKind::Eof]
+    );
+}
+
+#[test]
+fn test_integer_literal_u64_max() {
+    let kinds = tokenize_kinds("18446744073709551615");
+    assert_eq!(
+        kinds,
+        vec![TokenKind::IntLiteral(18446744073709551615), TokenKind::Eof]
+    );
+}

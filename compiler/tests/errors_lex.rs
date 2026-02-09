@@ -47,23 +47,22 @@ fn test_compile_error_invalid_escape() {
 }
 
 #[test]
-fn test_compile_error_i64_overflow() {
-    // i64::MAX + 1 should cause lexer error (overflow during parsing)
+fn test_compile_error_u64_overflow() {
     let result = compile_error_with_kind(
         r#"fn main() -> void {
-    let x: i64 = 9223372036854775808
+    let x: i64 = 18446744073709551616
 }"#,
     );
     let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
     assert!(
         matches!(stage, CompileStage::Lex),
-        "Expected Lex error for i64 overflow, got {:?}: {}",
+        "Expected Lex error for u64 overflow, got {:?}: {}",
         stage,
         msg
     );
     assert_eq!(
         msg,
-        "Integer literal '9223372036854775808' is out of range for i64 (exceeds maximum value)"
+        "Integer literal '18446744073709551616' is too large (exceeds maximum representable value)"
     );
     assert_eq!(short_msg, "Integer overflow");
     assert_eq!(

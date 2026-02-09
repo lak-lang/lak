@@ -120,7 +120,7 @@ fn test_lex_error_integer_overflow_constructor() {
     assert_eq!(err.kind(), LexErrorKind::IntegerOverflow);
     assert_eq!(
         err.message(),
-        "Integer literal '99999999999999999999' is out of range for i64 (exceeds maximum value)"
+        "Integer literal '99999999999999999999' is too large (exceeds maximum representable value)"
     );
 }
 

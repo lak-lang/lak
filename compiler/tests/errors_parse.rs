@@ -464,3 +464,87 @@ fn test_compile_error_double_dot() {
         "Expected ExpectedIdentifier error kind"
     );
 }
+
+// ========================================
+// Integer literal overflow error tests
+// ========================================
+
+#[test]
+fn test_compile_error_positive_i64_overflow() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let x: i64 = 9223372036854775808
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Parse),
+        "Expected Parse error for positive i64 overflow, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Integer literal '9223372036854775808' is out of range for i64 (exceeds maximum value 9223372036854775807)"
+    );
+    assert_eq!(short_msg, "Integer overflow");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Parse(ParseErrorKind::IntegerLiteralOutOfRange),
+        "Expected IntegerLiteralOutOfRange error kind"
+    );
+}
+
+#[test]
+fn test_compile_error_negation_too_large() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let x: i64 = -9223372036854775809
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Parse),
+        "Expected Parse error for negation overflow, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Integer literal '9223372036854775809' is too large to negate (minimum value is -9223372036854775808, maximum absolute value is 9223372036854775808)"
+    );
+    assert_eq!(short_msg, "Integer overflow");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Parse(ParseErrorKind::IntegerLiteralOutOfRange),
+        "Expected IntegerLiteralOutOfRange error kind"
+    );
+}
+
+// Parentheses prevent negation folding: the literal inside parens is parsed
+// as a standalone positive value, triggering the positive overflow path.
+#[test]
+fn test_compile_error_parenthesized_i64_overflow() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let x: i64 = -(9223372036854775808)
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Parse),
+        "Expected Parse error for parenthesized overflow, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Integer literal '9223372036854775808' is out of range for i64 (exceeds maximum value 9223372036854775807)"
+    );
+    assert_eq!(short_msg, "Integer overflow");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Parse(ParseErrorKind::IntegerLiteralOutOfRange),
+        "Expected IntegerLiteralOutOfRange error kind"
+    );
+}
