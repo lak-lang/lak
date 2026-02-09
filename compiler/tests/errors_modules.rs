@@ -864,8 +864,8 @@ fn main() -> void {
 }
 
 #[test]
-fn test_error_import_with_lak_extension_not_found() {
-    // Tests that importing with explicit .lak extension shows proper error when file doesn't exist
+fn test_error_import_with_lak_extension() {
+    // Tests that importing with explicit .lak extension is rejected as invalid import path
     let temp = tempdir().unwrap();
 
     let main_path = temp.path().join("main.lak");
@@ -888,22 +888,20 @@ fn main() -> void {}
     let stderr = String::from_utf8_lossy(&output.stderr);
     // Verify short_message in report title
     assert!(
-        stderr.contains("\x1b[31mError:\x1b[0m Module not found"),
-        "Expected 'Module not found' error, got: {}",
+        stderr.contains("\x1b[31mError:\x1b[0m Invalid import path"),
+        "Expected 'Invalid import path' error, got: {}",
         stderr
     );
     // Verify detailed message in label
     assert!(
-        stderr.contains("Cannot find module './nonexistent.lak'"),
-        "Expected error message to mention the module path with .lak extension, got: {}",
+        stderr.contains("Import path must not include file extension: './nonexistent.lak'"),
+        "Expected error message about file extension, got: {}",
         stderr
     );
     // Verify help text
     assert!(
-        stderr.contains(
-            "\x1b[38;5;115mHelp\x1b[0m: check that the file exists and the path is correct"
-        ),
-        "Expected help text about checking file existence, got: {}",
+        stderr.contains("\x1b[38;5;115mHelp\x1b[0m: use './nonexistent' instead"),
+        "Expected help text suggesting path without extension, got: {}",
         stderr
     );
 }

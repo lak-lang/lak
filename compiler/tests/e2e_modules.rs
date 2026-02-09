@@ -740,10 +740,10 @@ fn main() -> void {
 
 #[test]
 fn test_import_with_lak_extension() {
-    // Tests that import paths with explicit .lak extension work correctly
+    // Tests that import paths with explicit .lak extension are rejected
     let temp = tempdir().unwrap();
 
-    // Create utils.lak
+    // Create utils.lak (the file exists, but .lak extension in import should be rejected)
     let utils_path = temp.path().join("utils.lak");
     fs::write(
         &utils_path,
@@ -774,18 +774,27 @@ fn main() -> void {
         .unwrap();
 
     assert!(
-        build_output.status.success(),
-        "Build failed: {}",
-        String::from_utf8_lossy(&build_output.stderr)
+        !build_output.status.success(),
+        "Build should fail for import with .lak extension"
     );
-
-    let exec_path = temp.path().join(executable_name("main"));
-    let run_output = Command::new(&exec_path).output().unwrap();
-
-    assert!(run_output.status.success());
-    assert_eq!(
-        String::from_utf8_lossy(&run_output.stdout),
-        "Hello from lak extension!\n"
+    let stderr = String::from_utf8_lossy(&build_output.stderr);
+    // Verify short_message in report title
+    assert!(
+        stderr.contains("\x1b[31mError:\x1b[0m Invalid import path"),
+        "Expected 'Invalid import path' error, got: {}",
+        stderr
+    );
+    // Verify detailed message in label
+    assert!(
+        stderr.contains("Import path must not include file extension: './utils.lak'"),
+        "Expected error message about file extension, got: {}",
+        stderr
+    );
+    // Verify help text
+    assert!(
+        stderr.contains("\x1b[38;5;115mHelp\x1b[0m: use './utils' instead"),
+        "Expected help text suggesting path without extension, got: {}",
+        stderr
     );
 }
 

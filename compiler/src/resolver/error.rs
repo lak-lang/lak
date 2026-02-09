@@ -228,6 +228,17 @@ impl ResolverError {
         )
     }
 
+    /// Creates an "import path with extension" error.
+    pub fn import_path_with_extension(path: &str, span: Span) -> Self {
+        let path_without_ext = Path::new(path).with_extension("");
+        Self::with_span_and_help(
+            ResolverErrorKind::InvalidImportPath,
+            format!("Import path must not include file extension: '{}'", path),
+            span,
+            format!("use '{}' instead", path_without_ext.display()),
+        )
+    }
+
     /// Creates an I/O error for failing to resolve an import path.
     pub fn io_error_resolve_import(import_path: &str, error: &std::io::Error, span: Span) -> Self {
         Self::with_span(
@@ -602,6 +613,23 @@ mod tests {
             err.help(),
             Some("ensure the importing file is located in a valid directory")
         );
+    }
+
+    #[test]
+    fn test_import_path_with_extension_constructor() {
+        let err = ResolverError::import_path_with_extension("./utils.lak", dummy_span());
+        assert_eq!(err.kind(), ResolverErrorKind::InvalidImportPath);
+        assert_eq!(
+            err.message(),
+            "Import path must not include file extension: './utils.lak'"
+        );
+        assert_eq!(err.help(), Some("use './utils' instead"));
+    }
+
+    #[test]
+    fn test_import_path_with_extension_help() {
+        let err = ResolverError::import_path_with_extension("./lib/parser.lak", dummy_span());
+        assert_eq!(err.help(), Some("use './lib/parser' instead"));
     }
 
     #[test]

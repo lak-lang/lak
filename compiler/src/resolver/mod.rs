@@ -241,10 +241,11 @@ impl ModuleResolver {
 
             let mut resolved = base_dir.join(import_path);
 
-            // Add .lak extension if not present
-            if resolved.extension().is_none() {
-                resolved.set_extension("lak");
+            // Reject file extensions in import paths — import paths must not include extensions
+            if resolved.extension().is_some() {
+                return Err(ResolverError::import_path_with_extension(import_path, span));
             }
+            resolved.set_extension("lak");
 
             // Canonicalize to absolute path
             // Note: canonicalize does not prevent path traversal attacks.
@@ -340,7 +341,6 @@ fn is_valid_identifier(s: &str) -> bool {
 /// - `"./utils"` -> `Some("utils")`
 /// - `"./lib/math"` -> `Some("math")`
 /// - `"../helpers"` -> `Some("helpers")`
-/// - `"./utils.lak"` -> `Some("utils")`
 /// - `"./123invalid"` -> `None`
 pub fn extract_module_name(path: &str) -> Option<String> {
     let name = std::path::Path::new(path)
@@ -365,10 +365,6 @@ mod tests {
         assert_eq!(
             extract_module_name("../helpers"),
             Some("helpers".to_string())
-        );
-        assert_eq!(
-            extract_module_name("./utils.lak"),
-            Some("utils".to_string())
         );
     }
 
@@ -475,9 +471,28 @@ mod tests {
         let importing_file = temp.path().join("main.lak");
         let result =
             ModuleResolver::resolve_import_path("./utils.lak", &importing_file, dummy_span());
-        assert!(result.is_ok(), "Expected Ok, got: {:?}", result);
-        let resolved = result.unwrap();
-        assert_eq!(resolved, utils_path.canonicalize().unwrap());
+        assert!(result.is_err(), "Expected Err, got: {:?}", result);
+        let err = result.unwrap_err();
+        assert_eq!(err.kind(), ResolverErrorKind::InvalidImportPath);
+        assert_eq!(
+            err.message(),
+            "Import path must not include file extension: './utils.lak'"
+        );
+    }
+
+    #[test]
+    fn test_resolve_import_path_rejects_non_lak_extension() {
+        let temp = tempfile::tempdir().unwrap();
+        let importing_file = temp.path().join("main.lak");
+        let result =
+            ModuleResolver::resolve_import_path("./utils.txt", &importing_file, dummy_span());
+        assert!(result.is_err(), "Expected Err, got: {:?}", result);
+        let err = result.unwrap_err();
+        assert_eq!(err.kind(), ResolverErrorKind::InvalidImportPath);
+        assert_eq!(
+            err.message(),
+            "Import path must not include file extension: './utils.txt'"
+        );
     }
 
     #[test]
