@@ -48,8 +48,16 @@ fn main() -> void {}
     );
     // Verify detailed message in label
     assert!(
-        stderr.contains("Cannot find module './nonexistent'. Check that the file exists."),
+        stderr.contains("Cannot find module './nonexistent'"),
         "Expected error message to mention the module path, got: {}",
+        stderr
+    );
+    // Verify help text
+    assert!(
+        stderr.contains(
+            "\x1b[38;5;115mHelp\x1b[0m: check that the file exists and the path is correct"
+        ),
+        "Expected help text about checking file existence, got: {}",
         stderr
     );
 }
@@ -115,6 +123,12 @@ fn main() -> void {
     assert!(
         stderr.contains("Circular import detected: a -> b -> a"),
         "Expected cycle details in error, got: {}",
+        stderr
+    );
+    // Verify help text
+    assert!(
+        stderr.contains("\x1b[38;5;115mHelp\x1b[0m: break the cycle by removing one of the imports or restructuring your modules"),
+        "Expected help text about breaking the cycle, got: {}",
         stderr
     );
 }
@@ -312,8 +326,14 @@ fn main() -> void {}
     );
     // Verify detailed message in label
     assert!(
-        stderr.contains("Standard library imports are not yet supported: 'math'. Use relative paths like './module' instead."),
+        stderr.contains("Standard library imports are not yet supported: 'math'"),
         "Expected error message to mention the library name, got: {}",
+        stderr
+    );
+    // Verify help text
+    assert!(
+        stderr.contains("\x1b[38;5;115mHelp\x1b[0m: use relative paths like './module' instead"),
+        "Expected help text about using relative paths, got: {}",
         stderr
     );
 }
@@ -360,8 +380,14 @@ fn main() -> void {}
     );
     // Verify detailed message in label
     assert!(
-        stderr.contains("Module names must be valid identifiers."),
-        "Expected error message to mention valid identifiers, got: {}",
+        stderr.contains("Cannot extract module name from path"),
+        "Expected error message to mention module name extraction, got: {}",
+        stderr
+    );
+    // Verify help text
+    assert!(
+        stderr.contains("\x1b[38;5;115mHelp\x1b[0m: module names must be valid identifiers (start with an ASCII letter or underscore, contain only ASCII letters, digits, and underscores)"),
+        "Expected help text about valid identifiers, got: {}",
         stderr
     );
 }
@@ -504,6 +530,12 @@ fn main() -> void {}
     assert!(
         stderr.contains("Circular import detected: recursive -> recursive"),
         "Expected cycle to show 'Circular import detected: recursive -> recursive', got: {}",
+        stderr
+    );
+    // Verify help text
+    assert!(
+        stderr.contains("\x1b[38;5;115mHelp\x1b[0m: break the cycle by removing one of the imports or restructuring your modules"),
+        "Expected help text about breaking the cycle, got: {}",
         stderr
     );
 }
@@ -755,6 +787,12 @@ fn main() -> void {
         "Expected cycle details for three-level cycle, got: {}",
         stderr
     );
+    // Verify help text
+    assert!(
+        stderr.contains("\x1b[38;5;115mHelp\x1b[0m: break the cycle by removing one of the imports or restructuring your modules"),
+        "Expected help text about breaking the cycle, got: {}",
+        stderr
+    );
 }
 
 #[test]
@@ -856,8 +894,16 @@ fn main() -> void {}
     );
     // Verify detailed message in label
     assert!(
-        stderr.contains("Cannot find module './nonexistent.lak'. Check that the file exists."),
+        stderr.contains("Cannot find module './nonexistent.lak'"),
         "Expected error message to mention the module path with .lak extension, got: {}",
+        stderr
+    );
+    // Verify help text
+    assert!(
+        stderr.contains(
+            "\x1b[38;5;115mHelp\x1b[0m: check that the file exists and the path is correct"
+        ),
+        "Expected help text about checking file existence, got: {}",
         stderr
     );
 }

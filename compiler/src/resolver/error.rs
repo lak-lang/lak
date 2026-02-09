@@ -61,7 +61,9 @@ pub struct ResolverError {
     kind: ResolverErrorKind,
     /// Source context for errors in imported modules (filename and content of the file
     /// where the error occurred).
-    source_context: Option<SourceContext>,
+    source_context: Option<Box<SourceContext>>,
+    /// Optional help text with suggestions for fixing the error.
+    help: Option<String>,
 }
 
 impl ResolverError {
@@ -72,6 +74,25 @@ impl ResolverError {
             span: None,
             kind,
             source_context: None,
+            help: None,
+        }
+    }
+
+    /// Creates a new resolver error without span but with help text.
+    ///
+    /// Use this for errors without a source location that benefit from
+    /// additional guidance on how to fix them.
+    pub fn new_with_help(
+        kind: ResolverErrorKind,
+        message: impl Into<String>,
+        help: impl Into<String>,
+    ) -> Self {
+        ResolverError {
+            message: message.into(),
+            span: None,
+            kind,
+            source_context: None,
+            help: Some(help.into()),
         }
     }
 
@@ -82,6 +103,25 @@ impl ResolverError {
             span: Some(span),
             kind,
             source_context: None,
+            help: None,
+        }
+    }
+
+    /// Creates a new resolver error with span and help text.
+    ///
+    /// Use this for errors that benefit from additional guidance on how to fix them.
+    pub fn with_span_and_help(
+        kind: ResolverErrorKind,
+        message: impl Into<String>,
+        span: Span,
+        help: impl Into<String>,
+    ) -> Self {
+        ResolverError {
+            message: message.into(),
+            span: Some(span),
+            kind,
+            source_context: None,
+            help: Some(help.into()),
         }
     }
 
@@ -100,7 +140,11 @@ impl ResolverError {
             message: message.into(),
             span: Some(span),
             kind,
-            source_context: Some(SourceContext::new(source_filename, source_content)),
+            source_context: Some(Box::new(SourceContext::new(
+                source_filename,
+                source_content,
+            ))),
+            help: None,
         }
     }
 
@@ -131,6 +175,11 @@ impl ResolverError {
         self.source_context.as_ref().map(|ctx| ctx.content.as_str())
     }
 
+    /// Returns the help text, if available.
+    pub fn help(&self) -> Option<&str> {
+        self.help.as_deref()
+    }
+
     /// Returns a short, human-readable description of the error kind.
     pub fn short_message(&self) -> &'static str {
         match self.kind {
@@ -151,28 +200,31 @@ impl ResolverError {
 
     /// Creates a "file not found" error.
     pub fn file_not_found(path: &str, span: Span) -> Self {
-        Self::with_span(
+        Self::with_span_and_help(
             ResolverErrorKind::FileNotFound,
-            format!("Cannot find module '{}'. Check that the file exists.", path),
+            format!("Cannot find module '{}'", path),
             span,
+            "check that the file exists and the path is correct",
         )
     }
 
     /// Creates a "circular import" error.
     pub fn circular_import(cycle: &str, span: Span) -> Self {
-        Self::with_span(
+        Self::with_span_and_help(
             ResolverErrorKind::CircularImport,
             format!("Circular import detected: {}", cycle),
             span,
+            "break the cycle by removing one of the imports or restructuring your modules",
         )
     }
 
     /// Creates an "invalid import path" error.
     pub fn invalid_import_path(reason: &str, span: Span) -> Self {
-        Self::with_span(
+        Self::with_span_and_help(
             ResolverErrorKind::InvalidImportPath,
             format!("Invalid import path: {}", reason),
             span,
+            "ensure the importing file is located in a valid directory",
         )
     }
 
@@ -202,13 +254,11 @@ impl ResolverError {
 
     /// Creates an "invalid module name" error.
     pub fn invalid_module_name(path: &str, span: Span) -> Self {
-        Self::with_span(
+        Self::with_span_and_help(
             ResolverErrorKind::InvalidModuleName,
-            format!(
-                "Cannot extract module name from path '{}'. Module names must be valid identifiers.",
-                path
-            ),
+            format!("Cannot extract module name from path '{}'", path),
             span,
+            "module names must be valid identifiers (start with an ASCII letter or underscore, contain only ASCII letters, digits, and underscores)",
         )
     }
 
@@ -218,13 +268,11 @@ impl ResolverError {
 
     /// Creates a "standard library not supported" error.
     pub fn standard_library_not_supported(path: &str, span: Span) -> Self {
-        Self::with_span(
+        Self::with_span_and_help(
             ResolverErrorKind::StandardLibraryNotSupported,
-            format!(
-                "Standard library imports are not yet supported: '{}'. Use relative paths like './module' instead.",
-                path
-            ),
+            format!("Standard library imports are not yet supported: '{}'", path),
             span,
+            "use relative paths like './module' instead",
         )
     }
 
@@ -243,9 +291,10 @@ impl ResolverError {
 
     /// Creates a circular import error without span.
     pub fn circular_import_no_span(cycle: &str) -> Self {
-        Self::new(
+        Self::new_with_help(
             ResolverErrorKind::CircularImport,
             format!("Circular import detected: {}", cycle),
+            "break the cycle by removing one of the imports or restructuring your modules",
         )
     }
 
@@ -321,12 +370,14 @@ impl ResolverError {
 
     /// Creates an "invalid module name" error without span.
     ///
-    /// Used for entry modules where the import span is not available.
+    /// Used for entry modules where the import span is not available. The identifier
+    /// rules are embedded directly in the message rather than in a separate help
+    /// field, keeping the error self-contained for the plain `eprintln!` output path.
     pub fn invalid_module_name_no_span(path: &Path) -> Self {
         Self::new(
             ResolverErrorKind::InvalidModuleName,
             format!(
-                "Cannot extract module name from path '{}'. Module names must be valid identifiers.",
+                "Cannot extract module name from path '{}'. Module names must be valid identifiers (start with an ASCII letter or underscore, contain only ASCII letters, digits, and underscores).",
                 path.display()
             ),
         )
@@ -486,7 +537,7 @@ mod tests {
         assert!(err.span().is_none());
         assert_eq!(
             err.message(),
-            "Cannot extract module name from path '///'. Module names must be valid identifiers."
+            "Cannot extract module name from path '///'. Module names must be valid identifiers (start with an ASCII letter or underscore, contain only ASCII letters, digits, and underscores)."
         );
     }
 
@@ -498,10 +549,7 @@ mod tests {
     fn test_display_with_span() {
         let err = ResolverError::file_not_found("./missing", dummy_span());
         let display = format!("{}", err);
-        assert_eq!(
-            display,
-            "1:1: Cannot find module './missing'. Check that the file exists."
-        );
+        assert_eq!(display, "1:1: Cannot find module './missing'");
     }
 
     #[test]
@@ -522,5 +570,111 @@ mod tests {
             err.message(),
             "I/O error: Failed to resolve path '/tmp/nonexistent.lak': file not found"
         );
+    }
+
+    // =========================================================================
+    // Help text tests
+    // =========================================================================
+
+    #[test]
+    fn test_file_not_found_help() {
+        let err = ResolverError::file_not_found("./missing", dummy_span());
+        assert_eq!(
+            err.help(),
+            Some("check that the file exists and the path is correct")
+        );
+    }
+
+    #[test]
+    fn test_circular_import_help() {
+        let err = ResolverError::circular_import("a -> b -> a", dummy_span());
+        assert_eq!(
+            err.help(),
+            Some("break the cycle by removing one of the imports or restructuring your modules")
+        );
+    }
+
+    #[test]
+    fn test_invalid_import_path_help() {
+        let err =
+            ResolverError::invalid_import_path("Cannot determine parent directory", dummy_span());
+        assert_eq!(
+            err.help(),
+            Some("ensure the importing file is located in a valid directory")
+        );
+    }
+
+    #[test]
+    fn test_invalid_module_name_help() {
+        let err = ResolverError::invalid_module_name("./123invalid", dummy_span());
+        assert_eq!(
+            err.help(),
+            Some(
+                "module names must be valid identifiers (start with an ASCII letter or underscore, contain only ASCII letters, digits, and underscores)"
+            )
+        );
+    }
+
+    #[test]
+    fn test_standard_library_not_supported_help() {
+        let err = ResolverError::standard_library_not_supported("math", dummy_span());
+        assert_eq!(
+            err.help(),
+            Some("use relative paths like './module' instead")
+        );
+    }
+
+    #[test]
+    fn test_io_error_resolve_import_no_help() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "access denied");
+        let err = ResolverError::io_error_resolve_import("./utils", &io_err, dummy_span());
+        assert!(err.help().is_none());
+    }
+
+    #[test]
+    fn test_circular_import_no_span_help() {
+        let err = ResolverError::circular_import_no_span("a -> b -> a");
+        assert_eq!(
+            err.help(),
+            Some("break the cycle by removing one of the imports or restructuring your modules")
+        );
+    }
+
+    #[test]
+    fn test_io_error_read_file_no_help() {
+        let path = Path::new("/tmp/missing.lak");
+        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
+        let err = ResolverError::io_error_read_file(path, &io_err, Some(dummy_span()));
+        assert!(err.help().is_none());
+    }
+
+    #[test]
+    fn test_io_error_canonicalize_no_help() {
+        let path = Path::new("/tmp/nonexistent.lak");
+        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
+        let err = ResolverError::io_error_canonicalize(path, &io_err);
+        assert!(err.help().is_none());
+    }
+
+    #[test]
+    fn test_lex_error_in_module_no_help() {
+        let path = Path::new("/tmp/entry.lak");
+        let err =
+            ResolverError::lex_error_in_module(path, "unexpected character", dummy_span(), None);
+        assert!(err.help().is_none());
+    }
+
+    #[test]
+    fn test_parse_error_in_module_no_help() {
+        let path = Path::new("/tmp/entry.lak");
+        let err = ResolverError::parse_error_in_module(path, "expected '}'", dummy_span(), None);
+        assert!(err.help().is_none());
+    }
+
+    #[test]
+    fn test_invalid_module_name_no_span_no_help() {
+        let path = Path::new("///");
+        let err = ResolverError::invalid_module_name_no_span(path);
+        assert!(err.help().is_none());
     }
 }

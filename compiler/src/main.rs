@@ -331,6 +331,9 @@ fn report_semantic_error(filename: &str, source: &str, e: &SemanticError) {
 
         if let Err(report_err) = report.finish().eprint((filename, Source::from(source))) {
             eprintln!("Error: {} (at {}:{})", e.message(), span.line, span.column);
+            if let Some(help) = e.help() {
+                eprintln!("Help: {}", help);
+            }
             eprintln!("(Failed to display detailed error report: {})", report_err);
         }
     } else {
@@ -370,6 +373,9 @@ fn report_semantic_error(filename: &str, source: &str, e: &SemanticError) {
 
         if let Err(report_err) = report.finish().eprint((filename, Source::from(source))) {
             eprintln!("Error in {}: {}", filename, e.message());
+            if let Some(help) = help_msg {
+                eprintln!("Help: {}", help);
+            }
             eprintln!("(Failed to display detailed error report: {})", report_err);
         }
     }
@@ -405,7 +411,7 @@ fn report_error(filename: &str, source: &str, error: &CompileError) {
             };
 
             if let Some(span) = e.span() {
-                if let Err(report_err) =
+                let mut report =
                     Report::build(ReportKind::Error, (report_filename, span.start..span.end))
                         .with_config(Config::default().with_index_type(IndexType::Byte))
                         .with_message(e.short_message())
@@ -413,9 +419,15 @@ fn report_error(filename: &str, source: &str, error: &CompileError) {
                             Label::new((report_filename, span.start..span.end))
                                 .with_message(e.message())
                                 .with_color(Color::Red),
-                        )
-                        .finish()
-                        .eprint((report_filename, Source::from(report_source)))
+                        );
+
+                if let Some(help) = e.help() {
+                    report = report.with_help(help);
+                }
+
+                if let Err(report_err) = report
+                    .finish()
+                    .eprint((report_filename, Source::from(report_source)))
                 {
                     eprintln!(
                         "Error: {}: {} (at {}:{})",
@@ -424,12 +436,18 @@ fn report_error(filename: &str, source: &str, error: &CompileError) {
                         span.line,
                         span.column
                     );
+                    if let Some(help) = e.help() {
+                        eprintln!("Help: {}", help);
+                    }
                     eprintln!("(Failed to display detailed error report: {})", report_err);
                 }
             } else {
                 // No span available - use plain error output (resolver errors without spans
                 // are typically I/O errors unrelated to source locations)
                 eprintln!("Error: {}", e.message());
+                if let Some(help) = e.help() {
+                    eprintln!("Help: {}", help);
+                }
             }
         }
         CompileError::Semantic(e) => {

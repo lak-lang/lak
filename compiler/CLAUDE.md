@@ -89,9 +89,9 @@ Phase-specific errors may include `Span` for source location (see details below)
 
 Each phase-specific error type (`LexError`, `ParseError`, `SemanticError`, `CodegenError`, `ResolverError`) follows a consistent pattern:
 
-- **Private fields** with accessor methods: `message()`, `span()`, `kind()`, `short_message()`. `span()` returns `Option<Span>` for `SemanticError`, `CodegenError`, `ResolverError`; returns `Span` (always present) for `LexError`, `ParseError`. `SemanticError` additionally provides `help()`
+- **Private fields** with accessor methods: `message()`, `span()`, `kind()`, `short_message()`. `span()` returns `Option<Span>` for `SemanticError`, `CodegenError`, `ResolverError`; returns `Span` (always present) for `LexError`, `ParseError`. `SemanticError` and `ResolverError` additionally provide `help()`
 - **ErrorKind enum** for structured error matching: `LexErrorKind`, `ParseErrorKind`, `SemanticErrorKind`, `CodegenErrorKind`, `ResolverErrorKind`
-- **Base constructors** (internal to `error.rs`): `Error::new(kind, message, span)`, `without_span()`. `SemanticError` also provides `new_with_help()`
+- **Base constructors** (internal to `error.rs`): `Error::new(kind, message, span)`, `without_span()`. `SemanticError` also provides `new_with_help()`. `ResolverError` also provides `new_with_help()` and `with_span_and_help()`
 - **Helper constructors** (public API): descriptive methods like `undefined_variable(name, span)`
 
 ```rust
@@ -129,7 +129,7 @@ return Err(CompileError::FileReadError { path: path.into(), source: io_err });
 ```
 
 **Rules for call sites:**
-1. Never call `Error::new()`, `without_span()`, or `new_with_help()` outside of `error.rs`
+1. Never call `Error::new()`, `without_span()`, `new_with_help()`, or `with_span_and_help()` outside of `error.rs`
 2. Never use `format!` to construct error messages outside of `error.rs`
 3. If no suitable helper exists, add one to `error.rs` first, then use it
 
