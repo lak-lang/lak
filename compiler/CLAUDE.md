@@ -17,7 +17,7 @@ compiler/
 │   ├── resolver/    # Module resolution (multi-file compilation)
 │   └── codegen/     # LLVM codegen (see codegen/CLAUDE.md)
 ├── tests/           # Integration and E2E tests
-├── build.rs         # Build script for runtime path
+├── build.rs         # Build script for runtime path and MSVC linker detection
 └── Cargo.toml
 ```
 
@@ -45,7 +45,7 @@ Program (validated)
 LLVM IR
     ↓ Codegen::write_object_file()
 Object file (.o)
-    ↓ cc (system linker)
+    ↓ cc (Unix) / MSVC link.exe (Windows)
 Executable
 ```
 
@@ -57,6 +57,7 @@ Executable
 | `ariadne` | Beautiful error reporting |
 | `clap` | CLI argument parsing |
 | `tempfile` | Temporary files for `lak run` |
+| `cc` (build-dep) | MSVC toolchain detection on Windows |
 
 ## Core Modules
 
@@ -191,7 +192,11 @@ CompileError::path_not_utf8(path, "object file")
 
 ## Build Script (build.rs)
 
-Sets `LAK_RUNTIME_PATH` environment variable at compile time, pointing to `liblak_runtime.a`. This path is used by the linker to link generated programs with the runtime.
+Sets compile-time environment variables:
+
+- `LAK_RUNTIME_PATH` — Path to the runtime static library (`liblak_runtime.a` on Unix, `lak_runtime.lib` on Windows MSVC). Used by the linker to link generated programs with the runtime.
+- `LAK_MSVC_LINKER` (Windows MSVC only) — Full path to MSVC `link.exe`, detected via the `cc` crate. Avoids PATH conflicts with GNU coreutils `link.exe` from Git for Windows.
+- `LAK_MSVC_LIB` (Windows MSVC only) — MSVC library search paths (`LIB` environment variable). Required in CI environments where `vcvarsall.bat` has not been run.
 
 ## Tests
 

@@ -98,6 +98,7 @@ Source (.lak) → Lexer → Parser → Semantic Analyzer → Codegen → LLVM �
 - **ariadne** - Beautiful error reporting with source highlighting
 - **clap** - Command-line argument parsing
 - **tempfile** - Temporary file handling for compilation pipeline
+- **cc** (build-dependency) - MSVC toolchain detection on Windows (linker path, LIB environment)
 
 ### Compilation Flow
 
@@ -108,7 +109,7 @@ Source (.lak) → Lexer → Parser → Semantic Analyzer → Codegen → LLVM �
 5. `SemanticAnalyzer::analyze()` / `analyze_with_modules()` validates the AST
 6. `Codegen::compile()` / `compile_modules()` generates LLVM IR
 7. `Codegen::write_object_file()` outputs `.o` file
-8. System linker (`cc`) produces final executable
+8. System linker (`cc` on Unix, MSVC `link.exe` on Windows) produces final executable
 
 ### Development Tools
 
