@@ -12,7 +12,7 @@ Comprehensive test suite verifying the compiler's functionality from source code
 |------|----------|-------|-------------|
 | `common/mod.rs` | Utilities | - | Shared test helpers and pipeline functions |
 | `e2e_any.rs` | E2E | 13 | Mixed type println tests |
-| `e2e_arithmetic.rs` | E2E | 67 | Arithmetic operations, division-by-zero, and integer overflow |
+| `e2e_arithmetic.rs` | E2E | 82 | Arithmetic operations, division-by-zero, and integer overflow |
 | `e2e_basic.rs` | E2E | 7 | Basic functionality (println, comments, functions) |
 | `e2e_bool.rs` | E2E | 8 | Boolean type handling |
 | `e2e_build.rs` | E2E | 9 | `lak build` command behavior |
@@ -32,7 +32,7 @@ Comprehensive test suite verifying the compiler's functionality from source code
 
 ## Test Categories
 
-### E2E Tests (199 tests)
+### E2E Tests (214 tests)
 
 Compile, link, and execute real Lak programs, validating stdout output.
 

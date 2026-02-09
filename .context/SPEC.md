@@ -214,7 +214,7 @@ let x = 10    // Compile error: variable x is already declared
 
 ### Integer Overflow
 
-Arithmetic operations (`+`, `-`, `*`) and unary negation (`-x`) panic at runtime when the result overflows the integer type's range.
+Arithmetic operations (`+`, `-`, `*`, `/`, `%`) and unary negation (`-x`) panic at runtime when the result overflows the integer type's range.
 
 ```lak
 fn main() -> void {

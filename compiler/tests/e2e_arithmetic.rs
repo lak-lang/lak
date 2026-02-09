@@ -1288,3 +1288,243 @@ fn test_i32_min_literal() {
     .unwrap();
     assert_eq!(output, "-2147483648\n");
 }
+
+// ============================================================================
+// Division / Modulo Overflow (MIN / -1, MIN % -1)
+// ============================================================================
+
+#[test]
+fn test_division_overflow_i32_min_div_neg_one() {
+    let temp = tempdir().unwrap();
+    let source_path = temp.path().join("div_overflow_i32.lak");
+
+    fs::write(
+        &source_path,
+        r#"fn main() -> void {
+    let x: i32 = -2147483647 - 1
+    let y: i32 = 0 - 1
+    let z: i32 = x / y
+    println(z)
+}"#,
+    )
+    .unwrap();
+
+    let output = Command::new(lak_binary())
+        .args(["run", source_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(
+        !output.status.success(),
+        "i32 MIN / -1 should panic with overflow"
+    );
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        "panic: integer overflow\n"
+    );
+}
+
+#[test]
+fn test_division_overflow_i64_min_div_neg_one() {
+    let temp = tempdir().unwrap();
+    let source_path = temp.path().join("div_overflow_i64.lak");
+
+    fs::write(
+        &source_path,
+        r#"fn main() -> void {
+    let x: i64 = -9223372036854775807 - 1
+    let y: i64 = 0 - 1
+    let z: i64 = x / y
+    println(z)
+}"#,
+    )
+    .unwrap();
+
+    let output = Command::new(lak_binary())
+        .args(["run", source_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(
+        !output.status.success(),
+        "i64 MIN / -1 should panic with overflow"
+    );
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        "panic: integer overflow\n"
+    );
+}
+
+#[test]
+fn test_modulo_overflow_i32_min_mod_neg_one() {
+    let temp = tempdir().unwrap();
+    let source_path = temp.path().join("mod_overflow_i32.lak");
+
+    fs::write(
+        &source_path,
+        r#"fn main() -> void {
+    let x: i32 = -2147483647 - 1
+    let y: i32 = 0 - 1
+    let z: i32 = x % y
+    println(z)
+}"#,
+    )
+    .unwrap();
+
+    let output = Command::new(lak_binary())
+        .args(["run", source_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(
+        !output.status.success(),
+        "i32 MIN % -1 should panic with overflow"
+    );
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        "panic: integer overflow\n"
+    );
+}
+
+#[test]
+fn test_modulo_overflow_i64_min_mod_neg_one() {
+    let temp = tempdir().unwrap();
+    let source_path = temp.path().join("mod_overflow_i64.lak");
+
+    fs::write(
+        &source_path,
+        r#"fn main() -> void {
+    let x: i64 = -9223372036854775807 - 1
+    let y: i64 = 0 - 1
+    let z: i64 = x % y
+    println(z)
+}"#,
+    )
+    .unwrap();
+
+    let output = Command::new(lak_binary())
+        .args(["run", source_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(
+        !output.status.success(),
+        "i64 MIN % -1 should panic with overflow"
+    );
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        "panic: integer overflow\n"
+    );
+}
+
+#[test]
+fn test_division_no_false_positive_min_div_two() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = -2147483647 - 1
+    let y: i32 = x / 2
+    println(y)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "-1073741824\n");
+}
+
+#[test]
+fn test_division_no_false_positive_neg_one_safe() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = 10
+    let y: i32 = 0 - 1
+    let z: i32 = x / y
+    println(z)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "-10\n");
+}
+
+#[test]
+fn test_modulo_no_false_positive_min_mod_two() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = -2147483647 - 1
+    let y: i32 = x % 2
+    println(y)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "0\n");
+}
+
+#[test]
+fn test_modulo_no_false_positive_neg_one_safe() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = 10
+    let y: i32 = 0 - 1
+    let z: i32 = x % y
+    println(z)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "0\n");
+}
+
+#[test]
+fn test_division_no_false_positive_i64_min_div_two() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i64 = -9223372036854775807 - 1
+    let y: i64 = x / 2
+    println(y)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "-4611686018427387904\n");
+}
+
+#[test]
+fn test_division_no_false_positive_i64_neg_one_safe() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i64 = 10
+    let y: i64 = 0 - 1
+    let z: i64 = x / y
+    println(z)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "-10\n");
+}
+
+#[test]
+fn test_modulo_no_false_positive_i64_min_mod_two() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i64 = -9223372036854775807 - 1
+    let y: i64 = x % 2
+    println(y)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "0\n");
+}
+
+#[test]
+fn test_modulo_no_false_positive_i64_neg_one_safe() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i64 = 10
+    let y: i64 = 0 - 1
+    let z: i64 = x % y
+    println(z)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "0\n");
+}

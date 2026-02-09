@@ -125,7 +125,9 @@ This document tracks the implementation status of Lak language features as defin
 - [x] `*` multiplication (i32, i64)
   - [x] Overflow detection with panic
 - [x] `/` division (i32, i64)
+  - [x] Overflow detection with panic
 - [x] `%` modulo (i32, i64)
+  - [x] Overflow detection with panic
 
 ### 4.2 Comparison Operators
 

@@ -278,6 +278,11 @@ impl<'ctx> Codegen<'ctx> {
     /// For `+`, `-`, `*` operators, generates overflow-checked operations using
     /// LLVM signed overflow intrinsics. The compiled program panics at runtime
     /// if the result overflows the integer type's range.
+    ///
+    /// For `/` and `%` operators, generates both a division-by-zero check and
+    /// an overflow check (MIN / -1 and MIN % -1). The compiled program panics
+    /// at runtime with "integer overflow" if the dividend is the type's minimum
+    /// value and the divisor is -1.
     fn generate_binary_op(
         &mut self,
         left: &Expr,
@@ -325,6 +330,7 @@ impl<'ctx> Codegen<'ctx> {
             )?,
             BinaryOperator::Div => {
                 self.generate_division_zero_check(right_value, "division by zero", span)?;
+                self.generate_division_overflow_check(left_value, right_value, span)?;
                 self.builder
                     .build_int_signed_div(left_value, right_value, "div_tmp")
                     .map_err(|e| {
@@ -333,6 +339,7 @@ impl<'ctx> Codegen<'ctx> {
             }
             BinaryOperator::Mod => {
                 self.generate_division_zero_check(right_value, "modulo by zero", span)?;
+                self.generate_division_overflow_check(left_value, right_value, span)?;
                 self.builder
                     .build_int_signed_rem(left_value, right_value, "mod_tmp")
                     .map_err(|e| {
@@ -421,8 +428,7 @@ impl<'ctx> Codegen<'ctx> {
     ///   unreachable
     ///
     /// div_zero_safe:
-    ///   %result = sdiv <type> %left, %divisor
-    ///   ; Execution continues here after the division
+    ///   ; Caller continues here (may insert additional checks before division)
     /// ```
     ///
     /// # Arguments
@@ -470,6 +476,125 @@ impl<'ctx> Codegen<'ctx> {
         let panic_msg = self
             .builder
             .build_global_string_ptr(error_message, "div_zero_msg")
+            .map_err(|e| CodegenError::internal_string_ptr_failed(&e.to_string(), span))?
+            .as_pointer_value();
+
+        // Call lak_panic
+        let lak_panic = self
+            .module
+            .get_function("lak_panic")
+            .ok_or_else(|| CodegenError::internal_builtin_not_found_with_span("lak_panic", span))?;
+
+        self.builder
+            .build_call(
+                lak_panic,
+                &[BasicMetadataValueEnum::PointerValue(panic_msg)],
+                "",
+            )
+            .map_err(|e| CodegenError::internal_panic_call_failed(&e.to_string(), span))?;
+
+        // Insert unreachable instruction
+        self.builder
+            .build_unreachable()
+            .map_err(|e| CodegenError::internal_unreachable_failed(&e.to_string(), span))?;
+
+        // Position builder at safe block for the actual division/modulo
+        self.builder.position_at_end(safe_block);
+
+        Ok(())
+    }
+
+    /// Generates a runtime check for division/modulo overflow (MIN / -1).
+    ///
+    /// Signed integer division overflows when the dividend is the type's minimum
+    /// value and the divisor is -1, because the result (positive of MIN) exceeds
+    /// the type's maximum value. LLVM's `sdiv` and `srem` instructions have
+    /// undefined behavior for this case.
+    ///
+    /// This check must be called after `generate_division_zero_check` (which
+    /// guarantees the divisor is non-zero) and before the actual `sdiv`/`srem`.
+    ///
+    /// # LLVM IR Pattern
+    ///
+    /// ```text
+    ///   %is_neg_one = icmp eq <type> %divisor, -1
+    ///   %is_min = icmp eq <type> %dividend, TYPE_MIN
+    ///   %is_overflow = and i1 %is_neg_one, %is_min
+    ///   br i1 %is_overflow, label %div_overflow_panic, label %div_overflow_safe
+    ///
+    /// div_overflow_panic:
+    ///   call void @lak_panic("integer overflow")
+    ///   unreachable
+    ///
+    /// div_overflow_safe:
+    ///   ; actual division/modulo happens here
+    /// ```
+    ///
+    /// # Arguments
+    ///
+    /// * `dividend` - The dividend (left operand) value to check
+    /// * `divisor` - The divisor (right operand) value to check
+    /// * `span` - The source span for error reporting
+    fn generate_division_overflow_check(
+        &mut self,
+        dividend: inkwell::values::IntValue<'ctx>,
+        divisor: inkwell::values::IntValue<'ctx>,
+        span: crate::token::Span,
+    ) -> Result<(), CodegenError> {
+        // Get the current function
+        let current_fn = self
+            .builder
+            .get_insert_block()
+            .and_then(|bb| bb.get_parent())
+            .ok_or_else(|| CodegenError::internal_no_current_function(span))?;
+
+        // Create basic blocks
+        let panic_block = self
+            .context
+            .append_basic_block(current_fn, "div_overflow_panic");
+        let safe_block = self
+            .context
+            .append_basic_block(current_fn, "div_overflow_safe");
+
+        // Create -1 constant: all bits set to 1
+        let neg_one = divisor.get_type().const_all_ones();
+
+        // Create TYPE_MIN constant: only the sign bit set
+        // For i32: 0x80000000, for i64: 0x8000000000000000
+        let bit_width = dividend.get_type().get_bit_width();
+        let min_value = 1u64 << (bit_width - 1);
+        let type_min = dividend.get_type().const_int(min_value, false);
+
+        // Check if divisor == -1
+        let is_neg_one = self
+            .builder
+            .build_int_compare(IntPredicate::EQ, divisor, neg_one, "is_neg_one")
+            .map_err(|e| CodegenError::internal_compare_failed(&e.to_string(), span))?;
+
+        // Check if dividend == TYPE_MIN
+        let is_min = self
+            .builder
+            .build_int_compare(IntPredicate::EQ, dividend, type_min, "is_min")
+            .map_err(|e| CodegenError::internal_compare_failed(&e.to_string(), span))?;
+
+        // Both conditions must be true for overflow
+        let is_overflow = self
+            .builder
+            .build_and(is_neg_one, is_min, "is_div_overflow")
+            .map_err(|e| CodegenError::internal_compare_failed(&e.to_string(), span))?;
+
+        // Branch: if overflow goto panic_block, else goto safe_block
+        self.builder
+            .build_conditional_branch(is_overflow, panic_block, safe_block)
+            .map_err(|e| CodegenError::internal_branch_failed(&e.to_string(), span))?;
+
+        // Build panic block
+        self.builder.position_at_end(panic_block);
+
+        // Create global string for error message
+        let panic_msg = self
+            .builder
+            .build_global_string_ptr("integer overflow", "div_overflow_msg")
             .map_err(|e| CodegenError::internal_string_ptr_failed(&e.to_string(), span))?
             .as_pointer_value();
 
