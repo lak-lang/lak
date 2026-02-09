@@ -9,6 +9,7 @@ use super::error::CodegenError;
 use super::mangle_name;
 use crate::ast::{BinaryOperator, Expr, ExprKind, Type, UnaryOperator};
 use inkwell::IntPredicate;
+use inkwell::intrinsics::Intrinsic;
 use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum};
 
 impl<'ctx> Codegen<'ctx> {
@@ -271,6 +272,12 @@ impl<'ctx> Codegen<'ctx> {
     /// Returns an internal error if:
     /// - The expected type is string (semantic analysis should catch this)
     /// - LLVM instruction building fails
+    ///
+    /// # Runtime Panics
+    ///
+    /// For `+`, `-`, `*` operators, generates overflow-checked operations using
+    /// LLVM signed overflow intrinsics. The compiled program panics at runtime
+    /// if the result overflows the integer type's range.
     fn generate_binary_op(
         &mut self,
         left: &Expr,
@@ -298,18 +305,24 @@ impl<'ctx> Codegen<'ctx> {
 
         // Generate the appropriate LLVM instruction based on the operator
         let result = match op {
-            BinaryOperator::Add => self
-                .builder
-                .build_int_add(left_value, right_value, "add_tmp")
-                .map_err(|e| CodegenError::internal_binary_op_failed(op, &e.to_string(), span))?,
-            BinaryOperator::Sub => self
-                .builder
-                .build_int_sub(left_value, right_value, "sub_tmp")
-                .map_err(|e| CodegenError::internal_binary_op_failed(op, &e.to_string(), span))?,
-            BinaryOperator::Mul => self
-                .builder
-                .build_int_mul(left_value, right_value, "mul_tmp")
-                .map_err(|e| CodegenError::internal_binary_op_failed(op, &e.to_string(), span))?,
+            BinaryOperator::Add => self.generate_overflow_checked_binop(
+                left_value,
+                right_value,
+                "llvm.sadd.with.overflow",
+                span,
+            )?,
+            BinaryOperator::Sub => self.generate_overflow_checked_binop(
+                left_value,
+                right_value,
+                "llvm.ssub.with.overflow",
+                span,
+            )?,
+            BinaryOperator::Mul => self.generate_overflow_checked_binop(
+                left_value,
+                right_value,
+                "llvm.smul.with.overflow",
+                span,
+            )?,
             BinaryOperator::Div => {
                 self.generate_division_zero_check(right_value, "division by zero", span)?;
                 self.builder
@@ -345,6 +358,13 @@ impl<'ctx> Codegen<'ctx> {
     /// Returns an internal error if:
     /// - The expected type is string (semantic analysis should catch this)
     /// - LLVM instruction building fails
+    ///
+    /// # Runtime Panics
+    ///
+    /// For negation, generates overflow-checked subtraction from zero
+    /// (`0 - operand`) using `llvm.ssub.with.overflow`. The compiled program
+    /// panics at runtime if the result overflows (e.g., negating the minimum
+    /// value of a signed integer type).
     fn generate_unary_op(
         &mut self,
         operand: &Expr,
@@ -368,10 +388,16 @@ impl<'ctx> Codegen<'ctx> {
 
         // Generate the appropriate LLVM instruction based on the operator
         let result = match op {
-            UnaryOperator::Neg => self
-                .builder
-                .build_int_neg(operand_value, "neg_tmp")
-                .map_err(|e| CodegenError::internal_unary_op_failed(op, &e.to_string(), span))?,
+            UnaryOperator::Neg => {
+                let zero = operand_value.get_type().const_int(0, false);
+                self.generate_overflow_checked_binop(
+                    zero,
+                    operand_value,
+                    "llvm.ssub.with.overflow",
+                    span,
+                )
+                .map_err(|e| CodegenError::wrap_in_unary_context(&e, op, span))?
+            }
         };
 
         Ok(result.into())
@@ -451,7 +477,7 @@ impl<'ctx> Codegen<'ctx> {
         let lak_panic = self
             .module
             .get_function("lak_panic")
-            .ok_or_else(|| CodegenError::internal_builtin_not_found("lak_panic"))?;
+            .ok_or_else(|| CodegenError::internal_builtin_not_found_with_span("lak_panic", span))?;
 
         self.builder
             .build_call(
@@ -470,5 +496,157 @@ impl<'ctx> Codegen<'ctx> {
         self.builder.position_at_end(safe_block);
 
         Ok(())
+    }
+
+    /// Generates an overflow-checked binary operation using LLVM intrinsics.
+    ///
+    /// Uses LLVM signed overflow intrinsics (e.g., `llvm.sadd.with.overflow.i32`)
+    /// that return a `{result, overflow_flag}` struct. If the overflow flag is set,
+    /// the program panics.
+    ///
+    /// # LLVM IR Pattern
+    ///
+    /// ```text
+    ///   %result_struct = call {i32, i1} @llvm.sadd.with.overflow.i32(i32 %left, i32 %right)
+    ///   %result = extractvalue {i32, i1} %result_struct, 0
+    ///   %overflow = extractvalue {i32, i1} %result_struct, 1
+    ///   br i1 %overflow, label %overflow_panic, label %overflow_safe
+    ///
+    /// overflow_panic:
+    ///   call void @lak_panic("integer overflow")
+    ///   unreachable
+    ///
+    /// overflow_safe:
+    ///   ; continue with %result
+    /// ```
+    ///
+    /// # Arguments
+    ///
+    /// * `left` - The left operand
+    /// * `right` - The right operand
+    /// * `intrinsic_prefix` - The LLVM intrinsic prefix (e.g., "llvm.sadd.with.overflow")
+    /// * `span` - The source span for error reporting
+    fn generate_overflow_checked_binop(
+        &mut self,
+        left: inkwell::values::IntValue<'ctx>,
+        right: inkwell::values::IntValue<'ctx>,
+        intrinsic_prefix: &str,
+        span: crate::token::Span,
+    ) -> Result<inkwell::values::IntValue<'ctx>, CodegenError> {
+        let int_type = left.get_type();
+
+        // Look up the LLVM intrinsic
+        let intrinsic = Intrinsic::find(intrinsic_prefix)
+            .ok_or_else(|| CodegenError::internal_intrinsic_not_found(intrinsic_prefix, span))?;
+
+        // Get intrinsic declaration for the specific integer type
+        let intrinsic_fn = intrinsic
+            .get_declaration(&self.module, &[int_type.into()])
+            .ok_or_else(|| {
+                CodegenError::internal_intrinsic_declaration_failed(intrinsic_prefix, span)
+            })?;
+
+        // Call the intrinsic: returns {result, overflow_flag}
+        let call_result = self
+            .builder
+            .build_call(intrinsic_fn, &[left.into(), right.into()], "overflow_check")
+            .map_err(|e| {
+                CodegenError::internal_intrinsic_call_failed(intrinsic_prefix, &e.to_string(), span)
+            })?;
+
+        let result_struct = match call_result.try_as_basic_value() {
+            inkwell::values::ValueKind::Basic(BasicValueEnum::StructValue(sv)) => sv,
+            inkwell::values::ValueKind::Basic(_) => {
+                return Err(CodegenError::internal_intrinsic_call_failed(
+                    intrinsic_prefix,
+                    "expected struct return type",
+                    span,
+                ));
+            }
+            inkwell::values::ValueKind::Instruction(_) => {
+                return Err(CodegenError::internal_intrinsic_call_failed(
+                    intrinsic_prefix,
+                    "intrinsic returned void",
+                    span,
+                ));
+            }
+        };
+
+        // Extract result value (index 0) and overflow flag (index 1)
+        let result_value = match self
+            .builder
+            .build_extract_value(result_struct, 0, "result")
+            .map_err(|e| CodegenError::internal_extract_value_failed(&e.to_string(), span))?
+        {
+            BasicValueEnum::IntValue(v) => v,
+            _ => {
+                return Err(CodegenError::internal_extract_value_failed(
+                    "expected integer value at index 0",
+                    span,
+                ));
+            }
+        };
+
+        let overflow_flag = match self
+            .builder
+            .build_extract_value(result_struct, 1, "overflow")
+            .map_err(|e| CodegenError::internal_extract_value_failed(&e.to_string(), span))?
+        {
+            BasicValueEnum::IntValue(v) => v,
+            _ => {
+                return Err(CodegenError::internal_extract_value_failed(
+                    "expected integer value at index 1",
+                    span,
+                ));
+            }
+        };
+
+        // Create basic blocks for panic and safe paths
+        let current_fn = self
+            .builder
+            .get_insert_block()
+            .and_then(|bb| bb.get_parent())
+            .ok_or_else(|| CodegenError::internal_no_current_function(span))?;
+
+        let panic_block = self
+            .context
+            .append_basic_block(current_fn, "overflow_panic");
+        let safe_block = self.context.append_basic_block(current_fn, "overflow_safe");
+
+        // Branch: if overflow goto panic_block, else goto safe_block
+        self.builder
+            .build_conditional_branch(overflow_flag, panic_block, safe_block)
+            .map_err(|e| CodegenError::internal_branch_failed(&e.to_string(), span))?;
+
+        // Build panic block
+        self.builder.position_at_end(panic_block);
+
+        let panic_msg = self
+            .builder
+            .build_global_string_ptr("integer overflow", "overflow_msg")
+            .map_err(|e| CodegenError::internal_string_ptr_failed(&e.to_string(), span))?
+            .as_pointer_value();
+
+        let lak_panic = self
+            .module
+            .get_function("lak_panic")
+            .ok_or_else(|| CodegenError::internal_builtin_not_found_with_span("lak_panic", span))?;
+
+        self.builder
+            .build_call(
+                lak_panic,
+                &[BasicMetadataValueEnum::PointerValue(panic_msg)],
+                "",
+            )
+            .map_err(|e| CodegenError::internal_panic_call_failed(&e.to_string(), span))?;
+
+        self.builder
+            .build_unreachable()
+            .map_err(|e| CodegenError::internal_unreachable_failed(&e.to_string(), span))?;
+
+        // Position builder at safe block
+        self.builder.position_at_end(safe_block);
+
+        Ok(result_value)
     }
 }

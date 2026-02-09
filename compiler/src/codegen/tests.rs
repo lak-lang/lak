@@ -747,18 +747,6 @@ fn test_internal_unary_op_string_constructor() {
     );
 }
 
-#[test]
-fn test_internal_unary_op_failed_constructor() {
-    let err =
-        CodegenError::internal_unary_op_failed(UnaryOperator::Neg, "LLVM error", dummy_span());
-    assert_eq!(err.kind(), CodegenErrorKind::InternalError);
-    assert!(err.span().is_some());
-    assert_eq!(
-        err.message(),
-        "Internal error: failed to generate unary '-' instruction. This is a compiler bug: LLVM error"
-    );
-}
-
 // ==================================
 // Module compilation error constructor tests
 // ==================================

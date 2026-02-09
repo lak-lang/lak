@@ -584,7 +584,7 @@ impl CodegenError {
     pub fn internal_no_current_function(span: Span) -> Self {
         Self::new(
             CodegenErrorKind::InternalError,
-            "Internal error: no current function when generating division zero check. \
+            "Internal error: no current function when generating runtime check. \
              This is a compiler bug.",
             span,
         )
@@ -628,21 +628,52 @@ impl CodegenError {
         err.with_unary_context()
     }
 
-    /// Creates an internal error for failed unary operation.
-    pub fn internal_unary_op_failed(
-        op: crate::ast::UnaryOperator,
-        error: &str,
-        span: Span,
-    ) -> Self {
-        let err = Self::new(
+    /// Creates an internal error for LLVM intrinsic not found.
+    pub fn internal_intrinsic_not_found(name: &str, span: Span) -> Self {
+        Self::new(
             CodegenErrorKind::InternalError,
             format!(
-                "Internal error: failed to generate unary '{}' instruction. This is a compiler bug: {}",
-                op, error
+                "Internal error: LLVM intrinsic '{}' not found. This is a compiler bug.",
+                name
             ),
             span,
-        );
-        err.with_unary_context()
+        )
+    }
+
+    /// Creates an internal error for LLVM intrinsic declaration failure.
+    pub fn internal_intrinsic_declaration_failed(name: &str, span: Span) -> Self {
+        Self::new(
+            CodegenErrorKind::InternalError,
+            format!(
+                "Internal error: failed to get declaration for LLVM intrinsic '{}'. This is a compiler bug.",
+                name
+            ),
+            span,
+        )
+    }
+
+    /// Creates an internal error for LLVM intrinsic call failure.
+    pub fn internal_intrinsic_call_failed(name: &str, error: &str, span: Span) -> Self {
+        Self::new(
+            CodegenErrorKind::InternalError,
+            format!(
+                "Internal error: failed to call LLVM intrinsic '{}'. This is a compiler bug: {}",
+                name, error
+            ),
+            span,
+        )
+    }
+
+    /// Creates an internal error for failed extractvalue instruction.
+    pub fn internal_extract_value_failed(error: &str, span: Span) -> Self {
+        Self::new(
+            CodegenErrorKind::InternalError,
+            format!(
+                "Internal error: failed to extract value from intrinsic result. This is a compiler bug: {}",
+                error
+            ),
+            span,
+        )
     }
 
     // =========================================================================
@@ -657,6 +688,18 @@ impl CodegenError {
                 "Internal error: {} function not found. This is a compiler bug.",
                 name
             ),
+        )
+    }
+
+    /// Creates an internal error for builtin function not found (with span).
+    pub fn internal_builtin_not_found_with_span(name: &str, span: Span) -> Self {
+        Self::new(
+            CodegenErrorKind::InternalError,
+            format!(
+                "Internal error: {} function not found. This is a compiler bug.",
+                name
+            ),
+            span,
         )
     }
 

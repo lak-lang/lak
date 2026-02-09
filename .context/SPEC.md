@@ -212,6 +212,19 @@ let x = 10    // Compile error: variable x is already declared
 | `/` | Division |
 | `%` | Modulo |
 
+### Integer Overflow
+
+Arithmetic operations (`+`, `-`, `*`) and unary negation (`-x`) panic at runtime when the result overflows the integer type's range.
+
+```lak
+fn main() -> void {
+    let x: i32 = 2147483647
+    let y: i32 = x + 1  // panic: integer overflow
+}
+```
+
+This behavior is consistent with division by zero, which also panics at runtime.
+
 ### Comparison Operators
 
 | Operator | Description |

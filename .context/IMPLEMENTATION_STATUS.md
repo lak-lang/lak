@@ -117,10 +117,13 @@ This document tracks the implementation status of Lak language features as defin
 
 - [x] `+` addition
   - [x] Integer addition (i32, i64)
+  - [x] Overflow detection with panic
   - [ ] Float addition
   - [ ] String concatenation
 - [x] `-` subtraction (i32, i64)
+  - [x] Overflow detection with panic
 - [x] `*` multiplication (i32, i64)
+  - [x] Overflow detection with panic
 - [x] `/` division (i32, i64)
 - [x] `%` modulo (i32, i64)
 
@@ -141,6 +144,7 @@ This document tracks the implementation status of Lak language features as defin
 ### 4.4 Unary Operators
 
 - [x] `-` negation (unary minus)
+  - [x] Overflow detection with panic
 - [ ] `!` logical NOT
 
 ### 4.5 Assignment Operators
@@ -480,7 +484,7 @@ This document tracks the implementation status of Lak language features as defin
 |----------|-------------|-------|----------|
 | Types | 6 | 26 | 23% |
 | Variables | 3 | 8 | 38% |
-| Operators | 8 | 17 | 47% |
+| Operators | 12 | 21 | 57% |
 | Functions | 8 | 18 | 44% |
 | Structs | 0 | 12 | 0% |
 | Interfaces | 0 | 7 | 0% |
@@ -492,7 +496,7 @@ This document tracks the implementation status of Lak language features as defin
 | Modules | 10 | 15 | 67% |
 | Entry Point | 5 | 5 | 100% |
 
-**Overall Progress: ~20%**
+**Overall Progress: ~25%**
 
 ---
 

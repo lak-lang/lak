@@ -886,13 +886,11 @@ fn test_unary_minus_variable_in_function_arg() {
 
 #[test]
 fn test_unary_minus_i32_min_overflow() {
-    // Negating i32::MIN causes overflow in two's complement
-    // -(-2147483648) wraps around to -2147483648
-    // Note: i32::MIN (-2147483648) cannot be written directly as a literal
-    // because the parser treats `-2147483648` as unary minus applied to
-    // `2147483648`, which exceeds i32::MAX.
-    // So we compute i32::MIN as -2147483647 - 1
-    let output = compile_and_run(
+    let temp = tempdir().unwrap();
+    let source_path = temp.path().join("neg_i32_min.lak");
+
+    fs::write(
+        &source_path,
         r#"fn main() -> void {
     let x: i32 = -2147483647 - 1
     let y: i32 = -x
@@ -900,18 +898,27 @@ fn test_unary_minus_i32_min_overflow() {
 }"#,
     )
     .unwrap();
-    // In two's complement, -i32::MIN == i32::MIN (overflow)
-    assert_eq!(output, "-2147483648\n");
+
+    let output = Command::new(lak_binary())
+        .args(["run", source_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success(), "negation overflow should panic");
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        "panic: integer overflow\n"
+    );
 }
 
 #[test]
 fn test_unary_minus_i64_min_overflow() {
-    // Negating i64::MIN causes overflow in two's complement
-    // Note: i64::MIN (-9223372036854775808) cannot be written directly as a literal
-    // because the parser treats `-9223372036854775808` as unary minus applied to
-    // `9223372036854775808`, which exceeds i64::MAX.
-    // So we compute i64::MIN as -9223372036854775807 - 1
-    let output = compile_and_run(
+    let temp = tempdir().unwrap();
+    let source_path = temp.path().join("neg_i64_min.lak");
+
+    fs::write(
+        &source_path,
         r#"fn main() -> void {
     let x: i64 = -9223372036854775807 - 1
     let y: i64 = -x
@@ -919,6 +926,330 @@ fn test_unary_minus_i64_min_overflow() {
 }"#,
     )
     .unwrap();
-    // In two's complement, -i64::MIN == i64::MIN (overflow)
-    assert_eq!(output, "-9223372036854775808\n");
+
+    let output = Command::new(lak_binary())
+        .args(["run", source_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success(), "negation overflow should panic");
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        "panic: integer overflow\n"
+    );
+}
+
+#[test]
+fn test_addition_overflow_i32() {
+    let temp = tempdir().unwrap();
+    let source_path = temp.path().join("add_overflow_i32.lak");
+
+    fs::write(
+        &source_path,
+        r#"fn main() -> void {
+    let x: i32 = 2147483647
+    let y: i32 = x + 1
+    println(y)
+}"#,
+    )
+    .unwrap();
+
+    let output = Command::new(lak_binary())
+        .args(["run", source_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success(), "addition overflow should panic");
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        "panic: integer overflow\n"
+    );
+}
+
+#[test]
+fn test_addition_overflow_i64() {
+    let temp = tempdir().unwrap();
+    let source_path = temp.path().join("add_overflow_i64.lak");
+
+    fs::write(
+        &source_path,
+        r#"fn main() -> void {
+    let x: i64 = 9223372036854775807
+    let y: i64 = x + 1
+    println(y)
+}"#,
+    )
+    .unwrap();
+
+    let output = Command::new(lak_binary())
+        .args(["run", source_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success(), "addition overflow should panic");
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        "panic: integer overflow\n"
+    );
+}
+
+#[test]
+fn test_subtraction_overflow_i32() {
+    let temp = tempdir().unwrap();
+    let source_path = temp.path().join("sub_overflow_i32.lak");
+
+    fs::write(
+        &source_path,
+        r#"fn main() -> void {
+    let x: i32 = -2147483647 - 1
+    let y: i32 = x - 1
+    println(y)
+}"#,
+    )
+    .unwrap();
+
+    let output = Command::new(lak_binary())
+        .args(["run", source_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(
+        !output.status.success(),
+        "subtraction overflow should panic"
+    );
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        "panic: integer overflow\n"
+    );
+}
+
+#[test]
+fn test_subtraction_overflow_i64() {
+    let temp = tempdir().unwrap();
+    let source_path = temp.path().join("sub_overflow_i64.lak");
+
+    fs::write(
+        &source_path,
+        r#"fn main() -> void {
+    let x: i64 = -9223372036854775807 - 1
+    let y: i64 = x - 1
+    println(y)
+}"#,
+    )
+    .unwrap();
+
+    let output = Command::new(lak_binary())
+        .args(["run", source_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(
+        !output.status.success(),
+        "subtraction overflow should panic"
+    );
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        "panic: integer overflow\n"
+    );
+}
+
+#[test]
+fn test_multiplication_overflow_i32() {
+    let temp = tempdir().unwrap();
+    let source_path = temp.path().join("mul_overflow_i32.lak");
+
+    fs::write(
+        &source_path,
+        r#"fn main() -> void {
+    let x: i32 = 100000
+    let y: i32 = x * x
+    println(y)
+}"#,
+    )
+    .unwrap();
+
+    let output = Command::new(lak_binary())
+        .args(["run", source_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(
+        !output.status.success(),
+        "multiplication overflow should panic"
+    );
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        "panic: integer overflow\n"
+    );
+}
+
+#[test]
+fn test_multiplication_overflow_i64() {
+    let temp = tempdir().unwrap();
+    let source_path = temp.path().join("mul_overflow_i64.lak");
+
+    fs::write(
+        &source_path,
+        r#"fn main() -> void {
+    let x: i64 = 10000000000000
+    let y: i64 = x * x
+    println(y)
+}"#,
+    )
+    .unwrap();
+
+    let output = Command::new(lak_binary())
+        .args(["run", source_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(
+        !output.status.success(),
+        "multiplication overflow should panic"
+    );
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        "panic: integer overflow\n"
+    );
+}
+
+#[test]
+fn test_no_overflow_i32_max_safe() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = 2147483646
+    let y: i32 = x + 1
+    println(y)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "2147483647\n");
+}
+
+#[test]
+fn test_no_overflow_negation_safe() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = 2147483647
+    let y: i32 = -x
+    println(y)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "-2147483647\n");
+}
+
+#[test]
+fn test_addition_negative_overflow_i32() {
+    let temp = tempdir().unwrap();
+    let source_path = temp.path().join("add_neg_overflow_i32.lak");
+
+    fs::write(
+        &source_path,
+        r#"fn main() -> void {
+    let x: i32 = -2147483647 - 1
+    let y: i32 = -1
+    let z: i32 = x + y
+    println(z)
+}"#,
+    )
+    .unwrap();
+
+    let output = Command::new(lak_binary())
+        .args(["run", source_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(
+        !output.status.success(),
+        "negative addition overflow should panic"
+    );
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        "panic: integer overflow\n"
+    );
+}
+
+#[test]
+fn test_addition_negative_overflow_i64() {
+    let temp = tempdir().unwrap();
+    let source_path = temp.path().join("add_neg_overflow_i64.lak");
+
+    fs::write(
+        &source_path,
+        r#"fn main() -> void {
+    let x: i64 = -9223372036854775807 - 1
+    let y: i64 = -1
+    let z: i64 = x + y
+    println(z)
+}"#,
+    )
+    .unwrap();
+
+    let output = Command::new(lak_binary())
+        .args(["run", source_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(
+        !output.status.success(),
+        "negative addition overflow should panic"
+    );
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        "panic: integer overflow\n"
+    );
+}
+
+#[test]
+fn test_no_overflow_i64_max_safe() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i64 = 9223372036854775806
+    let y: i64 = x + 1
+    println(y)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "9223372036854775807\n");
+}
+
+#[test]
+fn test_chained_overflow_i32() {
+    let temp = tempdir().unwrap();
+    let source_path = temp.path().join("chained_overflow_i32.lak");
+
+    fs::write(
+        &source_path,
+        r#"fn main() -> void {
+    let x: i32 = 2147483647
+    let y: i32 = x + 1 - 1
+    println(y)
+}"#,
+    )
+    .unwrap();
+
+    let output = Command::new(lak_binary())
+        .args(["run", source_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(
+        !output.status.success(),
+        "chained expression should panic at first overflow"
+    );
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        "panic: integer overflow\n"
+    );
 }
