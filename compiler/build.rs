@@ -40,6 +40,21 @@ fn main() {
     // Export the runtime library path as a compile-time environment variable
     println!("cargo:rustc-env=LAK_RUNTIME_PATH={}", runtime_lib.display());
 
+    // On Windows MSVC, detect the MSVC linker (link.exe) path at build time.
+    // This is necessary because the system PATH may contain a GNU coreutils
+    // link.exe (from Git for Windows) that shadows the MSVC linker.
+    // The cc crate uses COM interfaces, vswhere.exe, and registry lookups
+    // to reliably find the MSVC toolchain.
+    if target_os == "windows" && target_env == "msvc" {
+        let compiler = cc::Build::new().get_compiler();
+        let tools_dir = compiler
+            .path()
+            .parent()
+            .expect("Failed to determine MSVC tools directory from C compiler path");
+        let link_exe = tools_dir.join("link.exe");
+        println!("cargo:rustc-env=LAK_MSVC_LINKER={}", link_exe.display());
+    }
+
     // Rebuild if the runtime library changes
     println!("cargo::rerun-if-changed=../runtime/src/lib.rs");
     println!("cargo::rerun-if-changed=../runtime/Cargo.toml");

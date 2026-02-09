@@ -84,23 +84,24 @@ pub fn compile_and_run(source: &str) -> Result<String, String> {
         .to_str()
         .ok_or_else(|| format!("Executable path {:?} is not valid UTF-8", executable_path))?;
 
-    let link_output = if cfg!(all(target_os = "windows", target_env = "msvc")) {
-        Command::new("link.exe")
-            .args([
-                "/NOLOGO",
-                object_str,
-                LAK_RUNTIME_PATH,
-                &format!("/OUT:{}", exec_str),
-                "/DEFAULTLIB:msvcrt",
-                "/DEFAULTLIB:legacy_stdio_definitions",
-            ])
-            .output()
-    } else {
-        Command::new("cc")
-            .args([object_str, LAK_RUNTIME_PATH, "-o", exec_str])
-            .output()
-    }
-    .map_err(|e| format!("Failed to run linker: {}", e))?;
+    #[cfg(all(target_os = "windows", target_env = "msvc"))]
+    let link_output = Command::new(env!("LAK_MSVC_LINKER"))
+        .args([
+            "/NOLOGO",
+            object_str,
+            LAK_RUNTIME_PATH,
+            &format!("/OUT:{}", exec_str),
+            "/DEFAULTLIB:msvcrt",
+            "/DEFAULTLIB:legacy_stdio_definitions",
+        ])
+        .output()
+        .map_err(|e| format!("Failed to run linker: {}", e))?;
+
+    #[cfg(not(all(target_os = "windows", target_env = "msvc")))]
+    let link_output = Command::new("cc")
+        .args([object_str, LAK_RUNTIME_PATH, "-o", exec_str])
+        .output()
+        .map_err(|e| format!("Failed to run linker: {}", e))?;
 
     if !link_output.status.success() {
         return Err(format!(
