@@ -97,6 +97,12 @@ pub fn compile_and_run(source: &str) -> Result<String, String> {
             &format!("/OUT:{}", exec_str),
             "/DEFAULTLIB:msvcrt",
             "/DEFAULTLIB:legacy_stdio_definitions",
+            "/DEFAULTLIB:advapi32",
+            "/DEFAULTLIB:bcrypt",
+            "/DEFAULTLIB:kernel32",
+            "/DEFAULTLIB:ntdll",
+            "/DEFAULTLIB:userenv",
+            "/DEFAULTLIB:ws2_32",
         ])
         .output()
         .map_err(|e| format!("Failed to run linker: {}", e))?

@@ -561,6 +561,12 @@ fn link(object_path: &Path, output_path: &Path) -> Result<(), CompileError> {
             &format!("/OUT:{}", output_str),
             "/DEFAULTLIB:msvcrt",
             "/DEFAULTLIB:legacy_stdio_definitions",
+            "/DEFAULTLIB:advapi32",
+            "/DEFAULTLIB:bcrypt",
+            "/DEFAULTLIB:kernel32",
+            "/DEFAULTLIB:ntdll",
+            "/DEFAULTLIB:userenv",
+            "/DEFAULTLIB:ws2_32",
         ])
         .output()
         .map_err(|e| CompileError::Link(LinkError::ExecutionFailed(e)))?
