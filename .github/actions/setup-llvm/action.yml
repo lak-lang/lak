@@ -28,7 +28,7 @@ runs:
     - name: Configure LLVM (macOS)
       if: runner.os == 'macOS'
       shell: bash
-      run: |
+      run: | # zizmor: ignore[github-env]
         echo "LLVM_SYS_211_PREFIX=$(brew --prefix)/opt/llvm@21" >> "$GITHUB_ENV"
         echo "$(brew --prefix)/opt/llvm@21/bin" >> "$GITHUB_PATH"
 
