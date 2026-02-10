@@ -29,8 +29,8 @@ runs:
       if: runner.os == 'macOS'
       shell: bash
       run: |
-        echo "LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21" >> "$GITHUB_ENV"
-        echo "/opt/homebrew/opt/llvm@21/bin" >> "$GITHUB_PATH"
+        echo "LLVM_SYS_211_PREFIX=$(brew --prefix)/opt/llvm@21" >> "$GITHUB_ENV"
+        echo "$(brew --prefix)/opt/llvm@21/bin" >> "$GITHUB_PATH"
 
     - name: Install LLVM 21 (Windows)
       if: runner.os == 'Windows'
