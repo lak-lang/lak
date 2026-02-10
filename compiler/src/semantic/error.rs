@@ -504,6 +504,40 @@ impl SemanticError {
         )
     }
 
+    /// Creates an error for invalid operand type in ordering operation (<, >, <=, >=).
+    pub fn invalid_ordering_op_type(
+        op: crate::ast::BinaryOperator,
+        actual_ty: &str,
+        span: Span,
+    ) -> Self {
+        Self::new_with_help(
+            SemanticErrorKind::TypeMismatch,
+            format!(
+                "Ordering operator '{}' cannot be used with '{}' type",
+                op, actual_ty
+            ),
+            span,
+            "ordering operators (<, >, <=, >=) only work with numeric types (i32, i64)",
+        )
+    }
+
+    /// Creates a type mismatch error for comparison result assigned to wrong type.
+    pub fn type_mismatch_comparison_to_type(
+        op: crate::ast::BinaryOperator,
+        expected_ty: &str,
+        span: Span,
+    ) -> Self {
+        Self::new_with_help(
+            SemanticErrorKind::TypeMismatch,
+            format!(
+                "Comparison operator '{}' produces 'bool', but expected '{}'",
+                op, expected_ty
+            ),
+            span,
+            "comparison operators always produce 'bool' type",
+        )
+    }
+
     /// Creates an error for invalid operand type in unary operation.
     pub fn invalid_unary_op_type(
         op: crate::ast::UnaryOperator,
@@ -602,6 +636,19 @@ impl SemanticError {
             format!(
                 "Internal error: attempted to define variable '{}' outside a scope. This is a compiler bug.",
                 name
+            ),
+            span,
+        )
+    }
+
+    /// Creates an internal error for unhandled binary operator category.
+    pub fn internal_unhandled_binary_operator(op: crate::ast::BinaryOperator, span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::InternalError,
+            format!(
+                "Internal error: unhandled binary operator '{}' in type checking. \
+                 This is a compiler bug.",
+                op
             ),
             span,
         )

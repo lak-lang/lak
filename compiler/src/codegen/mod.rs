@@ -319,6 +319,7 @@ impl<'ctx> Codegen<'ctx> {
         self.declare_lak_println_i64();
         self.declare_lak_println_bool();
         self.declare_lak_panic();
+        self.declare_lak_streq();
     }
 
     /// Compiles a Lak program to LLVM IR.

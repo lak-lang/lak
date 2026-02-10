@@ -73,7 +73,48 @@ impl<'a> Lexer<'a> {
             }
             '.' => Ok(self.single_char_token(TokenKind::Dot, start_pos, start_line, start_column)),
             '=' => {
-                Ok(self.single_char_token(TokenKind::Equals, start_pos, start_line, start_column))
+                self.advance();
+                if self.current_char() == Some('=') {
+                    self.advance();
+                    let span = Span::new(start_pos, self.pos, start_line, start_column);
+                    Ok(Token::new(TokenKind::EqualEqual, span))
+                } else {
+                    let span = Span::new(start_pos, self.pos, start_line, start_column);
+                    Ok(Token::new(TokenKind::Equals, span))
+                }
+            }
+            '!' => {
+                self.advance();
+                if self.current_char() == Some('=') {
+                    self.advance();
+                    let span = Span::new(start_pos, self.pos, start_line, start_column);
+                    Ok(Token::new(TokenKind::BangEqual, span))
+                } else {
+                    let span = Span::new(start_pos, self.pos, start_line, start_column);
+                    Ok(Token::new(TokenKind::Bang, span))
+                }
+            }
+            '<' => {
+                self.advance();
+                if self.current_char() == Some('=') {
+                    self.advance();
+                    let span = Span::new(start_pos, self.pos, start_line, start_column);
+                    Ok(Token::new(TokenKind::LessEqual, span))
+                } else {
+                    let span = Span::new(start_pos, self.pos, start_line, start_column);
+                    Ok(Token::new(TokenKind::LessThan, span))
+                }
+            }
+            '>' => {
+                self.advance();
+                if self.current_char() == Some('=') {
+                    self.advance();
+                    let span = Span::new(start_pos, self.pos, start_line, start_column);
+                    Ok(Token::new(TokenKind::GreaterEqual, span))
+                } else {
+                    let span = Span::new(start_pos, self.pos, start_line, start_column);
+                    Ok(Token::new(TokenKind::GreaterThan, span))
+                }
             }
             '+' => Ok(self.single_char_token(TokenKind::Plus, start_pos, start_line, start_column)),
             '-' => {

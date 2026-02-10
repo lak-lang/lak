@@ -16,6 +16,7 @@ Comprehensive test suite verifying the compiler's functionality from source code
 | `e2e_basic.rs` | E2E | 7 | Basic functionality (println, comments, functions) |
 | `e2e_bool.rs` | E2E | 8 | Boolean type handling |
 | `e2e_build.rs` | E2E | 9 | `lak build` command behavior |
+| `e2e_comparison.rs` | E2E | 67 | Comparison operators (==, !=, <, >, <=, >=) |
 | `e2e_functions.rs` | E2E | 13 | User-defined function calls |
 | `e2e_imports.rs` | E2E | 4 | `import` syntax parsing |
 | `e2e_modules.rs` | E2E | 19 | Multi-file module compilation |
@@ -26,13 +27,13 @@ Comprehensive test suite verifying the compiler's functionality from source code
 | `e2e_visibility.rs` | E2E | 4 | `pub fn` visibility keyword |
 | `errors_lex.rs` | Errors | 8 | Lexical analysis error detection |
 | `errors_modules.rs` | Errors | 17 | Module resolution error detection |
-| `errors_parse.rs` | Errors | 19 | Parser error detection |
-| `errors_semantic.rs` | Errors | 53 | Semantic analysis error detection |
+| `errors_parse.rs` | Errors | 23 | Parser error detection |
+| `errors_semantic.rs` | Errors | 73 | Semantic analysis error detection |
 | `pipeline.rs` | Integration | 9 | Phase integration and direct AST construction |
 
 ## Test Categories
 
-### E2E Tests (214 tests)
+### E2E Tests (282 tests)
 
 Compile, link, and execute real Lak programs, validating stdout output.
 
@@ -41,7 +42,7 @@ let output = compile_and_run(r#"fn main() -> void { println("test") }"#).unwrap(
 assert_eq!(output, "test\n");
 ```
 
-### Error Tests (97 tests)
+### Error Tests (121 tests)
 
 Verify errors are detected at the correct compilation stage with correct error kind.
 

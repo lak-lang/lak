@@ -131,12 +131,12 @@ This document tracks the implementation status of Lak language features as defin
 
 ### 4.2 Comparison Operators
 
-- [ ] `==` equal
-- [ ] `!=` not equal
-- [ ] `<` less than
-- [ ] `>` greater than
-- [ ] `<=` less than or equal
-- [ ] `>=` greater than or equal
+- [x] `==` equal (i32, i64, bool, string)
+- [x] `!=` not equal (i32, i64, bool, string)
+- [x] `<` less than (i32, i64)
+- [x] `>` greater than (i32, i64)
+- [x] `<=` less than or equal (i32, i64)
+- [x] `>=` greater than or equal (i32, i64)
 
 ### 4.3 Logical Operators
 

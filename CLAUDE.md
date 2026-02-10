@@ -36,6 +36,7 @@ cargo test --test e2e_arithmetic
 cargo test --test e2e_basic
 cargo test --test e2e_bool
 cargo test --test e2e_build
+cargo test --test e2e_comparison
 cargo test --test e2e_functions
 cargo test --test e2e_imports
 cargo test --test e2e_modules

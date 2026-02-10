@@ -21,12 +21,14 @@ impl fmt::Display for UnaryOperator {
     }
 }
 
-/// Binary operators for arithmetic operations.
+/// Binary operators for arithmetic and comparison operations.
 ///
-/// These operators are used in binary expressions like `a + b` or `x * y`.
-/// All operators are left-associative with standard arithmetic precedence:
-/// - Multiplicative operators (`*`, `/`, `%`) have higher precedence
-/// - Additive operators (`+`, `-`) have lower precedence
+/// These operators are used in binary expressions like `a + b`, `x * y`, or `a < b`.
+/// All operators are left-associative with standard precedence (tightest to loosest):
+/// - Multiplicative operators (`*`, `/`, `%`)
+/// - Additive operators (`+`, `-`)
+/// - Comparison operators (`<`, `>`, `<=`, `>=`)
+/// - Equality operators (`==`, `!=`)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BinaryOperator {
     /// Addition operator `+`
@@ -39,6 +41,18 @@ pub enum BinaryOperator {
     Div,
     /// Modulo (remainder) operator `%`
     Mod,
+    /// Equal operator `==`
+    Equal,
+    /// Not equal operator `!=`
+    NotEqual,
+    /// Less than operator `<`
+    LessThan,
+    /// Greater than operator `>`
+    GreaterThan,
+    /// Less than or equal operator `<=`
+    LessEqual,
+    /// Greater than or equal operator `>=`
+    GreaterEqual,
 }
 
 impl fmt::Display for BinaryOperator {
@@ -49,7 +63,45 @@ impl fmt::Display for BinaryOperator {
             BinaryOperator::Mul => write!(f, "*"),
             BinaryOperator::Div => write!(f, "/"),
             BinaryOperator::Mod => write!(f, "%"),
+            BinaryOperator::Equal => write!(f, "=="),
+            BinaryOperator::NotEqual => write!(f, "!="),
+            BinaryOperator::LessThan => write!(f, "<"),
+            BinaryOperator::GreaterThan => write!(f, ">"),
+            BinaryOperator::LessEqual => write!(f, "<="),
+            BinaryOperator::GreaterEqual => write!(f, ">="),
         }
+    }
+}
+
+impl BinaryOperator {
+    /// Returns true if this is any comparison operator (==, !=, <, >, <=, >=).
+    pub fn is_comparison(&self) -> bool {
+        matches!(
+            self,
+            BinaryOperator::Equal
+                | BinaryOperator::NotEqual
+                | BinaryOperator::LessThan
+                | BinaryOperator::GreaterThan
+                | BinaryOperator::LessEqual
+                | BinaryOperator::GreaterEqual
+        )
+    }
+
+    /// Returns true if this is an equality operator (== or !=).
+    pub fn is_equality(&self) -> bool {
+        matches!(self, BinaryOperator::Equal | BinaryOperator::NotEqual)
+    }
+
+    /// Returns true if this is an arithmetic operator (+, -, *, /, %).
+    pub fn is_arithmetic(&self) -> bool {
+        matches!(
+            self,
+            BinaryOperator::Add
+                | BinaryOperator::Sub
+                | BinaryOperator::Mul
+                | BinaryOperator::Div
+                | BinaryOperator::Mod
+        )
     }
 }
 

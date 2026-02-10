@@ -39,6 +39,13 @@ impl Parser {
             TokenKind::Star => "'*'".to_string(),
             TokenKind::Slash => "'/'".to_string(),
             TokenKind::Percent => "'%'".to_string(),
+            TokenKind::Bang => "'!'".to_string(),
+            TokenKind::EqualEqual => "'=='".to_string(),
+            TokenKind::BangEqual => "'!='".to_string(),
+            TokenKind::LessThan => "'<'".to_string(),
+            TokenKind::GreaterThan => "'>'".to_string(),
+            TokenKind::LessEqual => "'<='".to_string(),
+            TokenKind::GreaterEqual => "'>='".to_string(),
         }
     }
 

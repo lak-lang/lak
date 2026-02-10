@@ -60,6 +60,30 @@ pub extern "C" fn lak_println_bool(value: bool) {
     }
 }
 
+/// Compares two C strings for equality.
+///
+/// Returns `true` if both strings have the same content, `false` otherwise.
+/// Handles null pointers: two nulls are equal, a null and non-null are not.
+///
+/// # Safety
+///
+/// The caller must ensure that both `a` and `b` are valid null-terminated C strings
+/// (or null pointers).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn lak_streq(a: *const c_char, b: *const c_char) -> bool {
+    if a == b {
+        return true;
+    }
+    if a.is_null() || b.is_null() {
+        return false;
+    }
+    // SAFETY: We verified both pointers are non-null above, and the caller
+    // guarantees they point to valid null-terminated C strings.
+    let a_str = unsafe { CStr::from_ptr(a) };
+    let b_str = unsafe { CStr::from_ptr(b) };
+    a_str == b_str
+}
+
 /// Prints an error message to stderr and terminates the program with exit code 1.
 ///
 /// This function is called by Lak's `panic()` built-in function.
@@ -144,5 +168,60 @@ mod tests {
         lak_println_i64(-1);
         lak_println_i64(i64::MAX);
         lak_println_i64(i64::MIN);
+    }
+
+    // lak_streq tests
+
+    #[test]
+    fn test_streq_equal_strings() {
+        let a = CString::new("hello").unwrap();
+        let b = CString::new("hello").unwrap();
+        assert!(unsafe { lak_streq(a.as_ptr(), b.as_ptr()) });
+    }
+
+    #[test]
+    fn test_streq_different_strings() {
+        let a = CString::new("hello").unwrap();
+        let b = CString::new("world").unwrap();
+        assert!(!unsafe { lak_streq(a.as_ptr(), b.as_ptr()) });
+    }
+
+    #[test]
+    fn test_streq_empty_strings() {
+        let a = CString::new("").unwrap();
+        let b = CString::new("").unwrap();
+        assert!(unsafe { lak_streq(a.as_ptr(), b.as_ptr()) });
+    }
+
+    #[test]
+    fn test_streq_same_pointer() {
+        let a = CString::new("hello").unwrap();
+        assert!(unsafe { lak_streq(a.as_ptr(), a.as_ptr()) });
+    }
+
+    #[test]
+    fn test_streq_both_null() {
+        assert!(unsafe { lak_streq(std::ptr::null(), std::ptr::null()) });
+    }
+
+    #[test]
+    fn test_streq_null_and_non_null() {
+        let a = CString::new("hello").unwrap();
+        assert!(!unsafe { lak_streq(std::ptr::null(), a.as_ptr()) });
+        assert!(!unsafe { lak_streq(a.as_ptr(), std::ptr::null()) });
+    }
+
+    #[test]
+    fn test_streq_different_length_strings() {
+        let a = CString::new("hi").unwrap();
+        let b = CString::new("hello").unwrap();
+        assert!(!unsafe { lak_streq(a.as_ptr(), b.as_ptr()) });
+    }
+
+    #[test]
+    fn test_streq_prefix_string() {
+        let a = CString::new("hel").unwrap();
+        let b = CString::new("hello").unwrap();
+        assert!(!unsafe { lak_streq(a.as_ptr(), b.as_ptr()) });
     }
 }

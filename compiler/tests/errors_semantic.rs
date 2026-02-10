@@ -1338,3 +1338,543 @@ fn main() -> void {
         "Expected ModuleAccessNotImplemented error kind"
     );
 }
+
+// ============================================================================
+// Comparison operator type errors
+// ============================================================================
+
+#[test]
+fn test_comparison_string_operands() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let x: string = "hello"
+    let y: string = "world"
+    let result: bool = x < y
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Ordering operator '<' cannot be used with 'string' type"
+    );
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch),
+        "Expected TypeMismatch error kind"
+    );
+}
+
+#[test]
+fn test_comparison_bool_operands() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let x: bool = true
+    let y: bool = false
+    let result: bool = x < y
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(msg, "Ordering operator '<' cannot be used with 'bool' type");
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch),
+        "Expected TypeMismatch error kind"
+    );
+}
+
+#[test]
+fn test_comparison_mismatched_types() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let x: i32 = 5
+    let y: i64 = 10
+    let result: bool = x < y
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Type mismatch: variable 'y' has type 'i64', expected 'i32'"
+    );
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch),
+        "Expected TypeMismatch error kind"
+    );
+}
+
+#[test]
+fn test_comparison_assigned_to_non_bool() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let result: i32 = 5 < 10
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Comparison operator '<' produces 'bool', but expected 'i32'"
+    );
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch),
+        "Expected TypeMismatch error kind"
+    );
+}
+
+#[test]
+fn test_equality_assigned_to_non_bool() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let result: i32 = 5 == 10
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Comparison operator '==' produces 'bool', but expected 'i32'"
+    );
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch),
+        "Expected TypeMismatch error kind"
+    );
+}
+
+#[test]
+fn test_not_equal_assigned_to_non_bool() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let result: i32 = 5 != 3
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Comparison operator '!=' produces 'bool', but expected 'i32'"
+    );
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch)
+    );
+}
+
+#[test]
+fn test_greater_than_assigned_to_non_bool() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let result: i32 = 5 > 3
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Comparison operator '>' produces 'bool', but expected 'i32'"
+    );
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch)
+    );
+}
+
+#[test]
+fn test_less_equal_assigned_to_non_bool() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let result: i32 = 3 <= 5
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Comparison operator '<=' produces 'bool', but expected 'i32'"
+    );
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch)
+    );
+}
+
+#[test]
+fn test_greater_equal_assigned_to_non_bool() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let result: i32 = 5 >= 3
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Comparison operator '>=' produces 'bool', but expected 'i32'"
+    );
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch)
+    );
+}
+
+#[test]
+fn test_ordering_string_operands_greater() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let x: string = "hello"
+    let y: string = "world"
+    let result: bool = x > y
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Ordering operator '>' cannot be used with 'string' type"
+    );
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch),
+        "Expected TypeMismatch error kind"
+    );
+}
+
+#[test]
+fn test_ordering_bool_operands_greater() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let x: bool = true
+    let y: bool = false
+    let result: bool = x > y
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(msg, "Ordering operator '>' cannot be used with 'bool' type");
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch),
+        "Expected TypeMismatch error kind"
+    );
+}
+
+#[test]
+fn test_println_comparison_type_mismatch() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    println(5 < "hello")
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Type mismatch: string literal cannot be assigned to type 'i64'"
+    );
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch),
+        "Expected TypeMismatch error kind"
+    );
+}
+
+#[test]
+fn test_println_ordering_string_operands() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let x: string = "hello"
+    let y: string = "world"
+    println(x < y)
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Ordering operator '<' cannot be used with 'string' type"
+    );
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch),
+        "Expected TypeMismatch error kind"
+    );
+}
+
+#[test]
+fn test_ordering_string_operands_less_equal() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let x: string = "hello"
+    let y: string = "world"
+    let result: bool = x <= y
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Ordering operator '<=' cannot be used with 'string' type"
+    );
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch),
+        "Expected TypeMismatch error kind"
+    );
+}
+
+#[test]
+fn test_ordering_string_operands_greater_equal() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let x: string = "hello"
+    let y: string = "world"
+    let result: bool = x >= y
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Ordering operator '>=' cannot be used with 'string' type"
+    );
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch),
+        "Expected TypeMismatch error kind"
+    );
+}
+
+#[test]
+fn test_ordering_bool_operands_less_equal() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let x: bool = true
+    let y: bool = false
+    let result: bool = x <= y
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Ordering operator '<=' cannot be used with 'bool' type"
+    );
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch),
+        "Expected TypeMismatch error kind"
+    );
+}
+
+#[test]
+fn test_ordering_bool_operands_greater_equal() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let x: bool = true
+    let y: bool = false
+    let result: bool = x >= y
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Ordering operator '>=' cannot be used with 'bool' type"
+    );
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch),
+        "Expected TypeMismatch error kind"
+    );
+}
+
+// ============================================================================
+// Equality operator type mismatch errors
+// ============================================================================
+
+#[test]
+fn test_equality_int_vs_string() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let result: bool = 5 == "hello"
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Type mismatch: string literal cannot be assigned to type 'i64'"
+    );
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch)
+    );
+}
+
+#[test]
+fn test_equality_bool_vs_int() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let x: bool = true
+    let y: i32 = 5
+    let result: bool = x != y
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Type mismatch: variable 'y' has type 'i32', expected 'bool'"
+    );
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch)
+    );
+}
+
+// ============================================================================
+// println with comparison operator errors
+// ============================================================================
+
+#[test]
+fn test_println_ordering_bool_operands() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let x: bool = true
+    let y: bool = false
+    println(x < y)
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(msg, "Ordering operator '<' cannot be used with 'bool' type");
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch)
+    );
+}

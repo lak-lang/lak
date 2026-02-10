@@ -19,10 +19,14 @@ use crate::token::{Span, TokenKind};
 /// Levels follow the Lak specification:
 /// - Level 1: `-` (unary negation) - tightest binding
 /// - Level 2: `*`, `/`, `%` (multiplicative)
-/// - Level 3: `+`, `-` (additive) - looser binding
+/// - Level 3: `+`, `-` (additive)
+/// - Level 4: `<`, `>`, `<=`, `>=` (comparison)
+/// - Level 5: `==`, `!=` (equality) - looser binding
 const PRECEDENCE_UNARY: u8 = 1;
 const PRECEDENCE_MULTIPLICATIVE: u8 = 2;
 const PRECEDENCE_ADDITIVE: u8 = 3;
+const PRECEDENCE_COMPARISON: u8 = 4;
+const PRECEDENCE_EQUALITY: u8 = 5;
 
 /// Returns the precedence of a binary operator token, if it is one.
 ///
@@ -31,6 +35,11 @@ fn binary_op_precedence(kind: &TokenKind) -> Option<u8> {
     match kind {
         TokenKind::Star | TokenKind::Slash | TokenKind::Percent => Some(PRECEDENCE_MULTIPLICATIVE),
         TokenKind::Plus | TokenKind::Minus => Some(PRECEDENCE_ADDITIVE),
+        TokenKind::LessThan
+        | TokenKind::GreaterThan
+        | TokenKind::LessEqual
+        | TokenKind::GreaterEqual => Some(PRECEDENCE_COMPARISON),
+        TokenKind::EqualEqual | TokenKind::BangEqual => Some(PRECEDENCE_EQUALITY),
         _ => None,
     }
 }
@@ -45,6 +54,12 @@ fn token_to_binary_op(kind: &TokenKind) -> Option<BinaryOperator> {
         TokenKind::Star => Some(BinaryOperator::Mul),
         TokenKind::Slash => Some(BinaryOperator::Div),
         TokenKind::Percent => Some(BinaryOperator::Mod),
+        TokenKind::EqualEqual => Some(BinaryOperator::Equal),
+        TokenKind::BangEqual => Some(BinaryOperator::NotEqual),
+        TokenKind::LessThan => Some(BinaryOperator::LessThan),
+        TokenKind::GreaterThan => Some(BinaryOperator::GreaterThan),
+        TokenKind::LessEqual => Some(BinaryOperator::LessEqual),
+        TokenKind::GreaterEqual => Some(BinaryOperator::GreaterEqual),
         _ => None,
     }
 }
@@ -60,7 +75,7 @@ impl Parser {
     /// ```text
     /// expr → primary (binary_op primary)*
     /// primary → IDENTIFIER | IDENTIFIER "(" arguments? ")" | STRING | INT | "(" expr ")"
-    /// binary_op → "+" | "-" | "*" | "/" | "%"
+    /// binary_op → "+" | "-" | "*" | "/" | "%" | "==" | "!=" | "<" | ">" | "<=" | ">="
     /// ```
     pub(super) fn parse_expr(&mut self) -> Result<Expr, ParseError> {
         self.parse_expr_pratt(u8::MAX)
@@ -330,6 +345,7 @@ impl Parser {
                 self.advance();
                 Ok(Expr::new(ExprKind::BoolLiteral(value), start_span))
             }
+            TokenKind::Bang => Err(ParseError::unsupported_logical_not(start_span)),
             _ => Err(ParseError::unexpected_expression_start(
                 &Self::token_kind_display(self.current_kind()),
                 start_span,

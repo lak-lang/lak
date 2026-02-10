@@ -269,3 +269,78 @@ fn test_member_call_tokens() {
         ]
     );
 }
+
+// Comparison and equality operator tests
+
+#[test]
+fn test_equal_equal() {
+    let kinds = tokenize_kinds("==");
+    assert_eq!(kinds, vec![TokenKind::EqualEqual, TokenKind::Eof]);
+}
+
+#[test]
+fn test_bang() {
+    let kinds = tokenize_kinds("! ");
+    assert_eq!(kinds, vec![TokenKind::Bang, TokenKind::Eof]);
+}
+
+#[test]
+fn test_bang_equal() {
+    let kinds = tokenize_kinds("!=");
+    assert_eq!(kinds, vec![TokenKind::BangEqual, TokenKind::Eof]);
+}
+
+#[test]
+fn test_less_than() {
+    let kinds = tokenize_kinds("< ");
+    assert_eq!(kinds, vec![TokenKind::LessThan, TokenKind::Eof]);
+}
+
+#[test]
+fn test_less_equal() {
+    let kinds = tokenize_kinds("<=");
+    assert_eq!(kinds, vec![TokenKind::LessEqual, TokenKind::Eof]);
+}
+
+#[test]
+fn test_greater_than() {
+    let kinds = tokenize_kinds("> ");
+    assert_eq!(kinds, vec![TokenKind::GreaterThan, TokenKind::Eof]);
+}
+
+#[test]
+fn test_greater_equal() {
+    let kinds = tokenize_kinds(">=");
+    assert_eq!(kinds, vec![TokenKind::GreaterEqual, TokenKind::Eof]);
+}
+
+#[test]
+fn test_equals_followed_by_digit() {
+    let kinds = tokenize_kinds("=5");
+    assert_eq!(
+        kinds,
+        vec![TokenKind::Equals, TokenKind::IntLiteral(5), TokenKind::Eof]
+    );
+}
+
+#[test]
+fn test_equal_equal_followed_by_digit() {
+    let kinds = tokenize_kinds("==5");
+    assert_eq!(
+        kinds,
+        vec![
+            TokenKind::EqualEqual,
+            TokenKind::IntLiteral(5),
+            TokenKind::Eof
+        ]
+    );
+}
+
+#[test]
+fn test_less_less_equal() {
+    let kinds = tokenize_kinds("<<=");
+    assert_eq!(
+        kinds,
+        vec![TokenKind::LessThan, TokenKind::LessEqual, TokenKind::Eof]
+    );
+}

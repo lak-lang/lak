@@ -283,11 +283,8 @@ impl SemanticAnalyzer {
                         args[0].span,
                     ));
                 }
-                ExprKind::BinaryOp { left, right, .. } => {
-                    // For binary operations, we need to infer the type from the operands
-                    // and validate that all variables exist
-                    self.validate_expr_for_println(left)?;
-                    self.validate_expr_for_println(right)?;
+                ExprKind::BinaryOp { .. } => {
+                    self.validate_expr_for_println(&args[0])?;
                 }
                 ExprKind::UnaryOp { .. } => {
                     // For unary operations, validate that all variables exist
@@ -545,11 +542,83 @@ impl SemanticAnalyzer {
         }
     }
 
+    /// Infers the type of an expression without checking against an expected type.
+    ///
+    /// Used for comparison operators where we need to determine operand types
+    /// before checking they match each other.
+    ///
+    /// Kept in sync with `Codegen::infer_expr_type_for_comparison` in `codegen/expr.rs`
+    /// and `Codegen::get_expr_type` in `codegen/builtins.rs`.
+    fn infer_expr_type(&self, expr: &Expr) -> Result<Type, SemanticError> {
+        match &expr.kind {
+            ExprKind::IntLiteral(_) => Ok(Type::I64),
+            ExprKind::StringLiteral(_) => Ok(Type::String),
+            ExprKind::BoolLiteral(_) => Ok(Type::Bool),
+            ExprKind::Identifier(name) => {
+                let var = self
+                    .symbols
+                    .lookup_variable(name)
+                    .ok_or_else(|| SemanticError::undefined_variable(name, expr.span))?;
+                Ok(var.ty.clone())
+            }
+            ExprKind::BinaryOp { left, op, .. } => {
+                if op.is_comparison() {
+                    Ok(Type::Bool)
+                } else {
+                    self.infer_expr_type(left)
+                }
+            }
+            ExprKind::UnaryOp { operand, .. } => self.infer_expr_type(operand),
+            ExprKind::Call { callee, .. } => Err(SemanticError::type_mismatch_call_as_value(
+                callee, expr.span,
+            )),
+            ExprKind::MemberAccess { .. } => {
+                Err(SemanticError::module_access_not_implemented(expr.span))
+            }
+            ExprKind::ModuleCall {
+                module, function, ..
+            } => Err(SemanticError::module_call_return_value_not_supported(
+                module, function, expr.span,
+            )),
+        }
+    }
+
+    /// Validates operands for a comparison operation.
+    ///
+    /// Checks that:
+    /// 1. For ordering operators (<, >, <=, >=), the operand type is numeric (i32 or i64)
+    /// 2. The right operand matches the left operand's type
+    ///
+    /// Returns the inferred operand type on success.
+    fn validate_comparison_operands(
+        &self,
+        left: &Expr,
+        op: BinaryOperator,
+        right: &Expr,
+        span: Span,
+    ) -> Result<Type, SemanticError> {
+        let operand_ty = self.infer_expr_type(left)?;
+        if !op.is_equality() && operand_ty != Type::I32 && operand_ty != Type::I64 {
+            return Err(SemanticError::invalid_ordering_op_type(
+                op,
+                &operand_ty.to_string(),
+                span,
+            ));
+        }
+        self.check_expr_type(right, &operand_ty)?;
+        Ok(operand_ty)
+    }
+
     /// Checks the types of a binary operation.
     ///
-    /// Binary operations require:
-    /// 1. Both operands to have the expected type
-    /// 2. The expected type to be numeric (i32 or i64)
+    /// For arithmetic operators:
+    /// 1. Both operands must have the expected type
+    /// 2. The expected type must be numeric (i32 or i64)
+    ///
+    /// For comparison operators:
+    /// 1. The expected type must be bool (comparison result type)
+    /// 2. Equality operators accept all operand types; ordering operators require numeric
+    /// 3. Both operands must have the same type
     fn check_binary_op_type(
         &self,
         left: &Expr,
@@ -558,20 +627,41 @@ impl SemanticAnalyzer {
         expected_ty: &Type,
         span: Span,
     ) -> Result<(), SemanticError> {
-        // Verify the expected type is numeric (not string or bool)
-        if *expected_ty == Type::String || *expected_ty == Type::Bool {
-            return Err(SemanticError::invalid_binary_op_type(
-                op,
-                &expected_ty.to_string(),
-                span,
-            ));
+        if op.is_comparison() {
+            // Comparison operators produce bool
+            if *expected_ty != Type::Bool {
+                return Err(SemanticError::type_mismatch_comparison_to_type(
+                    op,
+                    &expected_ty.to_string(),
+                    span,
+                ));
+            }
+
+            let operand_ty = self.validate_comparison_operands(left, op, right, span)?;
+            // Recursively validate sub-expressions within the left operand.
+            // infer_expr_type only returns the outermost type; this deeply validates
+            // the entire expression tree (e.g., nested binary ops).
+            self.check_expr_type(left, &operand_ty)?;
+
+            Ok(())
+        } else if op.is_arithmetic() {
+            // Arithmetic operators: expected type must be numeric
+            if *expected_ty == Type::String || *expected_ty == Type::Bool {
+                return Err(SemanticError::invalid_binary_op_type(
+                    op,
+                    &expected_ty.to_string(),
+                    span,
+                ));
+            }
+
+            // Check both operands have the expected type
+            self.check_expr_type(left, expected_ty)?;
+            self.check_expr_type(right, expected_ty)?;
+
+            Ok(())
+        } else {
+            Err(SemanticError::internal_unhandled_binary_operator(op, span))
         }
-
-        // Check both operands have the expected type
-        self.check_expr_type(left, expected_ty)?;
-        self.check_expr_type(right, expected_ty)?;
-
-        Ok(())
     }
 
     /// Checks the types of a unary operation.
@@ -607,6 +697,7 @@ impl SemanticAnalyzer {
     /// This recursively validates that:
     /// 1. All variables referenced in the expression exist
     /// 2. No unary operator is applied to a string type
+    /// 3. Comparison operands have matching types and ordering operators use numeric types
     fn validate_expr_for_println(&self, expr: &Expr) -> Result<(), SemanticError> {
         match &expr.kind {
             ExprKind::IntLiteral(_) | ExprKind::StringLiteral(_) | ExprKind::BoolLiteral(_) => {
@@ -618,9 +709,16 @@ impl SemanticAnalyzer {
                     .ok_or_else(|| SemanticError::undefined_variable(name, expr.span))?;
                 Ok(())
             }
-            ExprKind::BinaryOp { left, right, .. } => {
+            ExprKind::BinaryOp { left, op, right } => {
+                // First validate sub-expressions recursively
                 self.validate_expr_for_println(left)?;
                 self.validate_expr_for_println(right)?;
+
+                // Then type-check the comparison operands
+                if op.is_comparison() {
+                    self.validate_comparison_operands(left, *op, right, expr.span)?;
+                }
+
                 Ok(())
             }
             ExprKind::UnaryOp { op, operand } => {

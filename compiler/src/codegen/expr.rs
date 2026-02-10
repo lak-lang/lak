@@ -1,7 +1,8 @@
 //! Expression code generation.
 //!
 //! This module implements code generation for Lak expressions, including
-//! function calls, literals, and variable references.
+//! function calls, literals, variable references, binary operations
+//! (arithmetic and comparison), and unary operations.
 
 use super::Codegen;
 use super::builtins::BUILTIN_NAMES;
@@ -257,6 +258,184 @@ impl<'ctx> Codegen<'ctx> {
         }
     }
 
+    /// Infers the type of an expression for comparison operator codegen.
+    ///
+    /// Semantic analysis has already validated types. This re-infers the operand
+    /// type at the codegen level to determine which LLVM instructions to emit.
+    ///
+    /// Kept in sync with `SemanticAnalyzer::infer_expr_type` in `semantic/mod.rs`
+    /// and `Codegen::get_expr_type` in `codegen/builtins.rs`.
+    fn infer_expr_type_for_comparison(&self, expr: &Expr) -> Result<Type, CodegenError> {
+        match &expr.kind {
+            ExprKind::IntLiteral(_) => Ok(Type::I64),
+            ExprKind::Identifier(name) => {
+                let binding = self
+                    .variables
+                    .get(name)
+                    .ok_or_else(|| CodegenError::internal_variable_not_found(name, expr.span))?;
+                Ok(binding.ty().clone())
+            }
+            ExprKind::BinaryOp { left, op, .. } => {
+                if op.is_comparison() {
+                    Ok(Type::Bool)
+                } else {
+                    self.infer_expr_type_for_comparison(left)
+                }
+            }
+            ExprKind::UnaryOp { operand, .. } => self.infer_expr_type_for_comparison(operand),
+            ExprKind::BoolLiteral(_) => Ok(Type::Bool),
+            ExprKind::StringLiteral(_) => Ok(Type::String),
+            ExprKind::Call { callee, .. } => {
+                Err(CodegenError::internal_call_as_value(callee, expr.span))
+            }
+            ExprKind::MemberAccess { .. } => Err(
+                CodegenError::internal_member_access_not_implemented(expr.span),
+            ),
+            ExprKind::ModuleCall {
+                module, function, ..
+            } => Err(CodegenError::internal_module_call_as_value(
+                module, function, expr.span,
+            )),
+        }
+    }
+
+    /// Generates LLVM IR for a comparison operation.
+    ///
+    /// Supports integer (i32, i64), bool (== and != only), and string (== and != only) comparisons.
+    fn generate_comparison_op(
+        &mut self,
+        left: &Expr,
+        op: BinaryOperator,
+        right: &Expr,
+        span: crate::token::Span,
+    ) -> Result<BasicValueEnum<'ctx>, CodegenError> {
+        let operand_ty = self.infer_expr_type_for_comparison(left)?;
+
+        match operand_ty {
+            Type::I32 | Type::I64 | Type::Bool => {
+                // Reject ordering operators for bool
+                if operand_ty == Type::Bool && !op.is_equality() {
+                    return Err(CodegenError::internal_binary_op_failed(
+                        op,
+                        "ordering operators not supported for bool",
+                        span,
+                    ));
+                }
+
+                let left_basic = self.generate_expr_value(left, &operand_ty)?;
+                let left_value = match left_basic {
+                    BasicValueEnum::IntValue(v) => v,
+                    _ => return Err(CodegenError::internal_non_integer_value("comparison", span)),
+                };
+                let right_basic = self.generate_expr_value(right, &operand_ty)?;
+                let right_value = match right_basic {
+                    BasicValueEnum::IntValue(v) => v,
+                    _ => return Err(CodegenError::internal_non_integer_value("comparison", span)),
+                };
+
+                let predicate = match op {
+                    BinaryOperator::Equal => IntPredicate::EQ,
+                    BinaryOperator::NotEqual => IntPredicate::NE,
+                    BinaryOperator::LessThan => IntPredicate::SLT,
+                    BinaryOperator::GreaterThan => IntPredicate::SGT,
+                    BinaryOperator::LessEqual => IntPredicate::SLE,
+                    BinaryOperator::GreaterEqual => IntPredicate::SGE,
+                    BinaryOperator::Add
+                    | BinaryOperator::Sub
+                    | BinaryOperator::Mul
+                    | BinaryOperator::Div
+                    | BinaryOperator::Mod => {
+                        return Err(CodegenError::internal_binary_op_failed(
+                            op,
+                            "not a comparison operator",
+                            span,
+                        ));
+                    }
+                };
+
+                let label = if operand_ty == Type::Bool {
+                    "bool_cmp_tmp"
+                } else {
+                    "cmp_tmp"
+                };
+                let result = self
+                    .builder
+                    .build_int_compare(predicate, left_value, right_value, label)
+                    .map_err(|e| CodegenError::internal_compare_failed(&e.to_string(), span))?;
+                Ok(result.into())
+            }
+            Type::String => {
+                let left_basic = self.generate_expr_value(left, &Type::String)?;
+                let left_ptr = match left_basic {
+                    BasicValueEnum::PointerValue(v) => v,
+                    _ => {
+                        return Err(CodegenError::internal_non_pointer_value(
+                            "string comparison",
+                            span,
+                        ));
+                    }
+                };
+                let right_basic = self.generate_expr_value(right, &Type::String)?;
+                let right_ptr = match right_basic {
+                    BasicValueEnum::PointerValue(v) => v,
+                    _ => {
+                        return Err(CodegenError::internal_non_pointer_value(
+                            "string comparison",
+                            span,
+                        ));
+                    }
+                };
+
+                let lak_streq = self.module.get_function("lak_streq").ok_or_else(|| {
+                    CodegenError::internal_builtin_not_found_with_span("lak_streq", span)
+                })?;
+
+                let call_result = self
+                    .builder
+                    .build_call(
+                        lak_streq,
+                        &[
+                            BasicMetadataValueEnum::PointerValue(left_ptr),
+                            BasicMetadataValueEnum::PointerValue(right_ptr),
+                        ],
+                        "streq_tmp",
+                    )
+                    .map_err(|e| CodegenError::internal_streq_call_failed(&e.to_string(), span))?;
+
+                let eq_result = match call_result.try_as_basic_value() {
+                    inkwell::values::ValueKind::Basic(BasicValueEnum::IntValue(v)) => v,
+                    inkwell::values::ValueKind::Basic(_) => {
+                        return Err(CodegenError::internal_streq_unexpected_basic_type(span));
+                    }
+                    inkwell::values::ValueKind::Instruction(_) => {
+                        return Err(CodegenError::internal_streq_returned_void(span));
+                    }
+                };
+
+                match op {
+                    BinaryOperator::Equal => Ok(eq_result.into()),
+                    BinaryOperator::NotEqual => {
+                        // build_not is bitwise NOT, which is equivalent to logical NOT
+                        // only for i1 (1-bit) values. This relies on declare_lak_streq
+                        // declaring the return type as bool_type() (i1).
+                        let negated =
+                            self.builder
+                                .build_not(eq_result, "strneq_tmp")
+                                .map_err(|e| {
+                                    CodegenError::internal_compare_failed(&e.to_string(), span)
+                                })?;
+                        Ok(negated.into())
+                    }
+                    _ => Err(CodegenError::internal_binary_op_failed(
+                        op,
+                        "ordering operators not supported for string",
+                        span,
+                    )),
+                }
+            }
+        }
+    }
+
     /// Generates LLVM IR for a binary operation.
     ///
     /// # Arguments
@@ -270,7 +449,8 @@ impl<'ctx> Codegen<'ctx> {
     /// # Errors
     ///
     /// Returns an internal error if:
-    /// - The expected type is string (semantic analysis should catch this)
+    /// - A comparison operator is dispatched with a non-bool expected type
+    /// - The expected type is string or bool for an arithmetic operator
     /// - LLVM instruction building fails
     ///
     /// # Runtime Panics
@@ -291,7 +471,19 @@ impl<'ctx> Codegen<'ctx> {
         expected_ty: &Type,
         span: crate::token::Span,
     ) -> Result<BasicValueEnum<'ctx>, CodegenError> {
-        // Semantic analysis guarantees the type is numeric (not string or bool)
+        // Dispatch comparison operators to dedicated handler
+        if op.is_comparison() {
+            if *expected_ty != Type::Bool {
+                return Err(CodegenError::internal_comparison_expected_bool(
+                    op,
+                    expected_ty,
+                    span,
+                ));
+            }
+            return self.generate_comparison_op(left, op, right, span);
+        }
+
+        // Arithmetic operators below: semantic analysis guarantees the type is numeric (not string or bool)
         if *expected_ty == Type::String || *expected_ty == Type::Bool {
             return Err(CodegenError::internal_binary_op_string(op, span));
         }
@@ -345,6 +537,18 @@ impl<'ctx> Codegen<'ctx> {
                     .map_err(|e| {
                         CodegenError::internal_binary_op_failed(op, &e.to_string(), span)
                     })?
+            }
+            BinaryOperator::Equal
+            | BinaryOperator::NotEqual
+            | BinaryOperator::LessThan
+            | BinaryOperator::GreaterThan
+            | BinaryOperator::LessEqual
+            | BinaryOperator::GreaterEqual => {
+                return Err(CodegenError::internal_binary_op_failed(
+                    op,
+                    "comparison operators should have been dispatched before reaching this match",
+                    span,
+                ));
             }
         };
 

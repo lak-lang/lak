@@ -80,6 +80,27 @@ pub enum TokenKind {
     /// A percent sign `%` for modulo.
     Percent,
 
+    /// A bang (exclamation mark) `!`.
+    Bang,
+
+    /// Double equals `==` for equality comparison.
+    EqualEqual,
+
+    /// Not equals `!=` for inequality comparison.
+    BangEqual,
+
+    /// Less than `<` for comparison.
+    LessThan,
+
+    /// Greater than `>` for comparison.
+    GreaterThan,
+
+    /// Less than or equal `<=` for comparison.
+    LessEqual,
+
+    /// Greater than or equal `>=` for comparison.
+    GreaterEqual,
+
     /// An integer literal (e.g., 42, 100).
     IntLiteral(u64),
 

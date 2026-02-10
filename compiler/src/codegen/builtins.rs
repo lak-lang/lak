@@ -1,7 +1,7 @@
 //! Built-in function code generation.
 //!
 //! This module implements code generation for Lak's built-in functions:
-//! println (string, i32, i64, bool variants) and panic.
+//! println (string, i32, i64, bool variants), panic, and streq (string equality).
 
 use super::Codegen;
 use super::error::CodegenError;
@@ -25,6 +25,7 @@ pub(super) const BUILTIN_NAMES: &[&str] = &[
     "lak_println_i64",
     "lak_println_bool",
     "lak_panic",
+    "lak_streq",
 ];
 
 impl<'ctx> Codegen<'ctx> {
@@ -151,6 +152,26 @@ impl<'ctx> Codegen<'ctx> {
         panic_fn.add_attribute(inkwell::attributes::AttributeLoc::Function, noreturn_attr);
     }
 
+    /// Declares the Lak runtime `lak_streq` function for use in generated code.
+    ///
+    /// This creates an external function declaration with the signature:
+    /// `bool (i1) lak_streq(ptr a, ptr b)`
+    ///
+    /// The return type is declared as `bool_type()` (LLVM `i1`), matching the Rust
+    /// `bool` return type of the runtime function. This is consistent with how
+    /// `declare_lak_println_bool` uses `bool_type()` for its bool parameter.
+    /// The `i1` return type is required by `generate_comparison_op` in `expr.rs`,
+    /// which uses `build_not` (bitwise NOT) for `!=` — this is only equivalent
+    /// to logical NOT for `i1` values.
+    pub(super) fn declare_lak_streq(&self) {
+        let bool_type = self.context.bool_type();
+        let i8_ptr_type = self.context.ptr_type(AddressSpace::default());
+
+        let streq_type = bool_type.fn_type(&[i8_ptr_type.into(), i8_ptr_type.into()], false);
+        self.module
+            .add_function("lak_streq", streq_type, Some(Linkage::External));
+    }
+
     /// Returns the type of an expression for println dispatch.
     ///
     /// This is used to determine which println runtime function to call.
@@ -166,6 +187,9 @@ impl<'ctx> Codegen<'ctx> {
     ///
     /// Note: Integer literals passed directly to println are always treated as i64.
     /// To print an i32, assign the literal to an i32 variable first.
+    ///
+    /// Kept in sync with `SemanticAnalyzer::infer_expr_type` in `semantic/mod.rs`
+    /// and `Codegen::infer_expr_type_for_comparison` in `codegen/expr.rs`.
     ///
     /// # Returns
     ///
@@ -184,10 +208,12 @@ impl<'ctx> Codegen<'ctx> {
             ExprKind::Call { callee, .. } => {
                 Err(CodegenError::internal_println_call_arg(callee, expr.span))
             }
-            ExprKind::BinaryOp { left, .. } => {
-                // For binary operations, infer the type from the left operand.
-                // Semantic analysis has already verified both operands have the same type.
-                self.get_expr_type(left)
+            ExprKind::BinaryOp { left, op, .. } => {
+                if op.is_comparison() {
+                    Ok(Type::Bool)
+                } else {
+                    self.get_expr_type(left)
+                }
             }
             ExprKind::UnaryOp { operand, .. } => {
                 // For unary operations, infer the type from the operand.
@@ -367,7 +393,8 @@ impl<'ctx> Codegen<'ctx> {
 
     /// Generates LLVM IR for `println` with a bool argument.
     ///
-    /// This handles boolean literals and bool variables.
+    /// This handles boolean literals, bool variables, and bool-producing expressions
+    /// (such as comparison operations).
     fn generate_println_bool(&mut self, arg: &Expr, span: Span) -> Result<(), CodegenError> {
         let bool_value = match &arg.kind {
             ExprKind::BoolLiteral(value) => {
@@ -395,6 +422,18 @@ impl<'ctx> Codegen<'ctx> {
                     "println_bool load",
                     arg.span,
                 )?
+            }
+            ExprKind::BinaryOp { .. } | ExprKind::UnaryOp { .. } => {
+                // For binary/unary operations, generate the expression value
+                match self.generate_expr_value(arg, &Type::Bool)? {
+                    BasicValueEnum::IntValue(v) => v,
+                    _ => {
+                        return Err(CodegenError::internal_non_integer_value(
+                            "println_bool expr",
+                            arg.span,
+                        ));
+                    }
+                }
             }
             _ => {
                 return Err(CodegenError::internal_println_invalid_bool_arg(arg.span));
