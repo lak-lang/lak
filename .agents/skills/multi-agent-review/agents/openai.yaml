@@ -1,0 +1,4 @@
+interface:
+  display_name: "Multi-Agent Review"
+  short_description: "Parallel sub-agent code review with validation"
+  default_prompt: "Use $multi-agent-review to run a multi-perspective review on the current diff."
