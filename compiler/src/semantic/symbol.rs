@@ -145,6 +145,12 @@ impl SymbolTable {
         }
         None
     }
+
+    /// Looks up a variable only in the current (innermost) scope.
+    pub fn lookup_variable_in_current_scope(&self, name: &str) -> Option<&VariableInfo> {
+        let current_scope = self.scopes.last()?;
+        current_scope.variables.get(name)
+    }
 }
 
 impl Default for SymbolTable {

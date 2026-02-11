@@ -61,3 +61,22 @@ fn test_undefined_variable() {
     assert_eq!(err.kind(), SemanticErrorKind::UndefinedVariable);
     assert_eq!(err.message(), "Undefined variable: 'y'");
 }
+
+#[test]
+fn test_self_referential_let_initializer_is_undefined_variable() {
+    let program = program_with_main(vec![Stmt::new(
+        StmtKind::Let {
+            name: "x".to_string(),
+            ty: Type::I32,
+            init: Expr::new(ExprKind::Identifier("x".to_string()), span_at(2, 18)),
+        },
+        span_at(2, 5),
+    )]);
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze(&program);
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert_eq!(err.kind(), SemanticErrorKind::UndefinedVariable);
+    assert_eq!(err.message(), "Undefined variable: 'x'");
+}

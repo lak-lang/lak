@@ -210,17 +210,27 @@ impl SemanticAnalyzer {
         init: &Expr,
         span: Span,
     ) -> Result<(), SemanticError> {
-        // Check for duplicate variable
+        // Check for duplicate variable in current scope first.
+        // This preserves error precedence for redefinitions.
+        if let Some(existing) = self.symbols.lookup_variable_in_current_scope(name) {
+            return Err(SemanticError::duplicate_variable(
+                name,
+                existing.definition_span.line,
+                existing.definition_span.column,
+                span,
+            ));
+        }
+
+        // Type check initializer before introducing the new binding.
+        // This rejects self-referential initializers like `let x: i32 = x`.
+        self.check_expr_type(init, ty)?;
+
         let info = VariableInfo {
             name: name.to_string(),
             ty: ty.clone(),
             definition_span: span,
         };
-
         self.symbols.define_variable(info)?;
-
-        // Type check initializer
-        self.check_expr_type(init, ty)?;
 
         Ok(())
     }

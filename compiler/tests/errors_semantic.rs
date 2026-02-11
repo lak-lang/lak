@@ -138,6 +138,29 @@ fn test_compile_error_undefined_variable() {
 }
 
 #[test]
+fn test_compile_error_self_referential_let_initializer() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let x: i32 = x
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(msg, "Undefined variable: 'x'");
+    assert_eq!(short_msg, "Undefined variable");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::UndefinedVariable),
+        "Expected UndefinedVariable error kind"
+    );
+}
+
+#[test]
 fn test_compile_error_type_mismatch() {
     let result = compile_error_with_kind(
         r#"fn main() -> void {
