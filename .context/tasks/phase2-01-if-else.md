@@ -27,7 +27,7 @@ if condition {
 
 ## Dependencies
 - `bool` type (completed)
-- Comparison operators (phase1-03) - recommended
+- Comparison operators (completed) - recommended
 - Logical operators (phase1-04) - recommended
 
 ## Dependents

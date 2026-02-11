@@ -29,7 +29,7 @@ let z = -0.5            // f64
 
 ## Dependencies
 - Arithmetic operators (completed)
-- Comparison operators (phase1-03)
+- Comparison operators (completed)
 - Unary minus (completed)
 
 ## Dependents

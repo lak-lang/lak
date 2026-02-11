@@ -48,7 +48,7 @@ match color {
 ## Dependencies
 - Simple enums (phase6-01)
 - `if`/`else` (phase2-01) - similar expression semantics
-- Comparison operators (phase1-03) - for literal patterns
+- Comparison operators (completed) - for literal patterns
 
 ## Dependents
 - `Option<T>` handling (phase6-02)

@@ -26,7 +26,7 @@ Phase 5: Additional Types (Medium Priority)
 ## Dependencies
 - i32/i64 types (completed)
 - Arithmetic operators (completed)
-- Comparison operators (phase1-03)
+- Comparison operators (completed)
 
 ## Dependents
 - `byte` type alias

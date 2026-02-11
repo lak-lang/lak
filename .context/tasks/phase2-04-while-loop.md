@@ -44,7 +44,7 @@ while condition {
 
 ## Dependencies
 - `bool` type (completed)
-- Comparison operators (phase1-03) - for loop conditions
+- Comparison operators (completed) - for loop conditions
 - Logical operators (phase1-04) - for complex conditions
 
 ## Dependents
