@@ -1,7 +1,7 @@
 # while Loop with break/continue
 
 ## Overview
-`while` ループと `break`/`continue` 文を実装する。
+Implement the `while` loop and `break`/`continue` statements.
 
 ### Syntax
 ```lak
@@ -11,19 +11,19 @@ while condition {
 ```
 
 ### Features
-- 条件が true の間繰り返す
-- `while true { ... }` で無限ループ
-- `break` でループを終了
-- `continue` で次のイテレーションへ
+- Repeat while the condition is true
+- Infinite loop with `while true { ... }`
+- Exit loop with `break`
+- Continue to the next iteration with `continue`
 
 ### Examples
 ```lak
-// 条件付きループ
+// Conditional loop
 while condition {
     // ...
 }
 
-// 無限ループ
+// Infinite loop
 while true {
     if should_stop {
         break
@@ -38,4 +38,3 @@ while condition {
     // ...
 }
 ```
-

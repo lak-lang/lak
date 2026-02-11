@@ -1,24 +1,23 @@
 # Modules and Imports
 
 ## Overview
-モジュールシステムとimport文を実装する。
+Implement the module system and import statements.
 
-1ファイル = 1モジュール。`pub` キーワードで関数/構造体/enumを公開する。
+1 file = 1 module. Use the `pub` keyword to export functions/structs/enums.
 
 ### Visibility
-- デフォルトはprivate
-- `pub` キーワードで公開
+- Default is private.
+- Use the `pub` keyword to make definitions public.
 
 ### Import Syntax
 ```lak
-import "math"              // 標準ライブラリ
-import "math/calc"         // サブモジュール
-import "./utils"           // ローカルファイル（相対パス）
-import "path" as alias     // エイリアス
+import "math"              // standard library
+import "math/calc"         // submodule
+import "./utils"           // local file (relative path)
+import "path" as alias     // alias
 ```
 
 ### Module Resolution
-- モジュール名はパスの最後のセグメント
-- importされたモジュールの `main` は実行されない
-- publicな定義のみアクセス可能
-
+- The module name is the last segment of the path.
+- `main` in imported modules is not executed.
+- Only public definitions are accessible.

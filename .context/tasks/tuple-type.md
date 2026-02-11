@@ -1,7 +1,7 @@
 # Tuple Type
 
 ## Overview
-タプル型を実装する。複数の値をグループ化する。
+Implement tuple types for grouping multiple values.
 
 ### Syntax
 ```lak
@@ -10,7 +10,7 @@ let triple = (1, "a", true)            // Inferred as (int, string, bool)
 ```
 
 ### Element Access
-`.0`, `.1` などでアクセス。
+Access elements with `.0`, `.1`, etc.
 
 ```lak
 let pair = (1, "hello")
@@ -27,4 +27,3 @@ let a = nested.0.1      // 2
 let pair = (1, "hello")
 let x, y = pair         // x = 1, y = "hello"
 ```
-

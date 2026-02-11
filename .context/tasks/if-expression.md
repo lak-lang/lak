@@ -1,33 +1,32 @@
 # if as Expression
 
 ## Overview
-`if` を式として使用できるようにする。値を返すことができる。
+Allow `if` to be used as an expression so it can return a value.
 
 ```lak
 let max = if a > b { a } else { b }
 ```
 
 ### Rules
-- `else` が必須
-- 両方のブランチの型が一致する必要がある
-- ブロック内の最後の式がブランチの値になる
+- `else` is required.
+- Both branches must have the same type.
+- The last expression in each block becomes the branch value.
 
 ### Examples
 ```lak
-// OK: 両方のブランチが int
+// OK: both branches are int
 let max = if a > b { a } else { b }
 
-// OK: ネスト可能
+// OK: nested expression
 let result = if x > 0 {
     if x > 100 { 100 } else { x }
 } else {
     0
 }
 
-// Compile error: else がない
+// Compile error: missing else
 let value = if condition { 42 }
 
-// Compile error: 型が一致しない
+// Compile error: mismatched types
 let value = if condition { 42 } else { "hello" }
 ```
-

@@ -1,7 +1,7 @@
 # if/else Statement
 
 ## Overview
-`if`/`else` 文を実装する。
+Implement `if`/`else` statements.
 
 ```lak
 if condition {
@@ -14,11 +14,10 @@ if condition {
 ```
 
 ### Features
-- 基本的な `if condition { ... }`
-- `else` ブランチ
-- `else if` チェーン
+- Basic `if condition { ... }`
+- `else` branch
+- `else if` chain
 
 ### Condition
-- 条件式は `bool` 型でなければならない
-- 比較演算子や論理演算子の結果を使用
-
+- Conditional expressions must be of type `bool`.
+- Use results of comparison and logical operators.

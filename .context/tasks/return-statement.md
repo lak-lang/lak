@@ -1,16 +1,16 @@
 # Return Statement
 
 ## Overview
-`return` 文を実装する。
+Implement the `return` statement.
 
 ### Syntax
-- `return expr`: 戻り値を持つ関数用
-- `return`: void関数での早期リターン用
+- `return expr`: for functions with a return value
+- `return`: for early return in void functions
 
 ### Rules
-- 戻り値を持つ関数は `return` 文が必須
-- void関数は末尾の `return` を省略可能
-- void関数での早期リターンは `return`（値なし）を使用
+- Functions with a return value must have a `return` statement.
+- Void functions may omit a trailing `return`.
+- For early return in void functions, use `return` without a value.
 
 ### Examples
 ```lak
@@ -18,15 +18,14 @@ fn abs(x: int) -> int {
     if x < 0 {
         return -x
     }
-    return x              // return 必須
+    return x              // return is required
 }
 
 fn greet_if(flag: bool) -> void {
     if !flag {
-        return            // 早期リターン（値なし）
+        return            // early return (no value)
     }
     println("hello")
-                          // 末尾の return は省略可能
+                          // trailing return can be omitted
 }
 ```
-

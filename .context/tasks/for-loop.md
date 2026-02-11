@@ -1,7 +1,7 @@
 # for Loop
 
 ## Overview
-`for` ループを実装する。コレクションのイテレーション用。
+Implement the `for` loop for collection iteration.
 
 ### Syntax
 ```lak
@@ -11,7 +11,7 @@ for i, item in list {
 ```
 
 ### Iteration Patterns
-ループ変数はイテレータの `next` メソッドの戻り値を受け取る。
+Loop variables receive the return value of the iterator's `next` method.
 
 ```lak
 // List<T> iterator returns (int, T) - index and element
@@ -36,8 +36,8 @@ for i in range(0, 10) {
 ```
 
 ### Loop Control
-- `break`: ループを終了
-- `continue`: 次のイテレーションへ
+- `break`: exit the loop
+- `continue`: move to the next iteration
 
 ```lak
 for _, item in list {
@@ -52,5 +52,4 @@ for _, item in list {
 ```
 
 ### Rules
-- ループ変数は immutable（ループ内で変更不可）
-
+- Loop variables are immutable (cannot be reassigned inside the loop).

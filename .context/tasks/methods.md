@@ -1,10 +1,10 @@
 # Methods
 
 ## Overview
-構造体のメソッドを実装する。
+Implement methods for structs.
 
 ### Syntax
-メソッドは構造体定義の内部に定義する。最初のパラメータは `self`。
+Define methods inside the struct definition. The first parameter is `self`.
 
 ```lak
 struct User {
@@ -26,12 +26,12 @@ struct User {
 ```
 
 ### self Parameter
-- `self`: immutable（読み取りのみ）
-- `mut self`: mutable（変更可能）
+- `self`: immutable (read-only)
+- `mut self`: mutable (can modify)
 
 ### Visibility
-- メソッドはデフォルトでprivate
-- `pub` キーワードで公開
+- Methods are private by default.
+- Use the `pub` keyword to make methods public.
 
 ### Calling Methods
 ```lak
@@ -41,7 +41,7 @@ let adult = u.is_adult()        // true
 ```
 
 ### mut self Restriction
-`mut self` メソッドは `mut` で宣言された変数に対してのみ呼び出し可能。
+`mut self` methods can only be called on variables declared with `mut`.
 
 ```lak
 let u = User { name: "alice", age: 30 }
@@ -50,4 +50,3 @@ u.set_name("bob")               // Compile error: u is immutable
 let mut u2 = User { name: "alice", age: 30 }
 u2.set_name("bob")              // OK
 ```
-

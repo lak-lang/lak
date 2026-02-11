@@ -1,11 +1,11 @@
 # Logical Operators
 
 ## Overview
-論理演算子 (`&&`, `||`, `!`) を実装する。
+Implement logical operators (`&&`, `||`, `!`).
 
-- `&&`: 論理AND（短絡評価）
-- `||`: 論理OR（短絡評価）
-- `!`: 論理NOT（単項演算子）
+- `&&`: logical AND (short-circuit)
+- `||`: logical OR (short-circuit)
+- `!`: logical NOT (unary operator)
 
 ### Precedence
 - `!` (unary): Level 1 (highest)
@@ -13,5 +13,4 @@
 - `||`: Level 7
 
 ### Short-circuit Evaluation
-`&&` と `||` は短絡評価を行う。左辺で結果が確定した場合、右辺は評価されない。
-
+`&&` and `||` perform short-circuit evaluation. If the left side determines the result, the right side is not evaluated.

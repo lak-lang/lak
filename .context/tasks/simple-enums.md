@@ -1,7 +1,7 @@
 # Simple Enums
 
 ## Overview
-値を持たないシンプルなenumを実装する。
+Implement simple enums without payload values.
 
 ### Syntax
 ```lak
@@ -18,18 +18,17 @@ let c: Color = Color.Red
 ```
 
 ### Variant Resolution
-- `match` 内では省略形が使用可能
-- その他の場所では完全修飾が必要
+- Short form can be used inside `match`.
+- Fully qualified names are required elsewhere.
 
 ```lak
-// match 内: 省略形OK
+// Inside match: short form is OK
 match color {
     Red => "red"
     Green => "green"
     Blue => "blue"
 }
 
-// その他: 完全修飾必須
+// Elsewhere: fully qualified form is required
 let color = Color.Red
 ```
-

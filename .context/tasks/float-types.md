@@ -1,7 +1,7 @@
 # Float Types
 
 ## Overview
-浮動小数点型 `f32` と `f64` を実装する。
+Implement floating-point types `f32` and `f64`.
 
 ### Types
 | Type | Description |
@@ -17,10 +17,9 @@ let z = -0.5            // f64
 ```
 
 ### Operators
-- 算術: `+`, `-`, `*`, `/`（`%` は未定義）
-- 比較: `==`, `!=`, `<`, `>`, `<=`, `>=`
-- 単項: `-`
+- Arithmetic: `+`, `-`, `*`, `/` (`%` is undefined)
+- Comparison: `==`, `!=`, `<`, `>`, `<=`, `>=`
+- Unary: `-`
 
 ### Default Format
-- `3.14`, `-0.5` など
-
+- `3.14`, `-0.5`, etc.

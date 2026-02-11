@@ -1,7 +1,7 @@
 # Reassignment for Mutable Variables
 
 ## Overview
-`mut` で宣言された変数への再代入を実装する。
+Implement reassignment to variables declared with `mut`.
 
 ### Syntax
 ```lak
@@ -11,9 +11,9 @@ count = 10
 ```
 
 ### Rules
-- `mut` で宣言された変数のみ再代入可能
-- immutable 変数への再代入はコンパイルエラー
-- 再代入時の型は元の型と一致する必要がある
+- Only variables declared with `mut` can be reassigned.
+- Reassigning immutable variables is a compile error.
+- Reassignment types must match the original type.
 
 ### Examples
 ```lak
@@ -26,4 +26,3 @@ y = 10              // OK
 let mut z: int = 5
 z = "hello"         // Compile error: type mismatch
 ```
-

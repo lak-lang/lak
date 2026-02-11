@@ -1,7 +1,7 @@
 # Generics
 
 ## Overview
-ジェネリクス（型パラメータ）を実装する。
+Implement generics (type parameters).
 
 ### Generic Functions
 ```lak
@@ -42,4 +42,3 @@ fn compare_and_print<T: Stringer + Comparable>(a: T, b: T) {
     }
 }
 ```
-

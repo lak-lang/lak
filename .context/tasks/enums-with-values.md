@@ -1,14 +1,14 @@
 # Enums with Values
 
 ## Overview
-値を持つenum（代数的データ型）を実装する。
+Implement enums with payload values (algebraic data types).
 
 ### Syntax
 ```lak
 enum Shape {
-    Circle(f64)              // 単一値
-    Rectangle(f64, f64)      // 複数値
-    Point                    // 値なし（混合可能）
+    Circle(f64)              // single value
+    Rectangle(f64, f64)      // multiple values
+    Point                    // no value (mixed variants allowed)
 }
 ```
 
@@ -25,13 +25,12 @@ match s {
 ```
 
 ### Pattern Matching
-- バリアントに含まれる値を変数にバインド
-- 複数パターンで `|` を使う場合、共通のバインディング変数が必要
+- Bind values contained in variants to variables.
+- When using `|` for multiple patterns, common binding variable names are required.
 
 ```lak
 match shape {
-    Circle(r) | Square(r) => r * r    // 共通の r
+    Circle(r) | Square(r) => r * r    // shared binding r
     Rectangle(w, h) => w * h
 }
 ```
-

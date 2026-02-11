@@ -1,7 +1,7 @@
 # Option<T> in Prelude
 
 ## Overview
-`Option<T>` 型をpreludeに追加する。値の有無を表現するためのenum。
+Add the `Option<T>` type to the prelude. It is an enum that represents optional values.
 
 ### Definition
 ```lak
@@ -17,13 +17,12 @@ let name: Option<string> = Option.None
 let value = Option.Some("alice")
 
 match name {
-    Some(n) => println(n)           // match内では省略形
+    Some(n) => println(n)           // short form inside match
     None => println("anonymous")
 }
 ```
 
 ### Features
-- preludeで自動的に利用可能（importなしで使用可能）
-- null安全性を提供
-- パターンマッチングで安全に値を取り出す
-
+- Automatically available via prelude (usable without import)
+- Provides null safety
+- Extract values safely with pattern matching

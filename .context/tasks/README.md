@@ -1,14 +1,14 @@
 # Tasks Index
 
-このディレクトリでは、各タスクファイルを独立した仕様メモとして管理する。
-順序や依存関係はこの `README.md` にのみ記載し、各タスクファイル内には記載しない。
+In this directory, each task file is managed as an independent specification memo.
+Execution order and dependencies are documented only in this `README.md`, and should not be written inside each task file.
 
-## 運用ルール
-- タスクファイル名には連番やフェーズ番号を含めない（例: `if-else.md`）。
-- タスクファイルには「概要・仕様・例」のみを書く。
-- 実装順序や依存関係の追加・変更はこのファイルで行う。
+## Operating Rules
+- Do not include sequence numbers or phase numbers in task file names (example: `if-else.md`).
+- Task files should contain only "Overview, Specification, and Examples."
+- Add or modify implementation order and dependencies in this file.
 
-## タスク一覧
+## Task List
 
 ### Basic Expressions
 - `logical-operators.md` - Logical Operators
@@ -58,7 +58,7 @@
 - `generics.md` - Generics
 - `string-interpolation.md` - String Interpolation
 
-## 推奨実装順序
+## Recommended Implementation Order
 1. `logical-operators.md`
 2. `modules-imports.md`
 3. `if-else.md`
@@ -90,7 +90,7 @@
 29. `for-loop.md`
 30. `string-interpolation.md`
 
-## タスク間依存関係
+## Inter-Task Dependencies
 - `if-else.md` depends on `logical-operators.md`.
 - `if-expression.md` depends on `if-else.md`.
 - `return-statement.md` depends on `if-else.md`.
@@ -114,6 +114,6 @@
 - `for-loop.md` depends on `list-type.md`, `map-type.md`, `while-loop.md`, `tuple-type.md`.
 - `string-interpolation.md` depends on `interfaces.md`.
 
-## 補足
-- 依存関係に含まれていないタスクは、このディレクトリ内タスクへの明確な依存がない（または既存実装への依存のみ）。
-- 依存が循環しそうな場合は、タスクを分割して `README.md` の依存グラフを更新する。
+## Notes
+- Tasks not listed in dependencies have no explicit dependency on tasks in this directory (or depend only on existing implementations).
+- If dependencies start to form a cycle, split tasks and update the dependency graph in `README.md`.

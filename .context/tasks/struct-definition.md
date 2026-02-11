@@ -1,7 +1,7 @@
 # Struct Definition
 
 ## Overview
-構造体の定義を実装する。
+Implement struct definitions.
 
 ### Syntax
 ```lak
@@ -12,13 +12,13 @@ struct User {
 ```
 
 ### Visibility
-- フィールドはデフォルトでprivate
-- `pub` キーワードで公開
+- Fields are private by default.
+- Use the `pub` keyword to make fields public.
 
 ### Rules
-- フィールドは名前と型を持つ
-- 同じフィールド名は使用できない
-- 構造体自体も `pub` で公開可能
+- Fields have a name and type.
+- Duplicate field names are not allowed.
+- The struct itself can also be public with `pub`.
 
 ```lak
 pub struct User {
@@ -26,4 +26,3 @@ pub struct User {
     age: int
 }
 ```
-

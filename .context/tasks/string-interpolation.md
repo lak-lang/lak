@@ -1,7 +1,7 @@
 # String Interpolation
 
 ## Overview
-文字列補間を実装する。`${}` 構文で式を埋め込む。
+Implement string interpolation. Embed expressions with `${}` syntax.
 
 ### Syntax
 ```lak
@@ -11,21 +11,21 @@ println("${name} v${version}")    // "lak v1"
 ```
 
 ### Features
-- 変数の埋め込み: `"${name}"`
-- 式の埋め込み: `"${a + b}"`
-- ネスト可能
+- Variable interpolation: `"${name}"`
+- Expression interpolation: `"${a + b}"`
+- Nesting is supported
 
 ### Default Formatting
-全ての型にデフォルトフォーマットがある:
-- 整数: `42`, `-10`
-- 浮動小数点: `3.14`, `-0.5`
-- 真偽値: `true`, `false`
-- 文字列: `hello`（引用符なし）
-- 構造体: `User { name: "alice", age: 30 }`
-- enum: `Option.Some(42)`, `Color.Red`
+All types have a default format:
+- Integers: `42`, `-10`
+- Floating point: `3.14`, `-0.5`
+- Booleans: `true`, `false`
+- Strings: `hello` (without quotes)
+- Structs: `User { name: "alice", age: 30 }`
+- Enums: `Option.Some(42)`, `Color.Red`
 
 ### Stringer Priority
-`Stringer` インターフェースを実装している型は `to_string()` を優先使用。
+For types implementing the `Stringer` interface, prioritize `to_string()`.
 
 ```lak
 struct User {
@@ -39,4 +39,3 @@ struct User {
 let u = User { name: "alice" }
 println("${u}")    // "User: alice" (uses to_string())
 ```
-

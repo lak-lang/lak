@@ -1,7 +1,7 @@
 # Interfaces
 
 ## Overview
-インターフェースを実装する。Goスタイルの暗黙的実装。
+Implement interfaces with Go-style implicit implementation.
 
 ### Syntax
 ```lak
@@ -15,7 +15,7 @@ interface Writer {
 ```
 
 ### Implicit Implementation
-構造体が必要なメソッドを全て持っていれば、自動的にインターフェースを満たす。
+If a struct has all required methods, it satisfies the interface automatically.
 
 ```lak
 struct User {
@@ -36,6 +36,5 @@ print_string(u)                  // OK
 ```
 
 ### self in Interfaces
-- `self`: 読み取りのみのメソッド
-- `mut self`: 変更を行うメソッド
-
+- `self`: read-only methods
+- `mut self`: mutating methods

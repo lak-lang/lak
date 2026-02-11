@@ -1,7 +1,7 @@
 # Remaining Integer Types
 
 ## Overview
-残りの整数型を実装する。
+Implement the remaining integer types.
 
 ### Types
 | Type | Description |
@@ -16,7 +16,6 @@
 | `u64` | 64-bit unsigned integer |
 
 ### Notes
-- `int`/`uint` はプラットフォームのデフォルトサイズ（通常64bit）
-- `byte` は `u8` のエイリアス
-- 各型に対して算術演算子と比較演算子をサポート
-
+- `int`/`uint` use the platform default size (typically 64-bit).
+- `byte` is an alias of `u8`.
+- Support arithmetic and comparison operators for each type.

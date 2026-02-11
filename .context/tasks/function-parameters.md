@@ -1,7 +1,7 @@
 # Function Parameters
 
 ## Overview
-関数パラメータのサポートを実装する。
+Implement support for function parameters.
 
 ### Syntax
 ```lak
@@ -15,13 +15,12 @@ fn greet(name: string) -> void {
 ```
 
 ### Features
-- 単一パラメータ: `(name: type)`
-- 複数パラメータ: `(a: type, b: type)`
-- パラメータは関数本体内でローカル変数として使用可能
+- Single parameter: `(name: type)`
+- Multiple parameters: `(a: type, b: type)`
+- Parameters can be used as local variables in the function body.
 
 ### Function Call
 ```lak
 let result = add(1, 2)
 greet("hello")
 ```
-

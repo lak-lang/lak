@@ -1,7 +1,7 @@
 # Result<T, E> in Prelude
 
 ## Overview
-`Result<T, E>` 型をpreludeに追加する。成功/失敗を表現するためのenum。
+Add the `Result<T, E>` type to the prelude. It is an enum that represents success/failure.
 
 ### Definition
 ```lak
@@ -18,17 +18,16 @@ fn read_file(path: string) -> Result<string, FileError> {
 }
 
 match read_file("data.txt") {
-    Ok(content) => println(content)   // match内では省略形
+    Ok(content) => println(content)   // short form inside match
     Err(e) => println(e.message())
 }
 ```
 
 ### Features
-- preludeで自動的に利用可能（importなしで使用可能）
-- 例外機構なしのエラーハンドリング
-- パターンマッチングで明示的にエラー処理
+- Automatically available via prelude (usable without import)
+- Error handling without an exception mechanism
+- Handle errors explicitly with pattern matching
 
 ### When to Use
-- `Result`: 呼び出し側で回復可能なエラー（ファイル不存在、ネットワークエラー等）
-- `panic`: プログラミングエラー、不変条件違反、回復不能な状態
-
+- `Result`: recoverable errors for callers (missing files, network errors, etc.)
+- `panic`: programming errors, invariant violations, unrecoverable states

@@ -1,7 +1,7 @@
 # List Type
 
 ## Overview
-リスト型を実装する。
+Implement the list type.
 
 ### Syntax
 ```lak
@@ -10,7 +10,7 @@ let names: List<string> = []           // Empty list requires type annotation
 ```
 
 ### Element Access
-インデックス構文 (`[]`) はなし。メソッドでアクセス。
+No index syntax (`[]`) for direct access. Use methods.
 
 ```lak
 let numbers = [1, 2, 3]
@@ -19,7 +19,7 @@ let sub = numbers.slice(0, 2)          // [1, 2]
 ```
 
 ### Mutability
-コンテンツを変更するには `mut` で宣言。
+Declare with `mut` to modify contents.
 
 ```lak
 let numbers = [1, 2, 3]
@@ -34,4 +34,3 @@ items.push(4)                          // OK
 - `slice(start: int, end: int) -> List<T>`
 - `push(item: T)` (requires mut)
 - `len() -> int`
-

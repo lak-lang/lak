@@ -1,7 +1,7 @@
 # Field Access
 
 ## Overview
-構造体のフィールドへのアクセスを実装する。
+Implement access to struct fields.
 
 ### Syntax
 ```lak
@@ -11,8 +11,8 @@ let a = u.age           // 30
 ```
 
 ### Visibility Rules
-- `pub` フィールド: どこからでもアクセス可能
-- private フィールド: 同一モジュール内からのみアクセス可能
+- `pub` field: accessible from anywhere.
+- private field: accessible only within the same module.
 
 ```lak
 // user.lak
@@ -33,4 +33,3 @@ println(u.age)           // Compile error: private field
 let team = Team { leader: User { name: "alice", age: 30 } }
 let name = team.leader.name
 ```
-

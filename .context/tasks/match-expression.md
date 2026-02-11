@@ -1,7 +1,7 @@
 # match Expression
 
 ## Overview
-`match` 式を実装する。網羅性チェック付きのパターンマッチング。
+Implement `match` expressions with exhaustiveness checking.
 
 ### Syntax
 ```lak
@@ -13,32 +13,31 @@ match expr {
 ```
 
 ### Features
-- 値のバインディング: `Some(x) =>`
-- 網羅性チェック: enumは全バリアントを処理するか `_` が必要
-- ワイルドカード: `_`
-- 複数パターン: `|` で区切る
-- 式としての使用: 全armが同じ型を返す
+- Value binding: `Some(x) =>`
+- Exhaustiveness checking: enums must cover all variants or include `_`
+- Wildcard: `_`
+- Multiple patterns: separated by `|`
+- Expression use: all arms must return the same type
 
 ### Examples
 ```lak
-// 式として使用
+// Used as an expression
 let area = match shape {
     Circle(r) => 3.14 * r * r
     Rectangle(w, h) => w * h
     Point => 0.0
 }
 
-// ワイルドカード
+// Wildcard
 match value {
     1 => "one"
     2 => "two"
     _ => "other"
 }
 
-// 複数パターン
+// Multiple patterns
 match color {
     Red | Green => "warm"
     Blue => "cool"
 }
 ```
-
