@@ -25,6 +25,36 @@ fn test_keyword_let() {
 }
 
 #[test]
+fn test_keyword_if() {
+    let kinds = tokenize_kinds("if");
+    assert_eq!(kinds, vec![TokenKind::If, TokenKind::Eof]);
+}
+
+#[test]
+fn test_if_not_prefix() {
+    let kinds = tokenize_kinds("if_else");
+    assert_eq!(
+        kinds,
+        vec![TokenKind::Identifier("if_else".to_string()), TokenKind::Eof]
+    );
+}
+
+#[test]
+fn test_keyword_else() {
+    let kinds = tokenize_kinds("else");
+    assert_eq!(kinds, vec![TokenKind::Else, TokenKind::Eof]);
+}
+
+#[test]
+fn test_else_not_prefix() {
+    let kinds = tokenize_kinds("elseif");
+    assert_eq!(
+        kinds,
+        vec![TokenKind::Identifier("elseif".to_string()), TokenKind::Eof]
+    );
+}
+
+#[test]
 fn test_let_not_prefix() {
     // "letter" should be an identifier, not let + identifier
     let kinds = tokenize_kinds("letter");

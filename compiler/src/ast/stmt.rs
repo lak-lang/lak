@@ -30,6 +30,19 @@ pub enum StmtKind {
         /// The initializer expression.
         init: Expr,
     },
+
+    /// A conditional statement with optional `else` branch.
+    ///
+    /// The `else if` chain is represented as an `else_branch` containing
+    /// a single nested `StmtKind::If`.
+    If {
+        /// The condition expression. Must evaluate to `bool`.
+        condition: Expr,
+        /// Statements executed when the condition is true.
+        then_branch: Vec<Stmt>,
+        /// Optional statements executed when the condition is false.
+        else_branch: Option<Vec<Stmt>>,
+    },
 }
 
 /// A statement in the Lak language with source location.

@@ -200,7 +200,37 @@ impl SemanticAnalyzer {
         match &stmt.kind {
             StmtKind::Expr(expr) => self.analyze_expr_stmt(expr),
             StmtKind::Let { name, ty, init } => self.analyze_let(name, ty, init, stmt.span),
+            StmtKind::If {
+                condition,
+                then_branch,
+                else_branch,
+            } => self.analyze_if(condition, then_branch, else_branch.as_deref()),
         }
+    }
+
+    fn analyze_if(
+        &mut self,
+        condition: &Expr,
+        then_branch: &[Stmt],
+        else_branch: Option<&[Stmt]>,
+    ) -> Result<(), SemanticError> {
+        self.check_expr_type(condition, &Type::Bool)?;
+
+        self.symbols.enter_scope();
+        for stmt in then_branch {
+            self.analyze_stmt(stmt)?;
+        }
+        self.symbols.exit_scope();
+
+        if let Some(else_stmts) = else_branch {
+            self.symbols.enter_scope();
+            for stmt in else_stmts {
+                self.analyze_stmt(stmt)?;
+            }
+            self.symbols.exit_scope();
+        }
+
+        Ok(())
     }
 
     fn analyze_let(

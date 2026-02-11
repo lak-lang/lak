@@ -18,6 +18,11 @@ impl<'ctx> Codegen<'ctx> {
                 Ok(())
             }
             StmtKind::Let { name, ty, init } => self.generate_let(name, ty, init, stmt.span),
+            StmtKind::If {
+                condition,
+                then_branch,
+                else_branch,
+            } => self.generate_if(condition, then_branch, else_branch.as_deref(), stmt.span),
         }
     }
 
@@ -45,8 +50,8 @@ impl<'ctx> Codegen<'ctx> {
         init: &Expr,
         span: Span,
     ) -> Result<(), CodegenError> {
-        // Semantic analysis guarantees no duplicate variables
-        if self.variables.contains_key(name) {
+        // Semantic analysis guarantees no duplicate variables in the same scope.
+        if self.variable_in_current_scope(name) {
             return Err(CodegenError::internal_duplicate_variable(name, span));
         }
 
@@ -60,8 +65,80 @@ impl<'ctx> Codegen<'ctx> {
                 CodegenError::internal_variable_store_failed(name, &e.to_string(), span)
             })?;
 
-        self.variables.insert(name.to_string(), binding);
+        self.define_variable_in_current_scope(name, binding, span)?;
 
+        Ok(())
+    }
+
+    /// Generates LLVM IR for an if statement.
+    pub(super) fn generate_if(
+        &mut self,
+        condition: &Expr,
+        then_branch: &[Stmt],
+        else_branch: Option<&[Stmt]>,
+        span: Span,
+    ) -> Result<(), CodegenError> {
+        let parent_fn = self
+            .builder
+            .get_insert_block()
+            .and_then(|bb| bb.get_parent())
+            .ok_or_else(|| CodegenError::internal_no_current_function(span))?;
+
+        let then_block = self.context.append_basic_block(parent_fn, "if_then");
+        let merge_block = self.context.append_basic_block(parent_fn, "if_end");
+        let else_block = else_branch.map(|_| self.context.append_basic_block(parent_fn, "if_else"));
+
+        let condition_value = self
+            .generate_expr_value(condition, &Type::Bool)?
+            .into_int_value();
+
+        if let Some(else_bb) = else_block {
+            self.builder
+                .build_conditional_branch(condition_value, then_block, else_bb)
+                .map_err(|e| CodegenError::internal_branch_failed(&e.to_string(), span))?;
+        } else {
+            self.builder
+                .build_conditional_branch(condition_value, then_block, merge_block)
+                .map_err(|e| CodegenError::internal_branch_failed(&e.to_string(), span))?;
+        }
+
+        self.enter_variable_scope();
+        self.builder.position_at_end(then_block);
+        for stmt in then_branch {
+            self.generate_stmt(stmt)?;
+        }
+        let then_has_terminator = self
+            .builder
+            .get_insert_block()
+            .and_then(|bb| bb.get_terminator())
+            .is_some();
+        if !then_has_terminator {
+            self.builder
+                .build_unconditional_branch(merge_block)
+                .map_err(|e| CodegenError::internal_branch_failed(&e.to_string(), span))?;
+        }
+        self.exit_variable_scope();
+
+        if let (Some(else_bb), Some(else_stmts)) = (else_block, else_branch) {
+            self.enter_variable_scope();
+            self.builder.position_at_end(else_bb);
+            for stmt in else_stmts {
+                self.generate_stmt(stmt)?;
+            }
+            let else_has_terminator = self
+                .builder
+                .get_insert_block()
+                .and_then(|bb| bb.get_terminator())
+                .is_some();
+            if !else_has_terminator {
+                self.builder
+                    .build_unconditional_branch(merge_block)
+                    .map_err(|e| CodegenError::internal_branch_failed(&e.to_string(), span))?;
+            }
+            self.exit_variable_scope();
+        }
+
+        self.builder.position_at_end(merge_block);
         Ok(())
     }
 }

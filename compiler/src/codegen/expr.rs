@@ -193,8 +193,7 @@ impl<'ctx> Codegen<'ctx> {
             ExprKind::Identifier(name) => {
                 // Semantic analysis guarantees the variable exists and has the correct type
                 let binding = self
-                    .variables
-                    .get(name)
+                    .lookup_variable(name)
                     .ok_or_else(|| CodegenError::internal_variable_not_found(name, expr.span))?;
 
                 if *binding.ty() != *expected_ty {
@@ -270,8 +269,7 @@ impl<'ctx> Codegen<'ctx> {
             ExprKind::IntLiteral(_) => Ok(Type::I64),
             ExprKind::Identifier(name) => {
                 let binding = self
-                    .variables
-                    .get(name)
+                    .lookup_variable(name)
                     .ok_or_else(|| CodegenError::internal_variable_not_found(name, expr.span))?;
                 Ok(binding.ty().clone())
             }

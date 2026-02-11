@@ -188,6 +188,34 @@ fn test_compile_error_type_mismatch() {
 }
 
 #[test]
+fn test_compile_error_if_condition_must_be_bool() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    if 1 {
+        println("x")
+    }
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Type mismatch: integer literal '1' cannot be assigned to type 'bool'"
+    );
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch),
+        "Expected TypeMismatch error kind"
+    );
+}
+
+#[test]
 fn test_compile_error_i32_overflow() {
     // i32::MAX + 1 = 2147483648 should overflow i32
     let result = compile_error_with_kind(

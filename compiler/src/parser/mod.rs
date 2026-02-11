@@ -17,8 +17,9 @@
 //! program     → import* fn_def* EOF
 //! import      → "import" STRING ("as" IDENTIFIER)?
 //! fn_def      → ("pub")? "fn" IDENTIFIER "(" ")" "->" IDENTIFIER "{" stmt* "}"
-//! stmt        → let_stmt | expr_stmt
+//! stmt        → let_stmt | if_stmt | expr_stmt
 //! let_stmt    → "let" IDENTIFIER ":" type "=" expr
+//! if_stmt     → "if" expr "{" stmt* "}" ("else" (if_stmt | "{" stmt* "}"))?
 //! type        → "i32" | "i64"
 //! expr_stmt   → expr
 //! expr        → call | member_access | IDENTIFIER | STRING | INT

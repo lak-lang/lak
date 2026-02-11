@@ -218,3 +218,117 @@ fn test_error_let_missing_initializer() {
     let err = parse_error("fn main() -> void { let x: i32 = }");
     assert_eq!(err.message(), "Unexpected token: '}'");
 }
+
+// ===================
+// If statement parsing
+// ===================
+
+#[test]
+fn test_if_stmt_without_else() {
+    let program = parse(
+        r#"fn main() -> void {
+            if true {
+                println("then")
+            }
+        }"#,
+    )
+    .unwrap();
+
+    assert_eq!(program.functions[0].body.len(), 1);
+    match &program.functions[0].body[0].kind {
+        StmtKind::If {
+            condition,
+            then_branch,
+            else_branch,
+        } => {
+            assert!(matches!(condition.kind, ExprKind::BoolLiteral(true)));
+            assert_eq!(then_branch.len(), 1);
+            assert!(else_branch.is_none());
+        }
+        _ => panic!("Expected If statement"),
+    }
+}
+
+#[test]
+fn test_if_stmt_with_else() {
+    let program = parse(
+        r#"fn main() -> void {
+            if true {
+                println("then")
+            } else {
+                println("else")
+            }
+        }"#,
+    )
+    .unwrap();
+
+    match &program.functions[0].body[0].kind {
+        StmtKind::If {
+            then_branch,
+            else_branch,
+            ..
+        } => {
+            assert_eq!(then_branch.len(), 1);
+            assert_eq!(else_branch.as_ref().map(Vec::len), Some(1));
+        }
+        _ => panic!("Expected If statement"),
+    }
+}
+
+#[test]
+fn test_if_stmt_with_else_if_chain() {
+    let program = parse(
+        r#"fn main() -> void {
+            if false {
+                println("a")
+            } else if true {
+                println("b")
+            } else {
+                println("c")
+            }
+        }"#,
+    )
+    .unwrap();
+
+    match &program.functions[0].body[0].kind {
+        StmtKind::If { else_branch, .. } => {
+            let outer_else = else_branch.as_ref().expect("outer else should exist");
+            assert_eq!(outer_else.len(), 1);
+            match &outer_else[0].kind {
+                StmtKind::If {
+                    condition,
+                    then_branch,
+                    else_branch,
+                } => {
+                    assert!(matches!(condition.kind, ExprKind::BoolLiteral(true)));
+                    assert_eq!(then_branch.len(), 1);
+                    assert_eq!(else_branch.as_ref().map(Vec::len), Some(1));
+                }
+                _ => panic!("Expected nested If statement for else-if"),
+            }
+        }
+        _ => panic!("Expected If statement"),
+    }
+}
+
+#[test]
+fn test_if_else_on_next_line() {
+    let program = parse(
+        r#"fn main() -> void {
+            if true {
+                println("then")
+            }
+            else {
+                println("else")
+            }
+        }"#,
+    )
+    .unwrap();
+
+    match &program.functions[0].body[0].kind {
+        StmtKind::If { else_branch, .. } => {
+            assert_eq!(else_branch.as_ref().map(Vec::len), Some(1));
+        }
+        _ => panic!("Expected If statement"),
+    }
+}

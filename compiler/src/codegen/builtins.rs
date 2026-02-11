@@ -201,8 +201,7 @@ impl<'ctx> Codegen<'ctx> {
             ExprKind::StringLiteral(_) => Ok(Type::String),
             ExprKind::BoolLiteral(_) => Ok(Type::Bool),
             ExprKind::Identifier(name) => self
-                .variables
-                .get(name)
+                .lookup_variable(name)
                 .map(|b| b.ty().clone())
                 .ok_or_else(|| CodegenError::internal_variable_not_found(name, expr.span)),
             ExprKind::Call { callee, .. } => {
@@ -295,8 +294,7 @@ impl<'ctx> Codegen<'ctx> {
                 .as_pointer_value(),
             ExprKind::Identifier(name) => {
                 let binding = self
-                    .variables
-                    .get(name)
+                    .lookup_variable(name)
                     .ok_or_else(|| CodegenError::internal_variable_not_found(name, arg.span))?;
 
                 self.load_and_extract_pointer_value(
@@ -336,8 +334,7 @@ impl<'ctx> Codegen<'ctx> {
         let i32_value = match &arg.kind {
             ExprKind::Identifier(name) => {
                 let binding = self
-                    .variables
-                    .get(name)
+                    .lookup_variable(name)
                     .ok_or_else(|| CodegenError::internal_variable_not_found(name, arg.span))?;
 
                 if binding.ty() != &Type::I32 {
@@ -403,8 +400,7 @@ impl<'ctx> Codegen<'ctx> {
             }
             ExprKind::Identifier(name) => {
                 let binding = self
-                    .variables
-                    .get(name)
+                    .lookup_variable(name)
                     .ok_or_else(|| CodegenError::internal_variable_not_found(name, arg.span))?;
 
                 if binding.ty() != &Type::Bool {
@@ -466,8 +462,7 @@ impl<'ctx> Codegen<'ctx> {
             ExprKind::IntLiteral(value) => self.context.i64_type().const_int(*value as u64, true),
             ExprKind::Identifier(name) => {
                 let binding = self
-                    .variables
-                    .get(name)
+                    .lookup_variable(name)
                     .ok_or_else(|| CodegenError::internal_variable_not_found(name, arg.span))?;
 
                 if binding.ty() != &Type::I64 {
@@ -557,8 +552,7 @@ impl<'ctx> Codegen<'ctx> {
                 .as_pointer_value(),
             ExprKind::Identifier(name) => {
                 let binding = self
-                    .variables
-                    .get(name)
+                    .lookup_variable(name)
                     .ok_or_else(|| CodegenError::internal_variable_not_found(name, arg.span))?;
 
                 self.load_and_extract_pointer_value(binding.alloca(), name, "panic load", arg.span)?

@@ -29,6 +29,12 @@ pub enum TokenKind {
     /// The `let` keyword for variable declarations.
     Let,
 
+    /// The `if` keyword for conditional branching.
+    If,
+
+    /// The `else` keyword for alternate conditional branch.
+    Else,
+
     /// The `pub` keyword for public visibility.
     Pub,
 

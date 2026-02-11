@@ -590,6 +590,16 @@ impl CodegenError {
         )
     }
 
+    /// Creates an internal error for missing variable scope.
+    pub fn internal_no_variable_scope(span: Span) -> Self {
+        Self::new(
+            CodegenErrorKind::InternalError,
+            "Internal error: attempted to define variable outside a scope in codegen. \
+             This is a compiler bug.",
+            span,
+        )
+    }
+
     /// Creates an internal error for failed comparison.
     pub fn internal_compare_failed(error: &str, span: Span) -> Self {
         Self::new(

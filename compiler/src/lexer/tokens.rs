@@ -335,6 +335,8 @@ impl<'a> Lexer<'a> {
         let kind = match value.as_str() {
             "fn" => TokenKind::Fn,
             "let" => TokenKind::Let,
+            "if" => TokenKind::If,
+            "else" => TokenKind::Else,
             "pub" => TokenKind::Pub,
             "import" => TokenKind::Import,
             "as" => TokenKind::As,

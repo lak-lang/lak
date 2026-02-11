@@ -119,11 +119,11 @@ pub struct Codegen<'ctx> {
     module: inkwell::module::Module<'ctx>,
     /// The IR builder for creating instructions.
     builder: inkwell::builder::Builder<'ctx>,
-    /// Symbol table mapping variable names to their allocations.
+    /// Stack of variable scopes (innermost scope is at the end).
     ///
-    /// This table is cleared at the start of each function body to implement
-    /// function-scoped variables.
-    variables: HashMap<String, VarBinding<'ctx>>,
+    /// This is reset at the start of each function body and extended for
+    /// block statements (e.g., `if` branches) to support shadowing.
+    variables: Vec<HashMap<String, VarBinding<'ctx>>>,
     /// Mapping from module alias to its mangle prefix.
     ///
     /// When an import has no alias (e.g., `import "./utils"`), the key is the
@@ -303,7 +303,7 @@ impl<'ctx> Codegen<'ctx> {
             context,
             module,
             builder,
-            variables: HashMap::new(),
+            variables: Vec::new(),
             module_aliases: HashMap::new(),
             current_module_prefix: None,
         }
@@ -504,6 +504,7 @@ impl<'ctx> Codegen<'ctx> {
         fn_def: &FnDef,
     ) -> Result<(), CodegenError> {
         self.variables.clear();
+        self.enter_variable_scope();
 
         let function = self
             .module
@@ -534,6 +535,7 @@ impl<'ctx> Codegen<'ctx> {
     /// * `main_fn_def` - The Lak `main` function definition
     fn generate_main(&mut self, main_fn_def: &FnDef) -> Result<(), CodegenError> {
         self.variables.clear();
+        self.enter_variable_scope();
 
         let i32_type = self.context.i32_type();
         let main_type = i32_type.fn_type(&[], false);
@@ -585,5 +587,40 @@ impl<'ctx> Codegen<'ctx> {
             .get(alias_or_name)
             .cloned()
             .ok_or_else(|| CodegenError::internal_module_alias_not_found(alias_or_name, span))
+    }
+
+    fn enter_variable_scope(&mut self) {
+        self.variables.push(HashMap::new());
+    }
+
+    fn exit_variable_scope(&mut self) {
+        self.variables.pop();
+    }
+
+    fn variable_in_current_scope(&self, name: &str) -> bool {
+        self.variables
+            .last()
+            .is_some_and(|scope| scope.contains_key(name))
+    }
+
+    fn define_variable_in_current_scope(
+        &mut self,
+        name: &str,
+        binding: VarBinding<'ctx>,
+        span: crate::token::Span,
+    ) -> Result<(), CodegenError> {
+        let scope = self
+            .variables
+            .last_mut()
+            .ok_or_else(|| CodegenError::internal_no_variable_scope(span))?;
+        scope.insert(name.to_string(), binding);
+        Ok(())
+    }
+
+    fn lookup_variable(&self, name: &str) -> Option<&VarBinding<'ctx>> {
+        self.variables
+            .iter()
+            .rev()
+            .find_map(|scope| scope.get(name))
     }
 }
