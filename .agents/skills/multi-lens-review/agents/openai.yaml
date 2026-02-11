@@ -1,0 +1,4 @@
+interface:
+  display_name: "Multi-Lens Review"
+  short_description: "Multi-lens code review with validation and deduplication"
+  default_prompt: "Use $multi-lens-review to run a multi-perspective review on the current diff."

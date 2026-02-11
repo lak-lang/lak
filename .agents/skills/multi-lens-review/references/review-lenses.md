@@ -1,6 +1,6 @@
-# Review Sub-Agents
+# Review Lenses
 
-Run all sub-agents against the same target change set. Keep each pass independent, then merge only after validation.
+Run all lenses against the same target change set. Keep each pass independent, then merge only after validation.
 
 ## A. Spec-Consistency Reviewer
 
@@ -74,7 +74,7 @@ Focus:
 Deliver:
 - Material performance risks with concrete hotspots.
 
-## Required Output For Every Sub-Agent
+## Required Output For Every Lens
 
 Use the schema in `references/finding-schema.md` for each finding.
 Return an empty list if no validated finding is found.

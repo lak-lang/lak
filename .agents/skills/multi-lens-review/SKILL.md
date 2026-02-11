@@ -1,13 +1,13 @@
 ---
-name: multi-agent-review
-description: Perform high-precision code reviews by orchestrating multiple review sub-agents with different lenses (language spec correctness, compiler invariants, safety, diagnostics quality, tests/regressions, and performance). Use when reviewing diffs, pull requests, risky refactors, parser/semantic/codegen changes, or when review quality must exceed a single-pass review.
+name: multi-lens-review
+description: Perform high-precision code reviews by running multiple focused review lenses (language spec correctness, compiler invariants, safety, diagnostics quality, tests/regressions, and performance). Use when reviewing diffs, pull requests, risky refactors, parser/semantic/codegen changes, or when review quality must exceed a single-pass review.
 ---
 
-# Multi-Agent Review
+# Multi-Lens Review
 
 ## Overview
 
-Run a staged code review workflow that first understands the change, then executes multiple focused review sub-agents, validates each reported finding, and merges everything into one deduplicated severity-ranked report.
+Run a staged code review workflow that first understands the change, then executes multiple focused review lenses, validates each reported finding, and merges everything into one deduplicated severity-ranked report.
 
 ## Inputs
 
@@ -22,9 +22,10 @@ Run a staged code review workflow that first understands the change, then execut
 - Build a short change map: touched modules, behavior changes, and likely risk hotspots.
 - Read related specs/docs when relevant (`.context/SPEC.md`, task docs, issue docs).
 
-2. Launch sub-agents in parallel passes.
-- Use every sub-agent defined in `references/sub-agents.md`.
-- Give each sub-agent the same change map and diff context.
+2. Run all review lenses as independent passes.
+- Use every review lens defined in `references/review-lenses.md`.
+- Use the same change map and diff context for each lens.
+- Keep each lens pass logically independent before merge.
 - Require output in the finding schema defined in `references/finding-schema.md`.
 
 3. Validate every reported finding.
@@ -34,7 +35,7 @@ Run a staged code review workflow that first understands the change, then execut
 - Downgrade or drop speculative findings.
 
 4. Merge and deduplicate validated findings.
-- Merge duplicates from different sub-agents into one item.
+- Merge duplicates from different lenses into one item.
 - Keep the highest justified severity and preserve supporting evidence.
 - Sort by severity: critical, high, medium, low.
 
@@ -52,6 +53,6 @@ Run a staged code review workflow that first understands the change, then execut
 
 ## References
 
-- Sub-agent definitions: `references/sub-agents.md`
+- Review lens definitions: `references/review-lenses.md`
 - Finding schema: `references/finding-schema.md`
 - Final report format: `references/report-template.md`
