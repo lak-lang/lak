@@ -28,6 +28,22 @@ fn main() -> void {
 }
 
 #[test]
+fn test_user_function_name_lak_println_does_not_override_builtin() {
+    let output = compile_and_run(
+        r#"
+fn lak_println() -> void {}
+
+fn main() -> void {
+    println("hello")
+    lak_println()
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "hello\n");
+}
+
+#[test]
 fn test_multiple_function_calls() {
     let output = compile_and_run(
         r#"

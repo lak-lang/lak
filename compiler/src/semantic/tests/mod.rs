@@ -147,6 +147,20 @@ fn test_invalid_argument_println_count_constructor() {
 }
 
 #[test]
+fn test_reserved_prelude_function_name_constructor() {
+    let err = SemanticError::reserved_prelude_function_name("println", span_at(2, 1));
+    assert_eq!(err.kind(), SemanticErrorKind::InvalidArgument);
+    assert_eq!(
+        err.message(),
+        "Function name 'println' is reserved by the prelude and cannot be redefined"
+    );
+    assert_eq!(
+        err.help(),
+        Some("use a different name; prelude names 'println' and 'panic' are reserved")
+    );
+}
+
+#[test]
 fn test_invalid_expression_string_literal_constructor() {
     let err = SemanticError::invalid_expression_string_literal(span_at(1, 1));
     assert_eq!(err.kind(), SemanticErrorKind::InvalidExpression);

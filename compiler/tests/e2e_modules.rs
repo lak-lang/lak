@@ -622,6 +622,59 @@ fn main() -> void {
 }
 
 #[test]
+fn test_entry_function_name_does_not_collide_with_imported_mangled_symbol() {
+    let temp = tempdir().unwrap();
+
+    let utils_path = temp.path().join("utils.lak");
+    fs::write(
+        &utils_path,
+        r#"pub fn foo() -> void {
+    println("from utils")
+}
+"#,
+    )
+    .unwrap();
+
+    let main_path = temp.path().join("main.lak");
+    fs::write(
+        &main_path,
+        r#"import "./utils"
+
+fn _L5_utils_foo() -> void {
+    println("from main")
+}
+
+fn main() -> void {
+    utils.foo()
+    _L5_utils_foo()
+}
+"#,
+    )
+    .unwrap();
+
+    let build_output = Command::new(lak_binary())
+        .current_dir(temp.path())
+        .args(["build", "main.lak"])
+        .output()
+        .unwrap();
+
+    assert!(
+        build_output.status.success(),
+        "Build failed: {}",
+        String::from_utf8_lossy(&build_output.stderr)
+    );
+
+    let exec_path = temp.path().join(executable_name("main"));
+    let run_output = Command::new(&exec_path).output().unwrap();
+
+    assert!(run_output.status.success());
+    assert_eq!(
+        String::from_utf8_lossy(&run_output.stdout),
+        "from utils\nfrom main\n"
+    );
+}
+
+#[test]
 fn test_intra_module_function_call() {
     let temp = tempdir().unwrap();
 

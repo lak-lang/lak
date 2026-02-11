@@ -86,6 +86,76 @@ fn test_duplicate_non_main_function_error() {
     assert_eq!(err.message(), "Function 'helper' is already defined at 5:1");
 }
 
+#[test]
+fn test_reserved_prelude_function_println_error() {
+    let program = Program {
+        imports: vec![],
+        functions: vec![
+            FnDef {
+                visibility: Visibility::Private,
+                name: "println".to_string(),
+                return_type: "void".to_string(),
+                return_type_span: dummy_span(),
+                body: vec![],
+                span: span_at(1, 1),
+            },
+            FnDef {
+                visibility: Visibility::Private,
+                name: "main".to_string(),
+                return_type: "void".to_string(),
+                return_type_span: dummy_span(),
+                body: vec![],
+                span: span_at(3, 1),
+            },
+        ],
+    };
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze(&program);
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert_eq!(err.kind(), SemanticErrorKind::InvalidArgument);
+    assert_eq!(
+        err.message(),
+        "Function name 'println' is reserved by the prelude and cannot be redefined"
+    );
+}
+
+#[test]
+fn test_reserved_prelude_function_panic_error() {
+    let program = Program {
+        imports: vec![],
+        functions: vec![
+            FnDef {
+                visibility: Visibility::Private,
+                name: "panic".to_string(),
+                return_type: "void".to_string(),
+                return_type_span: dummy_span(),
+                body: vec![],
+                span: span_at(1, 1),
+            },
+            FnDef {
+                visibility: Visibility::Private,
+                name: "main".to_string(),
+                return_type: "void".to_string(),
+                return_type_span: dummy_span(),
+                body: vec![],
+                span: span_at(3, 1),
+            },
+        ],
+    };
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze(&program);
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert_eq!(err.kind(), SemanticErrorKind::InvalidArgument);
+    assert_eq!(
+        err.message(),
+        "Function name 'panic' is reserved by the prelude and cannot be redefined"
+    );
+}
+
 // ============================================================================
 // Missing main function tests
 // ============================================================================

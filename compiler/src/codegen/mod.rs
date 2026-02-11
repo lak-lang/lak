@@ -94,8 +94,11 @@ use binding::VarBinding;
 use inkwell::AddressSpace;
 use inkwell::context::Context;
 use inkwell::types::BasicTypeEnum;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
+
+/// Mangle prefix used for single-file compilation.
+const SINGLE_FILE_MANGLE_PREFIX: &str = "entry";
 
 /// LLVM code generator for Lak programs.
 ///
@@ -136,16 +139,15 @@ pub struct Codegen<'ctx> {
     module_aliases: HashMap<String, String>,
     /// The current module's mangle prefix for name mangling.
     ///
-    /// When generating code for an imported module's functions, this is set
-    /// to the module's mangle prefix (derived from its path relative to the
-    /// entry directory) so that intra-module function calls can be resolved
-    /// to their mangled names.
+    /// When generating code for any module's functions, this is set to that
+    /// module's mangle prefix so that intra-module function calls can be
+    /// resolved to their mangled names.
     ///
     /// For example, if the current module is at `lib/utils.lak` relative to
     /// the entry directory, this would be `Some("lib__utils")`, and a call
     /// to function `helper()` within the same module would resolve to `_L10_lib__utils_helper`.
     ///
-    /// `None` when generating the entry module (its functions are not mangled).
+    /// `None` when no module is currently being generated.
     current_module_prefix: Option<String>,
 }
 
@@ -197,6 +199,27 @@ fn path_components_to_strings<'a>(
         .collect()
 }
 
+/// Derives a mangle prefix from a module path.
+///
+/// If the module path is under `entry_dir`, the prefix is computed from the
+/// relative path (without extension). Otherwise, the full canonical path
+/// (without extension) is used.
+fn derive_mangle_prefix(module_path: &Path, entry_dir: &Path) -> Result<String, CodegenError> {
+    let prefix = if let Ok(relative) = module_path.strip_prefix(entry_dir) {
+        let without_ext = relative.with_extension("");
+        path_components_to_strings(&without_ext, module_path)?.join("__")
+    } else {
+        let without_ext = module_path.with_extension("");
+        path_components_to_strings(&without_ext, module_path)?.join("__")
+    };
+
+    if prefix.is_empty() {
+        return Err(CodegenError::internal_empty_mangle_prefix(module_path));
+    }
+
+    Ok(prefix)
+}
+
 /// Computes unique mangle prefixes for imported modules.
 ///
 /// The prefix is derived from the module's path relative to the entry
@@ -241,17 +264,7 @@ fn compute_mangle_prefixes(
             continue;
         }
 
-        let prefix = if let Ok(relative) = module.path().strip_prefix(entry_dir) {
-            let without_ext = relative.with_extension("");
-            path_components_to_strings(&without_ext, module.path())?.join("__")
-        } else {
-            let without_ext = module.path().with_extension("");
-            path_components_to_strings(&without_ext, module.path())?.join("__")
-        };
-
-        if prefix.is_empty() {
-            return Err(CodegenError::internal_empty_mangle_prefix(module.path()));
-        }
+        let prefix = derive_mangle_prefix(module.path(), entry_dir)?;
 
         if let Some(existing_path) = prefix_to_path.get(&prefix) {
             return Err(CodegenError::duplicate_mangle_prefix(
@@ -268,12 +281,45 @@ fn compute_mangle_prefixes(
     Ok(prefixes)
 }
 
+/// Computes a unique mangle prefix for the entry module.
+///
+/// The base prefix is derived from the entry module path. If it collides with
+/// an imported module prefix, `__entry`, `__entry2`, ... suffixes are added
+/// until the prefix becomes unique.
+fn compute_entry_mangle_prefix(
+    entry_path: &Path,
+    imported_prefixes: &HashMap<PathBuf, String>,
+) -> Result<String, CodegenError> {
+    let entry_dir = entry_path
+        .parent()
+        .ok_or_else(|| CodegenError::internal_entry_path_no_parent(entry_path))?;
+    let base = derive_mangle_prefix(entry_path, entry_dir)?;
+
+    let used: HashSet<&str> = imported_prefixes.values().map(String::as_str).collect();
+    if !used.contains(base.as_str()) {
+        return Ok(base);
+    }
+
+    let mut counter = 1usize;
+    loop {
+        let candidate = if counter == 1 {
+            format!("{base}__entry")
+        } else {
+            format!("{base}__entry{counter}")
+        };
+        if !used.contains(candidate.as_str()) {
+            return Ok(candidate);
+        }
+        counter += 1;
+    }
+}
+
 /// Looks up the mangle prefix for a module path.
 ///
 /// Returns an internal error if the prefix is not found, which indicates
 /// a compiler bug since all non-entry modules should have been registered
-/// by `compute_mangle_prefixes`. Entry module functions use unmangled
-/// names and are not registered in the prefix map.
+/// by `compute_mangle_prefixes`. The entry module prefix is handled
+/// separately by `compute_entry_mangle_prefix`.
 fn get_mangle_prefix<'a>(
     prefixes: &'a HashMap<PathBuf, String>,
     module_path: &Path,
@@ -343,24 +389,32 @@ impl<'ctx> Codegen<'ctx> {
     pub fn compile(&mut self, program: &Program) -> Result<(), CodegenError> {
         // Declare built-in functions
         self.declare_builtins();
+        self.current_module_prefix = Some(SINGLE_FILE_MANGLE_PREFIX.to_string());
 
-        // Pass 1: Declare all user-defined functions (except main, which has a special signature)
-        for function in &program.functions {
-            if function.name != "main" {
-                self.declare_function(&function.name)?;
+        let result = (|| -> Result<(), CodegenError> {
+            // Pass 1: Declare all user-defined functions (except main, which has a special signature)
+            for function in &program.functions {
+                if function.name != "main" {
+                    let llvm_name = mangle_name(SINGLE_FILE_MANGLE_PREFIX, &function.name);
+                    self.declare_function(&llvm_name)?;
+                }
             }
-        }
 
-        // Pass 2: Generate function bodies
-        for function in &program.functions {
-            if function.name == "main" {
-                self.generate_main(function)?;
-            } else {
-                self.generate_function_body(&function.name, function)?;
+            // Pass 2: Generate function bodies
+            for function in &program.functions {
+                if function.name == "main" {
+                    self.generate_main(function)?;
+                } else {
+                    let llvm_name = mangle_name(SINGLE_FILE_MANGLE_PREFIX, &function.name);
+                    self.generate_function_body(&llvm_name, function)?;
+                }
             }
-        }
 
-        Ok(())
+            Ok(())
+        })();
+
+        self.current_module_prefix = None;
+        result
     }
 
     /// Compiles multiple modules into a single LLVM module.
@@ -368,8 +422,9 @@ impl<'ctx> Codegen<'ctx> {
     /// This is used when the entry module imports other modules.
     /// All functions from all modules are compiled into a single LLVM module.
     ///
-    /// Name mangling: Functions from imported modules use the pattern
-    /// `_L{prefix_len}_{mangle_prefix}_{function_name}` to avoid name collisions.
+    /// Name mangling: All user-defined functions except the entry `main`
+    /// use the pattern `_L{prefix_len}_{mangle_prefix}_{function_name}`
+    /// to avoid name collisions.
     ///
     /// The mangle prefix is derived from the module's path relative to the entry
     /// directory (see `compute_mangle_prefixes`).
@@ -400,82 +455,86 @@ impl<'ctx> Codegen<'ctx> {
             return Err(CodegenError::internal_entry_module_not_found(entry_path));
         }
 
-        let mangle_prefixes = compute_mangle_prefixes(modules, entry_path)?;
+        let imported_prefixes = compute_mangle_prefixes(modules, entry_path)?;
+        let entry_prefix = compute_entry_mangle_prefix(entry_path, &imported_prefixes)?;
 
-        // Pass 1: Declare all user-defined functions from all modules
-        for module in modules {
-            let is_entry = module.path() == entry_path;
-            for function in &module.program().functions {
-                if is_entry && function.name == "main" {
-                    // Skip main from entry module - it has special signature
-                    continue;
-                }
-                // Use mangled name for functions from imported modules
-                let mangled_name = if is_entry {
-                    function.name.clone()
+        let result = (|| -> Result<(), CodegenError> {
+            // Pass 1: Declare all user-defined functions from all modules
+            for module in modules {
+                let is_entry = module.path() == entry_path;
+                let module_prefix = if is_entry {
+                    entry_prefix.as_str()
                 } else {
-                    let prefix = get_mangle_prefix(&mangle_prefixes, module.path())?;
-                    mangle_name(prefix, &function.name)
+                    get_mangle_prefix(&imported_prefixes, module.path())?
                 };
-                self.declare_function(&mangled_name)?;
-            }
-        }
 
-        // Pass 2: Generate function bodies for all modules
-        for module in modules {
-            // Set up this module's alias map for resolving ModuleCall expressions
-            self.module_aliases.clear();
-            for import in &module.program().imports {
-                let canonical_path =
-                    module.resolved_imports().get(&import.path).ok_or_else(|| {
-                        CodegenError::internal_import_path_not_resolved(&import.path, import.span)
-                    })?;
-                let imported_module = modules
-                    .iter()
-                    .find(|m| m.path() == canonical_path.as_path())
-                    .ok_or_else(|| {
-                        CodegenError::internal_resolved_module_not_found_for_path(
-                            canonical_path,
-                            import.span,
-                        )
-                    })?;
-                let mangle_prefix = get_mangle_prefix(&mangle_prefixes, canonical_path.as_path())?;
-                let key = import
-                    .alias
-                    .clone()
-                    .unwrap_or_else(|| imported_module.name().to_string());
-                self.module_aliases.insert(key, mangle_prefix.to_string());
-            }
+                for function in &module.program().functions {
+                    if is_entry && function.name == "main" {
+                        // Skip main from entry module - it has special signature
+                        continue;
+                    }
 
-            // Set module prefix for name mangling of intra-module calls
-            let is_entry = module.path() == entry_path;
-            let module_prefix = if is_entry {
-                self.current_module_prefix = None;
-                None
-            } else {
-                let prefix = get_mangle_prefix(&mangle_prefixes, module.path())?;
-                self.current_module_prefix = Some(prefix.to_string());
-                Some(prefix)
-            };
-
-            for function in &module.program().functions {
-                if is_entry && function.name == "main" {
-                    self.generate_main(function)?;
-                } else {
-                    let llvm_name = if let Some(prefix) = module_prefix {
-                        mangle_name(prefix, &function.name)
-                    } else {
-                        function.name.clone()
-                    };
-                    self.generate_function_body(&llvm_name, function)?;
+                    let mangled_name = mangle_name(module_prefix, &function.name);
+                    self.declare_function(&mangled_name)?;
                 }
             }
-        }
+
+            // Pass 2: Generate function bodies for all modules
+            for module in modules {
+                // Set up this module's alias map for resolving ModuleCall expressions
+                self.module_aliases.clear();
+                for import in &module.program().imports {
+                    let canonical_path =
+                        module.resolved_imports().get(&import.path).ok_or_else(|| {
+                            CodegenError::internal_import_path_not_resolved(
+                                &import.path,
+                                import.span,
+                            )
+                        })?;
+                    let imported_module = modules
+                        .iter()
+                        .find(|m| m.path() == canonical_path.as_path())
+                        .ok_or_else(|| {
+                            CodegenError::internal_resolved_module_not_found_for_path(
+                                canonical_path,
+                                import.span,
+                            )
+                        })?;
+                    let mangle_prefix =
+                        get_mangle_prefix(&imported_prefixes, canonical_path.as_path())?;
+                    let key = import
+                        .alias
+                        .clone()
+                        .unwrap_or_else(|| imported_module.name().to_string());
+                    self.module_aliases.insert(key, mangle_prefix.to_string());
+                }
+
+                // Set module prefix for name mangling of intra-module calls
+                let is_entry = module.path() == entry_path;
+                let module_prefix = if is_entry {
+                    entry_prefix.as_str()
+                } else {
+                    get_mangle_prefix(&imported_prefixes, module.path())?
+                };
+                self.current_module_prefix = Some(module_prefix.to_string());
+
+                for function in &module.program().functions {
+                    if is_entry && function.name == "main" {
+                        self.generate_main(function)?;
+                    } else {
+                        let llvm_name = mangle_name(module_prefix, &function.name);
+                        self.generate_function_body(&llvm_name, function)?;
+                    }
+                }
+            }
+
+            Ok(())
+        })();
 
         // Reset module prefix after compilation
         self.current_module_prefix = None;
 
-        Ok(())
+        result
     }
 
     /// Declares a user-defined function (creates LLVM function signature only).

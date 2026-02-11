@@ -787,15 +787,13 @@ Can be used without import statements.
 - `print(value: any) -> void` - Output any value
 - `panic(message: string) -> never` - Terminate program
 
-### Prelude Override
+### Prelude Reserved Names
 
-If a local definition has the same name, the local definition takes precedence.
+`println` and `panic` are reserved prelude function names and cannot be redefined in user code.
 
 ```lak
-// Define custom println (overrides prelude's println)
-fn println(value: any) -> void {
-    // Custom implementation
-}
+fn println() -> void {}
+// Error: Function name 'println' is reserved by the prelude and cannot be redefined
 ```
 
 ---

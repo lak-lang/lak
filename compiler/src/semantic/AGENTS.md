@@ -92,6 +92,7 @@ Type checking occurs in:
 
 - `println`: Requires exactly 1 argument (string, i32, i64, or bool)
 - `panic`: Requires exactly 1 argument (string only)
+- `println` / `panic` are reserved prelude names and cannot be redefined by user functions
 
 User-defined function calls are validated for: existence, zero arguments (parameters not yet supported), non-main target, and void return type.
 

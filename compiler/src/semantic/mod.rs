@@ -147,6 +147,13 @@ impl SemanticAnalyzer {
 
     fn collect_functions(&mut self, program: &Program) -> Result<(), SemanticError> {
         for function in &program.functions {
+            if matches!(function.name.as_str(), "println" | "panic") {
+                return Err(SemanticError::reserved_prelude_function_name(
+                    &function.name,
+                    function.span,
+                ));
+            }
+
             let info = FunctionInfo {
                 name: function.name.clone(),
                 return_type: function.return_type.clone(),

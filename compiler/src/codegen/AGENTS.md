@@ -10,7 +10,7 @@ Transforms Lak AST into LLVM IR and generates native object files. Uses Inkwell 
 
 | File | Responsibility |
 |------|----------------|
-| `mod.rs` | `Codegen` struct, `compile()`/`compile_modules()` entry points, `mangle_name()`, `compute_mangle_prefixes()`, `path_components_to_strings()`, `get_mangle_prefix()` |
+| `mod.rs` | `Codegen` struct, `compile()`/`compile_modules()` entry points, `mangle_name()`, `derive_mangle_prefix()`, `compute_mangle_prefixes()`, `compute_entry_mangle_prefix()`, `path_components_to_strings()`, `get_mangle_prefix()` |
 | `error.rs` | `CodegenError`, `CodegenErrorKind` |
 | `binding.rs` | `VarBinding` (stack allocation and type info for variables) |
 | `builtins.rs` | Built-in functions (`println` → `lak_println`) |
@@ -45,7 +45,7 @@ pub struct Codegen<'ctx> { ... }
 ## Variable Management
 
 - `VarBinding` holds stack allocation (`alloca`) and type information
-- Managed via `variables: HashMap<String, VarBinding>`
+- Managed via scoped stack `variables: Vec<HashMap<String, VarBinding>>`
 - Cleared per function
 
 ## Type Mapping
@@ -67,6 +67,8 @@ pub struct Codegen<'ctx> { ... }
 
 - Uses C calling convention
 - `main` function generated with `int main()` signature
+- All user-defined functions except entry `main` are emitted with mangled symbol names
+- Name mangling applies to both single-file (`compile`) and multi-module (`compile_modules`) paths
 - Returns 0 on success
 
 ## Extension Guidelines

@@ -384,9 +384,9 @@ This document tracks the implementation status of Lak language features as defin
 - [ ] `print(value: any)` available
 - [x] `panic(message: string)` available
 
-### 15.3 Prelude Override
+### 15.3 Prelude Reserved Names
 
-- [ ] Local definitions take precedence
+- [x] `println` and `panic` cannot be redefined by local functions
 
 ---
 

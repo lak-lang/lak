@@ -16,7 +16,8 @@
 //!   [`duplicate_function()`](SemanticError::duplicate_function)
 //! - **Type errors**: [`type_mismatch_int_to_string()`](SemanticError::type_mismatch_int_to_string),
 //!   [`type_mismatch_variable()`](SemanticError::type_mismatch_variable), etc.
-//! - **Argument errors**: [`invalid_argument_println_count()`](SemanticError::invalid_argument_println_count), etc.
+//! - **Argument errors**: [`invalid_argument_println_count()`](SemanticError::invalid_argument_println_count),
+//!   [`reserved_prelude_function_name()`](SemanticError::reserved_prelude_function_name), etc.
 //! - **Expression errors**: [`invalid_expression_string_literal()`](SemanticError::invalid_expression_string_literal), etc.
 //! - **Structural errors**: [`invalid_main_signature()`](SemanticError::invalid_main_signature)
 //! - **Internal errors**: [`internal_check_integer_range_string()`](SemanticError::internal_check_integer_range_string), etc.
@@ -449,6 +450,19 @@ impl SemanticError {
                 fn_name, got
             ),
             span,
+        )
+    }
+
+    /// Creates an error for redefining a reserved prelude function name.
+    pub fn reserved_prelude_function_name(name: &str, span: Span) -> Self {
+        Self::new_with_help(
+            SemanticErrorKind::InvalidArgument,
+            format!(
+                "Function name '{}' is reserved by the prelude and cannot be redefined",
+                name
+            ),
+            span,
+            "use a different name; prelude names 'println' and 'panic' are reserved",
         )
     }
 

@@ -93,6 +93,45 @@ fn test_compile_println() {
 }
 
 #[test]
+fn test_compile_single_file_user_functions_are_mangled() {
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "test");
+
+    let program = Program {
+        imports: vec![],
+        functions: vec![
+            FnDef {
+                visibility: Visibility::Private,
+                name: "helper".to_string(),
+                return_type: "void".to_string(),
+                return_type_span: dummy_span(),
+                body: vec![],
+                span: dummy_span(),
+            },
+            FnDef {
+                visibility: Visibility::Private,
+                name: "main".to_string(),
+                return_type: "void".to_string(),
+                return_type_span: dummy_span(),
+                body: vec![expr_stmt(ExprKind::Call {
+                    callee: "helper".to_string(),
+                    args: vec![],
+                })],
+                span: dummy_span(),
+            },
+        ],
+    };
+
+    codegen
+        .compile(&program)
+        .expect("single-file functions should compile");
+
+    assert!(codegen.module.get_function("main").is_some());
+    assert!(codegen.module.get_function("helper").is_none());
+    assert!(codegen.module.get_function("_L5_entry_helper").is_some());
+}
+
+#[test]
 fn test_compile_multiple_println() {
     let context = Context::create();
     let mut codegen = Codegen::new(&context, "test");
@@ -1075,6 +1114,107 @@ fn test_compile_modules_with_alias() {
     assert!(codegen.module.get_function("main").is_some());
     // Verify mangled function uses path-based prefix, not alias
     assert!(codegen.module.get_function("_L5_utils_greet").is_some());
+}
+
+#[test]
+fn test_compile_modules_entry_and_imported_mangled_name_collision() {
+    use crate::ast::ImportDecl;
+    use crate::resolver::ResolvedModule;
+
+    let temp_dir = std::env::temp_dir();
+
+    let imported_program = Program {
+        imports: vec![],
+        functions: vec![FnDef {
+            visibility: Visibility::Public,
+            name: "foo".to_string(),
+            return_type: "void".to_string(),
+            return_type_span: dummy_span(),
+            body: vec![expr_stmt(ExprKind::Call {
+                callee: "println".to_string(),
+                args: vec![Expr::new(
+                    ExprKind::StringLiteral("from utils".to_string()),
+                    dummy_span(),
+                )],
+            })],
+            span: dummy_span(),
+        }],
+    };
+    let imported_path = temp_dir.join("utils.lak");
+    let imported_module = ResolvedModule::for_testing(
+        imported_path.clone(),
+        "utils".to_string(),
+        imported_program,
+        "".to_string(),
+    );
+
+    let entry_program = Program {
+        imports: vec![ImportDecl {
+            path: "./utils".to_string(),
+            alias: None,
+            span: dummy_span(),
+        }],
+        functions: vec![
+            FnDef {
+                visibility: Visibility::Private,
+                name: "_L5_utils_foo".to_string(),
+                return_type: "void".to_string(),
+                return_type_span: dummy_span(),
+                body: vec![expr_stmt(ExprKind::Call {
+                    callee: "println".to_string(),
+                    args: vec![Expr::new(
+                        ExprKind::StringLiteral("from main".to_string()),
+                        dummy_span(),
+                    )],
+                })],
+                span: dummy_span(),
+            },
+            FnDef {
+                visibility: Visibility::Private,
+                name: "main".to_string(),
+                return_type: "void".to_string(),
+                return_type_span: dummy_span(),
+                body: vec![
+                    expr_stmt(ExprKind::ModuleCall {
+                        module: "utils".to_string(),
+                        function: "foo".to_string(),
+                        args: vec![],
+                    }),
+                    expr_stmt(ExprKind::Call {
+                        callee: "_L5_utils_foo".to_string(),
+                        args: vec![],
+                    }),
+                ],
+                span: dummy_span(),
+            },
+        ],
+    };
+    let entry_path = temp_dir.join("main.lak");
+    let mut entry_module = ResolvedModule::for_testing(
+        entry_path.clone(),
+        "main".to_string(),
+        entry_program,
+        "".to_string(),
+    );
+    entry_module.add_resolved_import_for_testing("./utils".to_string(), imported_path);
+
+    let modules = [imported_module, entry_module];
+
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "test");
+    codegen
+        .compile_modules(&modules, &entry_path)
+        .expect("compile_modules should avoid entry/imported symbol collision");
+
+    // Imported module symbol
+    assert!(codegen.module.get_function("_L5_utils_foo").is_some());
+    // Entry module symbol (main prefix mangling)
+    assert!(
+        codegen
+            .module
+            .get_function("_L4_main__L5_utils_foo")
+            .is_some()
+    );
 }
 
 #[test]

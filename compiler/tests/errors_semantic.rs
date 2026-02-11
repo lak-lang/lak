@@ -475,6 +475,56 @@ fn main() -> void {}"#,
 }
 
 #[test]
+fn test_compile_error_reserved_prelude_function_println() {
+    let result = compile_error_with_kind(
+        r#"fn println() -> void {}
+fn main() -> void {}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Function name 'println' is reserved by the prelude and cannot be redefined"
+    );
+    assert_eq!(short_msg, "Invalid argument");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::InvalidArgument),
+        "Expected InvalidArgument error kind"
+    );
+}
+
+#[test]
+fn test_compile_error_reserved_prelude_function_panic() {
+    let result = compile_error_with_kind(
+        r#"fn panic() -> void {}
+fn main() -> void {}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Function name 'panic' is reserved by the prelude and cannot be redefined"
+    );
+    assert_eq!(short_msg, "Invalid argument");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::InvalidArgument),
+        "Expected InvalidArgument error kind"
+    );
+}
+
+#[test]
 fn test_compile_error_function_call_with_args() {
     // Calling a parameterless function with arguments should error
     let result = compile_error_with_kind(

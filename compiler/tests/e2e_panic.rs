@@ -167,3 +167,35 @@ fn test_panic_if_expression_string() {
     assert_eq!(output.status.code(), Some(1));
     assert_eq!(String::from_utf8_lossy(&output.stderr), "panic: left\n");
 }
+
+#[test]
+fn test_user_function_name_lak_panic_does_not_collide_with_builtin() {
+    let temp = tempdir().unwrap();
+    let source_path = temp.path().join("panic_collision.lak");
+
+    fs::write(
+        &source_path,
+        r#"fn lak_panic() -> void {
+    println("fake panic")
+}
+
+fn main() -> void {
+    panic("x")
+}"#,
+    )
+    .unwrap();
+
+    let output = Command::new(lak_binary())
+        .args(["run", source_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success(), "panic should cause non-zero exit");
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "panic should exit with code 1"
+    );
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "");
+    assert_eq!(String::from_utf8_lossy(&output.stderr), "panic: x\n");
+}
