@@ -9,13 +9,13 @@ compiler/
 ├── src/
 │   ├── main.rs      # CLI entry point (lak build, lak run)
 │   ├── lib.rs       # Library crate exposing all modules
-│   ├── token/       # Token and Span definitions (see token/CLAUDE.md)
-│   ├── ast/         # AST node definitions (see ast/CLAUDE.md)
-│   ├── lexer/       # Lexical analysis (see lexer/CLAUDE.md)
-│   ├── parser/      # Parsing (see parser/CLAUDE.md)
-│   ├── semantic/    # Semantic analysis (see semantic/CLAUDE.md)
+│   ├── token/       # Token and Span definitions (see token/AGENTS.md)
+│   ├── ast/         # AST node definitions (see ast/AGENTS.md)
+│   ├── lexer/       # Lexical analysis (see lexer/AGENTS.md)
+│   ├── parser/      # Parsing (see parser/AGENTS.md)
+│   ├── semantic/    # Semantic analysis (see semantic/AGENTS.md)
 │   ├── resolver/    # Module resolution (multi-file compilation)
-│   └── codegen/     # LLVM codegen (see codegen/CLAUDE.md)
+│   └── codegen/     # LLVM codegen (see codegen/AGENTS.md)
 ├── tests/           # Integration and E2E tests
 ├── build.rs         # Build script for runtime path and MSVC linker detection
 └── Cargo.toml

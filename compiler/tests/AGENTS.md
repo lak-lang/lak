@@ -89,5 +89,5 @@ cargo test test_hello_world   # Single test
 1. **New E2E test**: add to appropriate `e2e_*.rs`, use `compile_and_run()`, assert stdout
 2. **New error test**: add to `errors_*.rs` matching the stage, use `compile_error_with_kind()`, verify stage, message, AND error kind
 3. **New integration test**: add to `pipeline.rs`, use direct AST construction with `dummy_span()` if needed
-4. **New test file**: create `<category>_<feature>.rs`, add `mod common;`, update this CLAUDE.md
+4. **New test file**: create `<category>_<feature>.rs`, add `mod common;`, update this AGENTS.md
 5. **Test naming**: follow pattern `test_<descriptive_name>` or `test_<category>_<specific_case>`

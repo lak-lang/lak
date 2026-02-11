@@ -1,6 +1,4 @@
-# CLAUDE.md
-
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+# Repository Guidelines
 
 ## Project Overview
 
@@ -68,8 +66,8 @@ lak/
 │   ├── SPEC.md        # Lak language specification (for AI agents)
 │   └── IMPLEMENTATION_STATUS.md  # Feature implementation checklist
 ├── .github/           # GitHub Actions workflows
-├── compiler/          # Main compiler crate (see compiler/CLAUDE.md)
-├── runtime/           # Lak runtime library (see runtime/CLAUDE.md)
+├── compiler/          # Main compiler crate (see compiler/AGENTS.md)
+├── runtime/           # Lak runtime library (see runtime/AGENTS.md)
 └── examples/          # Example .lak programs
 ```
 
