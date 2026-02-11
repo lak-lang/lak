@@ -174,6 +174,42 @@ fn test_build_cleans_up_object_file() {
 }
 
 #[test]
+fn test_build_does_not_delete_existing_cwd_object_file() {
+    let build_cwd = tempdir().unwrap();
+    let source_dir = tempdir().unwrap();
+    let stem = "collision_target";
+
+    let protected_object = build_cwd.path().join(format!("{stem}.o"));
+    fs::write(&protected_object, "KEEP_ME").unwrap();
+
+    let source_path = source_dir.path().join(format!("{stem}.lak"));
+    fs::write(&source_path, "fn main() -> void {}").unwrap();
+
+    let output = Command::new(lak_binary())
+        .current_dir(build_cwd.path())
+        .arg("build")
+        .arg(&source_path)
+        .output()
+        .unwrap();
+
+    assert!(
+        output.status.success(),
+        "build should succeed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        protected_object.exists(),
+        "existing object file in CWD must not be removed"
+    );
+    assert_eq!(
+        fs::read_to_string(&protected_object).unwrap(),
+        "KEEP_ME",
+        "existing object file in CWD must not be overwritten"
+    );
+    assert!(build_cwd.path().join(executable_name(stem)).exists());
+}
+
+#[test]
 fn test_build_produces_executable() {
     let temp = tempdir().unwrap();
     let source_path = temp.path().join("hello.lak");

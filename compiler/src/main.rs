@@ -734,7 +734,7 @@ fn compile_to_executable(
 /// Given an input file `example.lak`:
 /// - Without `-o`: produces `example` executable
 /// - With `-o myapp`: produces `myapp` executable
-/// - `example.o` - Temporary object file (deleted after linking)
+/// - Temporary object file in an isolated temp directory (auto-cleaned)
 fn build(file: &str, output: Option<&str>) -> Result<(), Box<CompileErrorWithContext>> {
     let source = std::fs::read_to_string(file).map_err(|e| {
         Box::new(CompileContext::new(file, "").with_error(CompileError::file_read_error(file, e)))
@@ -759,7 +759,14 @@ fn build(file: &str, output: Option<&str>) -> Result<(), Box<CompileErrorWithCon
             )))
         })?;
 
-    let object_path = PathBuf::from(format!("{}.o", stem));
+    let temp_dir = TempDir::new().map_err(|e| {
+        Box::new(
+            context
+                .clone()
+                .with_error(CompileError::temp_dir_creation_error(e)),
+        )
+    })?;
+    let object_path = temp_dir.path().join(format!("{}.o", stem));
     let output_path = match output {
         Some(path) => PathBuf::from(path),
         None => PathBuf::from(format!("{}{}", stem, std::env::consts::EXE_SUFFIX)),
@@ -767,16 +774,6 @@ fn build(file: &str, output: Option<&str>) -> Result<(), Box<CompileErrorWithCon
 
     compile_to_executable(&context, &object_path, &output_path)
         .map_err(|e| Box::new(context.with_error(e)))?;
-
-    if let Err(e) = std::fs::remove_file(&object_path)
-        && e.kind() != std::io::ErrorKind::NotFound
-    {
-        eprintln!(
-            "Warning: Failed to remove temporary file '{}': {}",
-            object_path.display(),
-            e
-        );
-    }
 
     println!("Built: {}", output_path.display());
     Ok(())
