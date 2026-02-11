@@ -214,6 +214,18 @@ fn test_parse_error_short_message_integer_literal_out_of_range() {
 }
 
 #[test]
+fn test_parse_error_short_message_missing_else_in_if_expression() {
+    let err = ParseError::missing_else_in_if_expression(dummy_span());
+    assert_eq!(err.short_message(), "Missing else in if expression");
+}
+
+#[test]
+fn test_parse_error_short_message_missing_if_expression_branch_value() {
+    let err = ParseError::missing_if_expression_branch_value("then", dummy_span());
+    assert_eq!(err.short_message(), "Missing branch value in if expression");
+}
+
+#[test]
 fn test_parse_error_short_message_internal_error() {
     let err = ParseError::internal_binary_op_inconsistency(dummy_span());
     assert_eq!(err.short_message(), "Internal error");

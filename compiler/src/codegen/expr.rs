@@ -8,7 +8,7 @@ use super::Codegen;
 use super::builtins::BUILTIN_NAMES;
 use super::error::CodegenError;
 use super::mangle_name;
-use crate::ast::{BinaryOperator, Expr, ExprKind, Type, UnaryOperator};
+use crate::ast::{BinaryOperator, Expr, ExprKind, IfExprBlock, Type, UnaryOperator};
 use inkwell::IntPredicate;
 use inkwell::intrinsics::Intrinsic;
 use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum};
@@ -58,6 +58,7 @@ impl<'ctx> Codegen<'ctx> {
             | ExprKind::Identifier(_)
             | ExprKind::BinaryOp { .. }
             | ExprKind::UnaryOp { .. }
+            | ExprKind::IfExpr { .. }
             | ExprKind::MemberAccess { .. } => {
                 return Err(CodegenError::internal_invalid_expr_stmt(expr.span));
             }
@@ -241,6 +242,17 @@ impl<'ctx> Codegen<'ctx> {
             ExprKind::UnaryOp { op, operand } => {
                 self.generate_unary_op(operand, *op, expected_ty, expr.span)
             }
+            ExprKind::IfExpr {
+                condition,
+                then_block,
+                else_block,
+            } => self.generate_if_expr_value(
+                condition,
+                then_block,
+                else_block,
+                expected_ty,
+                expr.span,
+            ),
             ExprKind::MemberAccess { .. } => {
                 // Module-qualified expressions are not yet supported
                 Err(CodegenError::internal_member_access_not_implemented(
@@ -284,6 +296,11 @@ impl<'ctx> Codegen<'ctx> {
                 UnaryOperator::Not => Ok(Type::Bool),
                 UnaryOperator::Neg => self.infer_expr_type_for_comparison(operand),
             },
+            ExprKind::IfExpr {
+                condition: _,
+                then_block: _,
+                else_block: _,
+            } => self.get_expr_type(expr),
             ExprKind::BoolLiteral(_) => Ok(Type::Bool),
             ExprKind::StringLiteral(_) => Ok(Type::String),
             ExprKind::Call { callee, .. } => {
@@ -298,6 +315,88 @@ impl<'ctx> Codegen<'ctx> {
                 module, function, expr.span,
             )),
         }
+    }
+
+    /// Generates LLVM IR for an `if` expression value.
+    fn generate_if_expr_value(
+        &mut self,
+        condition: &Expr,
+        then_block: &IfExprBlock,
+        else_block: &IfExprBlock,
+        expected_ty: &Type,
+        span: crate::token::Span,
+    ) -> Result<BasicValueEnum<'ctx>, CodegenError> {
+        let parent_fn = self
+            .builder
+            .get_insert_block()
+            .and_then(|bb| bb.get_parent())
+            .ok_or_else(|| CodegenError::internal_no_current_function(span))?;
+
+        let llvm_branch_type = self.get_llvm_type(expected_ty);
+
+        let then_bb = self.context.append_basic_block(parent_fn, "if_expr_then");
+        let else_bb = self.context.append_basic_block(parent_fn, "if_expr_else");
+        let merge_bb = self.context.append_basic_block(parent_fn, "if_expr_merge");
+
+        let condition_value = self.generate_expr_value(condition, &Type::Bool)?;
+        let condition_value = match condition_value {
+            BasicValueEnum::IntValue(v) => v,
+            _ => {
+                return Err(CodegenError::internal_non_integer_value(
+                    "if expression condition",
+                    span,
+                ));
+            }
+        };
+
+        self.builder
+            .build_conditional_branch(condition_value, then_bb, else_bb)
+            .map_err(|e| CodegenError::internal_branch_failed(&e.to_string(), span))?;
+
+        self.builder.position_at_end(then_bb);
+        self.enter_variable_scope();
+        let then_value_result = (|| -> Result<BasicValueEnum<'ctx>, CodegenError> {
+            for stmt in &then_block.stmts {
+                self.generate_stmt(stmt)?;
+            }
+            self.generate_expr_value(&then_block.value, expected_ty)
+        })();
+        self.exit_variable_scope();
+        let then_value = then_value_result?;
+        let then_end_bb = self
+            .builder
+            .get_insert_block()
+            .ok_or_else(|| CodegenError::internal_no_current_function(span))?;
+        self.builder
+            .build_unconditional_branch(merge_bb)
+            .map_err(|e| CodegenError::internal_branch_failed(&e.to_string(), span))?;
+
+        self.builder.position_at_end(else_bb);
+        self.enter_variable_scope();
+        let else_value_result = (|| -> Result<BasicValueEnum<'ctx>, CodegenError> {
+            for stmt in &else_block.stmts {
+                self.generate_stmt(stmt)?;
+            }
+            self.generate_expr_value(&else_block.value, expected_ty)
+        })();
+        self.exit_variable_scope();
+        let else_value = else_value_result?;
+        let else_end_bb = self
+            .builder
+            .get_insert_block()
+            .ok_or_else(|| CodegenError::internal_no_current_function(span))?;
+        self.builder
+            .build_unconditional_branch(merge_bb)
+            .map_err(|e| CodegenError::internal_branch_failed(&e.to_string(), span))?;
+
+        self.builder.position_at_end(merge_bb);
+        let phi = self
+            .builder
+            .build_phi(llvm_branch_type, "if_expr_phi")
+            .map_err(|e| CodegenError::internal_branch_failed(&e.to_string(), span))?;
+        phi.add_incoming(&[(&then_value, then_end_bb), (&else_value, else_end_bb)]);
+
+        Ok(phi.as_basic_value())
     }
 
     /// Generates LLVM IR for a comparison operation.

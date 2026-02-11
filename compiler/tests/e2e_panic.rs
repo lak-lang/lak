@@ -143,3 +143,27 @@ fn test_panic_with_escape_sequences() {
         "panic: line1\nline2\ttab\n"
     );
 }
+
+#[test]
+fn test_panic_if_expression_string() {
+    let temp = tempdir().unwrap();
+    let source_path = temp.path().join("panic_if_expr.lak");
+
+    fs::write(
+        &source_path,
+        r#"fn main() -> void {
+    let cond: bool = true
+    panic(if cond { "left" } else { "right" })
+}"#,
+    )
+    .unwrap();
+
+    let output = Command::new(lak_binary())
+        .args(["run", source_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(String::from_utf8_lossy(&output.stderr), "panic: left\n");
+}

@@ -127,6 +127,19 @@ fn test_type_mismatch_variable_constructor() {
 }
 
 #[test]
+fn test_if_expression_branch_type_mismatch_constructor() {
+    let err = SemanticError::if_expression_branch_type_mismatch("i64", "string", span_at(8, 9));
+    assert_eq!(
+        err.kind(),
+        SemanticErrorKind::IfExpressionBranchTypeMismatch
+    );
+    assert_eq!(
+        err.message(),
+        "Type mismatch in if expression: then branch is 'i64', else branch is 'string'"
+    );
+}
+
+#[test]
 fn test_invalid_argument_println_count_constructor() {
     let err = SemanticError::invalid_argument_println_count(span_at(5, 5));
     assert_eq!(err.kind(), SemanticErrorKind::InvalidArgument);

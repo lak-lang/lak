@@ -45,6 +45,10 @@ pub enum ParseErrorKind {
     EmptyImportPath,
     /// Integer literal exceeds representable range.
     IntegerLiteralOutOfRange,
+    /// `if` expression is missing required `else` branch.
+    MissingElseInIfExpression,
+    /// `if` expression branch does not end with a value expression.
+    MissingIfExpressionBranchValue,
     /// Internal parser inconsistency (compiler bug).
     InternalError,
 }
@@ -117,6 +121,10 @@ impl ParseError {
             ParseErrorKind::NestedMemberAccessNotSupported => "Nested member access not supported",
             ParseErrorKind::EmptyImportPath => "Empty import path",
             ParseErrorKind::IntegerLiteralOutOfRange => "Integer overflow",
+            ParseErrorKind::MissingElseInIfExpression => "Missing else in if expression",
+            ParseErrorKind::MissingIfExpressionBranchValue => {
+                "Missing branch value in if expression"
+            }
             ParseErrorKind::InternalError => "Internal error",
         }
     }
@@ -233,6 +241,27 @@ impl ParseError {
     // =========================================================================
     // Unsupported syntax errors
     // =========================================================================
+
+    /// Creates an error for an `if` expression without `else`.
+    pub fn missing_else_in_if_expression(span: Span) -> Self {
+        Self::new(
+            ParseErrorKind::MissingElseInIfExpression,
+            "if expression requires an else branch",
+            span,
+        )
+    }
+
+    /// Creates an error for an `if` expression branch without a value expression.
+    pub fn missing_if_expression_branch_value(branch_name: &str, span: Span) -> Self {
+        Self::new(
+            ParseErrorKind::MissingIfExpressionBranchValue,
+            format!(
+                "if expression {} branch must end with a value expression",
+                branch_name
+            ),
+            span,
+        )
+    }
 
     /// Creates an error for nested member access (e.g., a.b.c).
     ///

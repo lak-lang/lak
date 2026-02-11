@@ -174,6 +174,80 @@ fn test_call_as_arg() {
     }
 }
 
+#[test]
+fn test_if_expression_basic() {
+    let program = parse(
+        r#"fn main() -> void {
+            let max: i64 = if a > b { a } else { b }
+        }"#,
+    )
+    .unwrap();
+
+    match &program.functions[0].body[0].kind {
+        StmtKind::Let { init, .. } => match &init.kind {
+            ExprKind::IfExpr {
+                condition,
+                then_block,
+                else_block,
+            } => {
+                assert!(matches!(condition.kind, ExprKind::BinaryOp { .. }));
+                assert!(then_block.stmts.is_empty());
+                assert!(matches!(then_block.value.kind, ExprKind::Identifier(ref s) if s == "a"));
+                assert!(else_block.stmts.is_empty());
+                assert!(matches!(else_block.value.kind, ExprKind::Identifier(ref s) if s == "b"));
+            }
+            _ => panic!("Expected IfExpr"),
+        },
+        _ => panic!("Expected Let statement"),
+    }
+}
+
+#[test]
+fn test_if_expression_nested() {
+    let program = parse(
+        r#"fn main() -> void {
+            let result: i64 = if x > 0 {
+                if x > 100 { 100 } else { x }
+            } else {
+                0
+            }
+        }"#,
+    )
+    .unwrap();
+
+    match &program.functions[0].body[0].kind {
+        StmtKind::Let { init, .. } => {
+            assert!(matches!(init.kind, ExprKind::IfExpr { .. }));
+        }
+        _ => panic!("Expected Let statement"),
+    }
+}
+
+#[test]
+fn test_if_expression_missing_else_error() {
+    let err = parse_error(
+        r#"fn main() -> void {
+            let value: i64 = if true { 42 }
+        }"#,
+    );
+    assert_eq!(err.kind(), ParseErrorKind::MissingElseInIfExpression);
+    assert_eq!(err.message(), "if expression requires an else branch");
+}
+
+#[test]
+fn test_if_expression_missing_branch_value_error() {
+    let err = parse_error(
+        r#"fn main() -> void {
+            let value: i64 = if true { let x: i64 = 1 } else { 2 }
+        }"#,
+    );
+    assert_eq!(err.kind(), ParseErrorKind::MissingIfExpressionBranchValue);
+    assert_eq!(
+        err.message(),
+        "if expression then branch must end with a value expression"
+    );
+}
+
 // ===================
 // Integer literal parsing
 // ===================

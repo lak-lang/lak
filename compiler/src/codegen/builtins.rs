@@ -4,12 +4,13 @@
 //! println (string, i32, i64, bool variants), panic, and streq (string equality).
 
 use super::Codegen;
-use super::error::CodegenError;
-use crate::ast::{Expr, ExprKind, Type};
+use super::error::{CodegenError, CodegenErrorKind};
+use crate::ast::{Expr, ExprKind, StmtKind, Type};
 use crate::token::Span;
 use inkwell::AddressSpace;
 use inkwell::module::Linkage;
 use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum};
+use std::collections::HashMap;
 
 /// Names of all builtin runtime functions declared by `declare_builtins()`.
 ///
@@ -195,15 +196,23 @@ impl<'ctx> Codegen<'ctx> {
     ///
     /// - `Ok(Type)` - The resolved type for supported expressions
     /// - `Err(CodegenError)` - An internal error for unsupported expressions
-    pub(super) fn get_expr_type(&self, expr: &Expr) -> Result<Type, CodegenError> {
+    fn get_expr_type_with_locals(
+        &self,
+        expr: &Expr,
+        local_types: &HashMap<String, Type>,
+    ) -> Result<Type, CodegenError> {
         match &expr.kind {
             ExprKind::IntLiteral(_) => Ok(Type::I64),
             ExprKind::StringLiteral(_) => Ok(Type::String),
             ExprKind::BoolLiteral(_) => Ok(Type::Bool),
-            ExprKind::Identifier(name) => self
-                .lookup_variable(name)
-                .map(|b| b.ty().clone())
-                .ok_or_else(|| CodegenError::internal_variable_not_found(name, expr.span)),
+            ExprKind::Identifier(name) => {
+                if let Some(ty) = local_types.get(name) {
+                    return Ok(ty.clone());
+                }
+                self.lookup_variable(name)
+                    .map(|b| b.ty().clone())
+                    .ok_or_else(|| CodegenError::internal_variable_not_found(name, expr.span))
+            }
             ExprKind::Call { callee, .. } => {
                 Err(CodegenError::internal_println_call_arg(callee, expr.span))
             }
@@ -211,14 +220,50 @@ impl<'ctx> Codegen<'ctx> {
                 if op.is_comparison() || op.is_logical() {
                     Ok(Type::Bool)
                 } else {
-                    self.get_expr_type(left)
+                    self.get_expr_type_with_locals(left, local_types)
                 }
             }
             ExprKind::UnaryOp { op, operand } => match op {
                 crate::ast::UnaryOperator::Not => Ok(Type::Bool),
                 // For arithmetic negation, infer the type from the operand.
-                crate::ast::UnaryOperator::Neg => self.get_expr_type(operand),
+                crate::ast::UnaryOperator::Neg => {
+                    self.get_expr_type_with_locals(operand, local_types)
+                }
             },
+            ExprKind::IfExpr {
+                condition: _,
+                then_block,
+                else_block,
+            } => {
+                let mut then_locals = local_types.clone();
+                for stmt in &then_block.stmts {
+                    if let StmtKind::Let { name, ty, .. } = &stmt.kind {
+                        then_locals.insert(name.clone(), ty.clone());
+                    }
+                }
+                let then_ty = self.get_expr_type_with_locals(&then_block.value, &then_locals)?;
+
+                let mut else_locals = local_types.clone();
+                for stmt in &else_block.stmts {
+                    if let StmtKind::Let { name, ty, .. } = &stmt.kind {
+                        else_locals.insert(name.clone(), ty.clone());
+                    }
+                }
+                let else_ty = self.get_expr_type_with_locals(&else_block.value, &else_locals)?;
+
+                if then_ty != else_ty {
+                    return Err(CodegenError::new(
+                        CodegenErrorKind::InternalError,
+                        format!(
+                            "Internal error: if expression branches have mismatched types '{}' and '{}' in codegen. Semantic analysis should have caught this. This is a compiler bug.",
+                            then_ty, else_ty
+                        ),
+                        expr.span,
+                    ));
+                }
+
+                Ok(then_ty)
+            }
             ExprKind::MemberAccess { .. } => Err(
                 CodegenError::internal_member_access_not_implemented(expr.span),
             ),
@@ -230,6 +275,10 @@ impl<'ctx> Codegen<'ctx> {
                 module, function, expr.span,
             )),
         }
+    }
+
+    pub(super) fn get_expr_type(&self, expr: &Expr) -> Result<Type, CodegenError> {
+        self.get_expr_type_with_locals(expr, &HashMap::new())
     }
 
     /// Generates LLVM IR for a `println` call.
@@ -304,6 +353,12 @@ impl<'ctx> Codegen<'ctx> {
                     arg.span,
                 )?
             }
+            ExprKind::IfExpr { .. } => match self.generate_expr_value(arg, &Type::String)? {
+                BasicValueEnum::PointerValue(v) => v,
+                _ => {
+                    return Err(CodegenError::internal_println_invalid_string_arg(arg.span));
+                }
+            },
             _ => {
                 return Err(CodegenError::internal_println_invalid_string_arg(arg.span));
             }
@@ -354,7 +409,7 @@ impl<'ctx> Codegen<'ctx> {
                     arg.span,
                 )?
             }
-            ExprKind::BinaryOp { .. } | ExprKind::UnaryOp { .. } => {
+            ExprKind::BinaryOp { .. } | ExprKind::UnaryOp { .. } | ExprKind::IfExpr { .. } => {
                 // For binary/unary operations, generate the expression value
                 match self.generate_expr_value(arg, &Type::I32)? {
                     BasicValueEnum::IntValue(v) => v,
@@ -420,7 +475,7 @@ impl<'ctx> Codegen<'ctx> {
                     arg.span,
                 )?
             }
-            ExprKind::BinaryOp { .. } | ExprKind::UnaryOp { .. } => {
+            ExprKind::BinaryOp { .. } | ExprKind::UnaryOp { .. } | ExprKind::IfExpr { .. } => {
                 // For binary/unary operations, generate the expression value
                 match self.generate_expr_value(arg, &Type::Bool)? {
                     BasicValueEnum::IntValue(v) => v,
@@ -482,7 +537,7 @@ impl<'ctx> Codegen<'ctx> {
                     arg.span,
                 )?
             }
-            ExprKind::BinaryOp { .. } | ExprKind::UnaryOp { .. } => {
+            ExprKind::BinaryOp { .. } | ExprKind::UnaryOp { .. } | ExprKind::IfExpr { .. } => {
                 // For binary/unary operations, generate the expression value
                 match self.generate_expr_value(arg, &Type::I64)? {
                     BasicValueEnum::IntValue(v) => v,
@@ -533,10 +588,10 @@ impl<'ctx> Codegen<'ctx> {
     ///
     /// Returns an internal error if:
     /// - Argument count is not 1 (semantic analysis should have caught this)
-    /// - Argument is not a string literal or string variable
+    /// - Argument does not produce a string value
     pub(super) fn generate_panic(&mut self, args: &[Expr], span: Span) -> Result<(), CodegenError> {
         // Semantic analysis guarantees exactly one argument of Type::String.
-        // This can be a string literal or a string variable.
+        // This can be any expression that evaluates to string.
         if args.len() != 1 {
             return Err(CodegenError::internal_panic_arg_count(args.len(), span));
         }
@@ -557,6 +612,12 @@ impl<'ctx> Codegen<'ctx> {
 
                 self.load_and_extract_pointer_value(binding.alloca(), name, "panic load", arg.span)?
             }
+            ExprKind::IfExpr { .. } => match self.generate_expr_value(arg, &Type::String)? {
+                BasicValueEnum::PointerValue(v) => v,
+                _ => {
+                    return Err(CodegenError::internal_panic_invalid_arg(arg.span));
+                }
+            },
             _ => {
                 return Err(CodegenError::internal_panic_invalid_arg(arg.span));
             }

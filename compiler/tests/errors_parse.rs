@@ -147,6 +147,55 @@ fn test_compile_error_missing_function_call_parens_int() {
     );
 }
 
+#[test]
+fn test_compile_error_if_expression_missing_else() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let value: i64 = if true { 42 }
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Parse),
+        "Expected Parse error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(msg, "if expression requires an else branch");
+    assert_eq!(short_msg, "Missing else in if expression");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Parse(ParseErrorKind::MissingElseInIfExpression),
+        "Expected MissingElseInIfExpression error kind"
+    );
+}
+
+#[test]
+fn test_compile_error_if_expression_missing_branch_value() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let value: i64 = if true { let x: i64 = 1 } else { 2 }
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Parse),
+        "Expected Parse error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "if expression then branch must end with a value expression"
+    );
+    assert_eq!(short_msg, "Missing branch value in if expression");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Parse(ParseErrorKind::MissingIfExpressionBranchValue),
+        "Expected MissingIfExpressionBranchValue error kind"
+    );
+}
+
 // ========================================
 // Import syntax error tests
 // ========================================

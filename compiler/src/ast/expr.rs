@@ -210,6 +210,31 @@ pub enum ExprKind {
         /// The arguments passed to the function.
         args: Vec<Expr>,
     },
+
+    /// An `if` expression that yields a value.
+    ///
+    /// Unlike [`crate::ast::StmtKind::If`], this form always requires `else`
+    /// and each branch must end with a value expression.
+    IfExpr {
+        /// The condition expression. Must evaluate to `bool`.
+        condition: Box<Expr>,
+        /// The branch evaluated when condition is true.
+        then_block: IfExprBlock,
+        /// The branch evaluated when condition is false.
+        else_block: IfExprBlock,
+    },
+}
+
+/// A branch block used by `if` expressions.
+///
+/// Each branch can contain zero or more statements for side effects and must
+/// end with a value expression that becomes the branch result.
+#[derive(Debug, Clone)]
+pub struct IfExprBlock {
+    /// Statements executed before the branch result expression.
+    pub stmts: Vec<crate::ast::Stmt>,
+    /// The final expression whose value is returned by the branch.
+    pub value: Box<Expr>,
 }
 
 /// An expression in the Lak language with source location.

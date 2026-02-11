@@ -22,7 +22,8 @@
 //! if_stmt     → "if" expr "{" stmt* "}" ("else" (if_stmt | "{" stmt* "}"))?
 //! type        → "i32" | "i64"
 //! expr_stmt   → expr
-//! expr        → call | member_access | IDENTIFIER | STRING | INT
+//! expr        → if_expr | call | member_access | IDENTIFIER | STRING | INT
+//! if_expr     → "if" expr "{" stmt* expr "}" "else" "{" stmt* expr "}"
 //! call        → IDENTIFIER "(" arguments? ")"
 //! member_access → IDENTIFIER "." IDENTIFIER
 //! arguments   → expr ("," expr)*

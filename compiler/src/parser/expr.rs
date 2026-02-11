@@ -7,7 +7,7 @@
 
 use super::Parser;
 use super::error::ParseError;
-use crate::ast::{BinaryOperator, Expr, ExprKind, UnaryOperator};
+use crate::ast::{BinaryOperator, Expr, ExprKind, IfExprBlock, StmtKind, UnaryOperator};
 use crate::token::{Span, TokenKind};
 
 /// Operator precedence levels (higher number = lower precedence = looser binding).
@@ -246,6 +246,7 @@ impl Parser {
                 );
                 Ok(Expr::new(inner.kind, span))
             }
+            TokenKind::If => self.parse_if_expr(),
             TokenKind::Identifier(name) => {
                 let name = name.clone();
                 self.advance();
@@ -365,6 +366,119 @@ impl Parser {
                 start_span,
             )),
         }
+    }
+
+    /// Parses an `if` expression.
+    ///
+    /// # Grammar
+    ///
+    /// ```text
+    /// if_expr → "if" expr if_expr_block "else" if_expr_block
+    /// if_expr_block → "{" stmt* expr "}"
+    /// ```
+    fn parse_if_expr(&mut self) -> Result<Expr, ParseError> {
+        let start_span = self.current_span();
+        self.expect(&TokenKind::If)?;
+
+        let condition = self.parse_expr()?;
+        let (then_block, _) = self.parse_if_expr_block("then")?;
+
+        if !self.consume_newlines_before_else() {
+            return Err(ParseError::missing_else_in_if_expression(
+                self.current_span(),
+            ));
+        }
+        self.expect(&TokenKind::Else)?;
+
+        let (else_block, else_end) = self.parse_if_expr_block("else")?;
+
+        let span = Span::new(
+            start_span.start,
+            else_end,
+            start_span.line,
+            start_span.column,
+        );
+
+        Ok(Expr::new(
+            ExprKind::IfExpr {
+                condition: Box::new(condition),
+                then_block,
+                else_block,
+            },
+            span,
+        ))
+    }
+
+    /// Parses a branch block in an `if` expression.
+    ///
+    /// The block must end with a value expression. Any preceding statements are
+    /// treated as side effects.
+    fn parse_if_expr_block(
+        &mut self,
+        branch_name: &str,
+    ) -> Result<(IfExprBlock, usize), ParseError> {
+        self.expect(&TokenKind::LeftBrace)?;
+        self.skip_newlines();
+
+        let mut stmts = Vec::new();
+
+        loop {
+            if matches!(self.current_kind(), TokenKind::RightBrace) {
+                return Err(ParseError::missing_if_expression_branch_value(
+                    branch_name,
+                    self.current_span(),
+                ));
+            }
+
+            let value_candidate_pos = self.pos;
+            if let Ok(value_expr) = self.parse_expr() {
+                if matches!(self.current_kind(), TokenKind::RightBrace)
+                    || self.next_non_newline_is_right_brace()
+                {
+                    self.skip_newlines();
+                    let end_span = self.current_span();
+                    self.expect(&TokenKind::RightBrace)?;
+                    return Ok((
+                        IfExprBlock {
+                            stmts,
+                            value: Box::new(value_expr),
+                        },
+                        end_span.end,
+                    ));
+                }
+                self.pos = value_candidate_pos;
+            } else {
+                self.pos = value_candidate_pos;
+            }
+
+            let stmt = self.parse_stmt()?;
+
+            if (matches!(self.current_kind(), TokenKind::RightBrace)
+                || self.next_non_newline_is_right_brace())
+                && !matches!(stmt.kind, StmtKind::Expr(_))
+            {
+                return Err(ParseError::missing_if_expression_branch_value(
+                    branch_name,
+                    self.current_span(),
+                ));
+            }
+
+            self.expect_statement_terminator()?;
+            stmts.push(stmt);
+        }
+    }
+
+    /// Returns true when the next non-newline token is `}`.
+    fn next_non_newline_is_right_brace(&self) -> bool {
+        let mut lookahead = self.pos;
+        while lookahead < self.tokens.len()
+            && matches!(self.tokens[lookahead].kind, TokenKind::Newline)
+        {
+            lookahead += 1;
+        }
+
+        lookahead < self.tokens.len()
+            && matches!(self.tokens[lookahead].kind, TokenKind::RightBrace)
     }
 
     /// Parses a function call expression.

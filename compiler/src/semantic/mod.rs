@@ -33,7 +33,8 @@ pub use module_table::ModuleTable;
 use symbol::{FunctionInfo, SymbolTable, VariableInfo};
 
 use crate::ast::{
-    BinaryOperator, Expr, ExprKind, FnDef, Program, Stmt, StmtKind, Type, UnaryOperator,
+    BinaryOperator, Expr, ExprKind, FnDef, IfExprBlock, Program, Stmt, StmtKind, Type,
+    UnaryOperator,
 };
 use crate::token::Span;
 
@@ -265,7 +266,7 @@ impl SemanticAnalyzer {
         Ok(())
     }
 
-    fn analyze_expr_stmt(&self, expr: &Expr) -> Result<(), SemanticError> {
+    fn analyze_expr_stmt(&mut self, expr: &Expr) -> Result<(), SemanticError> {
         match &expr.kind {
             ExprKind::Call { callee, args } => self.analyze_call(callee, args, expr.span),
             ExprKind::StringLiteral(_) => {
@@ -284,6 +285,7 @@ impl SemanticAnalyzer {
                 Err(SemanticError::invalid_expression_binary_op(expr.span))
             }
             ExprKind::UnaryOp { .. } => Err(SemanticError::invalid_expression_unary_op(expr.span)),
+            ExprKind::IfExpr { .. } => Err(SemanticError::invalid_expression_binary_op(expr.span)),
             ExprKind::MemberAccess { .. } => {
                 Err(SemanticError::module_access_not_implemented(expr.span))
             }
@@ -295,7 +297,12 @@ impl SemanticAnalyzer {
         }
     }
 
-    fn analyze_call(&self, callee: &str, args: &[Expr], span: Span) -> Result<(), SemanticError> {
+    fn analyze_call(
+        &mut self,
+        callee: &str,
+        args: &[Expr],
+        span: Span,
+    ) -> Result<(), SemanticError> {
         // Built-in function: println
         // println accepts any type (string, i32, i64, bool)
         if callee == "println" {
@@ -329,6 +336,9 @@ impl SemanticAnalyzer {
                 ExprKind::UnaryOp { .. } => {
                     // For unary operations, validate that all variables exist
                     // and that no unary operator is applied to a string type
+                    self.validate_expr_for_println(&args[0])?;
+                }
+                ExprKind::IfExpr { .. } => {
                     self.validate_expr_for_println(&args[0])?;
                 }
                 ExprKind::MemberAccess { .. } => {
@@ -404,6 +414,15 @@ impl SemanticAnalyzer {
                         args[0].span,
                     ));
                 }
+                ExprKind::IfExpr { .. } => {
+                    let arg_ty = self.infer_expr_type(&args[0])?;
+                    if arg_ty != Type::String {
+                        return Err(SemanticError::invalid_argument_panic_type(
+                            "if expression",
+                            args[0].span,
+                        ));
+                    }
+                }
                 ExprKind::MemberAccess { .. } => {
                     return Err(SemanticError::module_access_not_implemented(args[0].span));
                 }
@@ -454,7 +473,7 @@ impl SemanticAnalyzer {
     }
 
     fn analyze_module_call(
-        &self,
+        &mut self,
         module_name: &str,
         function_name: &str,
         args: &[Expr],
@@ -514,7 +533,7 @@ impl SemanticAnalyzer {
         Ok(())
     }
 
-    fn check_expr_type(&self, expr: &Expr, expected_ty: &Type) -> Result<(), SemanticError> {
+    fn check_expr_type(&mut self, expr: &Expr, expected_ty: &Type) -> Result<(), SemanticError> {
         match &expr.kind {
             ExprKind::IntLiteral(value) => {
                 if *expected_ty == Type::String {
@@ -571,6 +590,60 @@ impl SemanticAnalyzer {
             ExprKind::UnaryOp { op, operand } => {
                 self.check_unary_op_type(operand, *op, expected_ty, expr.span)
             }
+            ExprKind::IfExpr {
+                condition,
+                then_block,
+                else_block,
+            } => {
+                self.check_expr_type(condition, &Type::Bool)?;
+                let then_contextual = self.analyze_if_expr_block(then_block, Some(expected_ty));
+                let else_contextual = self.analyze_if_expr_block(else_block, Some(expected_ty));
+
+                if then_contextual.is_ok() && else_contextual.is_ok() {
+                    return Ok(());
+                }
+
+                // Prefer branch-local concrete diagnostics (e.g. IntegerOverflow)
+                // over generic if-expression type mismatch.
+                if let Some(err) = then_contextual
+                    .as_ref()
+                    .err()
+                    .filter(|err| err.kind() != SemanticErrorKind::TypeMismatch)
+                {
+                    return Err(err.clone());
+                }
+                if let Some(err) = else_contextual
+                    .as_ref()
+                    .err()
+                    .filter(|err| err.kind() != SemanticErrorKind::TypeMismatch)
+                {
+                    return Err(err.clone());
+                }
+
+                // If contextual typing failed, infer branch result types without context
+                // to determine whether this is a branch mismatch or an expected-type mismatch.
+                let then_ty = self.analyze_if_expr_block(then_block, None)?;
+                let else_ty = self.analyze_if_expr_block(else_block, None)?;
+                if then_ty != else_ty {
+                    return Err(SemanticError::if_expression_branch_type_mismatch(
+                        &then_ty.to_string(),
+                        &else_ty.to_string(),
+                        expr.span,
+                    ));
+                }
+
+                if then_ty != *expected_ty {
+                    return Err(SemanticError::type_mismatch_if_expression_to_type(
+                        &then_ty.to_string(),
+                        &expected_ty.to_string(),
+                        expr.span,
+                    ));
+                }
+
+                then_contextual?;
+                else_contextual?;
+                Ok(())
+            }
             ExprKind::MemberAccess { .. } => {
                 Err(SemanticError::module_access_not_implemented(expr.span))
             }
@@ -589,7 +662,7 @@ impl SemanticAnalyzer {
     ///
     /// Kept in sync with `Codegen::infer_expr_type_for_comparison` in `codegen/expr.rs`
     /// and `Codegen::get_expr_type` in `codegen/builtins.rs`.
-    fn infer_expr_type(&self, expr: &Expr) -> Result<Type, SemanticError> {
+    fn infer_expr_type(&mut self, expr: &Expr) -> Result<Type, SemanticError> {
         match &expr.kind {
             ExprKind::IntLiteral(_) => Ok(Type::I64),
             ExprKind::StringLiteral(_) => Ok(Type::String),
@@ -612,6 +685,23 @@ impl SemanticAnalyzer {
                 UnaryOperator::Not => Ok(Type::Bool),
                 UnaryOperator::Neg => self.infer_expr_type(operand),
             },
+            ExprKind::IfExpr {
+                condition,
+                then_block,
+                else_block,
+            } => {
+                self.check_expr_type(condition, &Type::Bool)?;
+                let then_ty = self.analyze_if_expr_block(then_block, None)?;
+                let else_ty = self.analyze_if_expr_block(else_block, None)?;
+                if then_ty != else_ty {
+                    return Err(SemanticError::if_expression_branch_type_mismatch(
+                        &then_ty.to_string(),
+                        &else_ty.to_string(),
+                        expr.span,
+                    ));
+                }
+                Ok(then_ty)
+            }
             ExprKind::Call { callee, .. } => Err(SemanticError::type_mismatch_call_as_value(
                 callee, expr.span,
             )),
@@ -634,7 +724,7 @@ impl SemanticAnalyzer {
     ///
     /// Returns the inferred operand type on success.
     fn validate_comparison_operands(
-        &self,
+        &mut self,
         left: &Expr,
         op: BinaryOperator,
         right: &Expr,
@@ -663,7 +753,7 @@ impl SemanticAnalyzer {
     /// 2. Equality operators accept all operand types; ordering operators require numeric
     /// 3. Both operands must have the same type
     fn check_binary_op_type(
-        &self,
+        &mut self,
         left: &Expr,
         op: BinaryOperator,
         right: &Expr,
@@ -745,7 +835,7 @@ impl SemanticAnalyzer {
     /// 1. The operand to have the expected type
     /// 2. The expected type to be numeric (i32 or i64)
     fn check_unary_op_type(
-        &self,
+        &mut self,
         operand: &Expr,
         op: UnaryOperator,
         expected_ty: &Type,
@@ -798,7 +888,7 @@ impl SemanticAnalyzer {
     /// 1. All variables referenced in the expression exist
     /// 2. No unary operator is applied to a string type
     /// 3. Comparison operands have matching types and ordering operators use numeric types
-    fn validate_expr_for_println(&self, expr: &Expr) -> Result<(), SemanticError> {
+    fn validate_expr_for_println(&mut self, expr: &Expr) -> Result<(), SemanticError> {
         match &expr.kind {
             ExprKind::IntLiteral(_) | ExprKind::StringLiteral(_) | ExprKind::BoolLiteral(_) => {
                 Ok(())
@@ -866,6 +956,23 @@ impl SemanticAnalyzer {
                 }
                 Ok(())
             }
+            ExprKind::IfExpr {
+                condition,
+                then_block,
+                else_block,
+            } => {
+                self.check_expr_type(condition, &Type::Bool)?;
+                let then_ty = self.analyze_if_expr_block(then_block, None)?;
+                let else_ty = self.analyze_if_expr_block(else_block, None)?;
+                if then_ty != else_ty {
+                    return Err(SemanticError::if_expression_branch_type_mismatch(
+                        &then_ty.to_string(),
+                        &else_ty.to_string(),
+                        expr.span,
+                    ));
+                }
+                Ok(())
+            }
             ExprKind::Call { callee, .. } => Err(
                 SemanticError::invalid_argument_call_not_supported(callee, expr.span),
             ),
@@ -909,6 +1016,32 @@ impl SemanticAnalyzer {
             }
         }
         Ok(())
+    }
+
+    /// Analyzes an if-expression branch block and returns its result type.
+    ///
+    /// If `expected_ty` is provided, the branch value is checked directly against
+    /// that type to preserve contextual typing (e.g. i32 integer literals).
+    fn analyze_if_expr_block(
+        &mut self,
+        block: &IfExprBlock,
+        expected_ty: Option<&Type>,
+    ) -> Result<Type, SemanticError> {
+        self.symbols.enter_scope();
+        let result = (|| -> Result<Type, SemanticError> {
+            for stmt in &block.stmts {
+                self.analyze_stmt(stmt)?;
+            }
+            if let Some(expected) = expected_ty {
+                self.check_expr_type(&block.value, expected)?;
+                return Ok(expected.clone());
+            }
+            let value_ty = self.infer_expr_type(&block.value)?;
+            self.check_expr_type(&block.value, &value_ty)?;
+            Ok(value_ty)
+        })();
+        self.symbols.exit_scope();
+        result
     }
 }
 

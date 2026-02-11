@@ -36,7 +36,7 @@ mod types;
 #[cfg(test)]
 mod tests;
 
-pub use expr::{BinaryOperator, Expr, ExprKind, UnaryOperator};
+pub use expr::{BinaryOperator, Expr, ExprKind, IfExprBlock, UnaryOperator};
 pub use program::{FnDef, ImportDecl, Program, Visibility};
 pub use stmt::{Stmt, StmtKind};
 pub use types::Type;

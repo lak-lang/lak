@@ -110,7 +110,7 @@ impl Parser {
         ))
     }
 
-    fn parse_block_stmts(&mut self) -> Result<Vec<Stmt>, ParseError> {
+    pub(super) fn parse_block_stmts(&mut self) -> Result<Vec<Stmt>, ParseError> {
         self.expect(&TokenKind::LeftBrace)?;
         self.skip_newlines();
 
@@ -127,7 +127,7 @@ impl Parser {
 
     /// If the next non-newline token is `else`, consumes preceding newlines and
     /// positions the parser at `else`.
-    fn consume_newlines_before_else(&mut self) -> bool {
+    pub(super) fn consume_newlines_before_else(&mut self) -> bool {
         let mut lookahead = self.pos;
         while lookahead < self.tokens.len()
             && matches!(self.tokens[lookahead].kind, TokenKind::Newline)

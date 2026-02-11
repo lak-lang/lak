@@ -216,6 +216,84 @@ fn test_compile_error_if_condition_must_be_bool() {
 }
 
 #[test]
+fn test_compile_error_if_expression_branch_type_mismatch() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let value: i64 = if true { 42 } else { "hello" }
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Type mismatch in if expression: then branch is 'i64', else branch is 'string'"
+    );
+    assert_eq!(short_msg, "If expression branch type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::IfExpressionBranchTypeMismatch),
+        "Expected IfExpressionBranchTypeMismatch error kind"
+    );
+}
+
+#[test]
+fn test_compile_error_if_expression_type_mismatch_to_expected_type() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let value: bool = if true { 42 } else { 24 }
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Type mismatch: if expression has type 'i64', expected 'bool'"
+    );
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch),
+        "Expected TypeMismatch error kind"
+    );
+}
+
+#[test]
+fn test_compile_error_if_expression_branch_i32_overflow_is_preserved() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let x: i32 = if true { 2147483648 } else { 1 }
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Integer literal '2147483648' is out of range for i32 (valid range: -2147483648 to 2147483647)"
+    );
+    assert_eq!(short_msg, "Integer overflow");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::IntegerOverflow),
+        "Expected IntegerOverflow error kind"
+    );
+}
+
+#[test]
 fn test_compile_error_i32_overflow() {
     // i32::MAX + 1 = 2147483648 should overflow i32
     let result = compile_error_with_kind(

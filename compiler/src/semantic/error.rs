@@ -58,6 +58,8 @@ pub enum SemanticErrorKind {
     UndefinedFunction,
     /// Type mismatch between expected and actual types.
     TypeMismatch,
+    /// Branch result types in an `if` expression do not match.
+    IfExpressionBranchTypeMismatch,
     /// Integer value is out of range for the target type.
     IntegerOverflow,
     /// Invalid function arguments (wrong count or type).
@@ -216,6 +218,9 @@ impl SemanticError {
             SemanticErrorKind::UndefinedVariable => "Undefined variable",
             SemanticErrorKind::UndefinedFunction => "Undefined function",
             SemanticErrorKind::TypeMismatch => "Type mismatch",
+            SemanticErrorKind::IfExpressionBranchTypeMismatch => {
+                "If expression branch type mismatch"
+            }
             SemanticErrorKind::IntegerOverflow => "Integer overflow",
             SemanticErrorKind::InvalidArgument => "Invalid argument",
             SemanticErrorKind::InvalidExpression => "Invalid expression",
@@ -367,6 +372,35 @@ impl SemanticError {
             format!(
                 "Function call '{}' cannot be used as a value (functions returning values not yet supported)",
                 callee
+            ),
+            span,
+        )
+    }
+
+    /// Creates a type mismatch error for `if` expression branch result types.
+    pub fn if_expression_branch_type_mismatch(then_ty: &str, else_ty: &str, span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::IfExpressionBranchTypeMismatch,
+            format!(
+                "Type mismatch in if expression: then branch is '{}', else branch is '{}'",
+                then_ty, else_ty
+            ),
+            span,
+        )
+    }
+
+    /// Creates a type mismatch error when an `if` expression value is assigned
+    /// to an incompatible expected type.
+    pub fn type_mismatch_if_expression_to_type(
+        actual_ty: &str,
+        expected_ty: &str,
+        span: Span,
+    ) -> Self {
+        Self::new(
+            SemanticErrorKind::TypeMismatch,
+            format!(
+                "Type mismatch: if expression has type '{}', expected '{}'",
+                actual_ty, expected_ty
             ),
             span,
         )

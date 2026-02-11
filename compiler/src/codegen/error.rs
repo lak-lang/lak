@@ -521,7 +521,7 @@ impl CodegenError {
     pub fn internal_panic_invalid_arg(span: Span) -> Self {
         Self::new(
             CodegenErrorKind::InternalError,
-            "Internal error: panic argument is not a string literal or string variable. \
+            "Internal error: panic argument is not a string-producing expression. \
              Semantic analysis should have caught this. This is a compiler bug.",
             span,
         )

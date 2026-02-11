@@ -296,9 +296,9 @@ This document tracks the implementation status of Lak language features as defin
 - [x] Basic `if condition { ... }`
 - [x] `else` branch `if condition { ... } else { ... }`
 - [x] `else if` chain
-- [ ] if as expression (returns value)
-- [ ] Type matching between branches
-- [ ] Error on missing `else` when used as expression
+- [x] if as expression (returns value)
+- [x] Type matching between branches
+- [x] Error on missing `else` when used as expression
 
 ### 10.2 for Loop
 
