@@ -1901,3 +1901,76 @@ fn test_println_ordering_bool_operands() {
         CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch)
     );
 }
+
+// ============================================================================
+// Logical operator type mismatch errors
+// ============================================================================
+
+#[test]
+fn test_logical_assigned_to_non_bool() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let result: i32 = true && false
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Logical operator '&&' produces 'bool', but expected 'i32'"
+    );
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch)
+    );
+}
+
+#[test]
+fn test_logical_non_bool_operands() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let result: bool = 1 || 2
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(msg, "Operator '||' cannot be used with 'i64' type");
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch)
+    );
+}
+
+#[test]
+fn test_unary_not_non_bool_operand() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let result: bool = !1
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(msg, "Unary operator '!' cannot be used with 'i64' type");
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch)
+    );
+}

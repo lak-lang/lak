@@ -137,3 +137,62 @@ fn main() -> void {
     .unwrap();
     assert_eq!(output, "true\nfalse\nfalse\n");
 }
+
+// =============================================================================
+// Logical operators
+// =============================================================================
+
+#[test]
+fn test_logical_and_or_not() {
+    let output = compile_and_run(
+        r#"
+fn main() -> void {
+    println(true && false)
+    println(true || false)
+    println(!false)
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "false\ntrue\ntrue\n");
+}
+
+#[test]
+fn test_logical_operator_precedence() {
+    let output = compile_and_run(
+        r#"
+fn main() -> void {
+    println(false || true && false)
+    println(!true || true && true)
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "false\ntrue\n");
+}
+
+#[test]
+fn test_logical_and_short_circuit() {
+    let output = compile_and_run(
+        r#"
+fn main() -> void {
+    println(false && (1 / 0 == 0))
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "false\n");
+}
+
+#[test]
+fn test_logical_or_short_circuit() {
+    let output = compile_and_run(
+        r#"
+fn main() -> void {
+    println(true || (1 / 0 == 0))
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "true\n");
+}

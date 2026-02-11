@@ -50,6 +50,20 @@ fn test_error_unexpected_char_dollar() {
 }
 
 #[test]
+fn test_error_single_ampersand() {
+    let err = tokenize_error("&");
+    assert_eq!(err.kind(), LexErrorKind::UnexpectedCharacter);
+    assert_eq!(err.message(), "Unexpected character: '&'");
+}
+
+#[test]
+fn test_error_single_pipe() {
+    let err = tokenize_error("|");
+    assert_eq!(err.kind(), LexErrorKind::UnexpectedCharacter);
+    assert_eq!(err.message(), "Unexpected character: '|'");
+}
+
+#[test]
 fn test_error_span_location() {
     let err = tokenize_error("foo @");
     assert_eq!(err.span().start, 4);

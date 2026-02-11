@@ -209,16 +209,17 @@ impl<'ctx> Codegen<'ctx> {
                 Err(CodegenError::internal_println_call_arg(callee, expr.span))
             }
             ExprKind::BinaryOp { left, op, .. } => {
-                if op.is_comparison() {
+                if op.is_comparison() || op.is_logical() {
                     Ok(Type::Bool)
                 } else {
                     self.get_expr_type(left)
                 }
             }
-            ExprKind::UnaryOp { operand, .. } => {
-                // For unary operations, infer the type from the operand.
-                self.get_expr_type(operand)
-            }
+            ExprKind::UnaryOp { op, operand } => match op {
+                crate::ast::UnaryOperator::Not => Ok(Type::Bool),
+                // For arithmetic negation, infer the type from the operand.
+                crate::ast::UnaryOperator::Neg => self.get_expr_type(operand),
+            },
             ExprKind::MemberAccess { .. } => Err(
                 CodegenError::internal_member_access_not_implemented(expr.span),
             ),

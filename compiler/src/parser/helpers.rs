@@ -40,6 +40,8 @@ impl Parser {
             TokenKind::Slash => "'/'".to_string(),
             TokenKind::Percent => "'%'".to_string(),
             TokenKind::Bang => "'!'".to_string(),
+            TokenKind::AndAnd => "'&&'".to_string(),
+            TokenKind::OrOr => "'||'".to_string(),
             TokenKind::EqualEqual => "'=='".to_string(),
             TokenKind::BangEqual => "'!='".to_string(),
             TokenKind::LessThan => "'<'".to_string(),

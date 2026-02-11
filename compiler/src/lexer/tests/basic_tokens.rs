@@ -291,6 +291,18 @@ fn test_bang_equal() {
 }
 
 #[test]
+fn test_and_and() {
+    let kinds = tokenize_kinds("&&");
+    assert_eq!(kinds, vec![TokenKind::AndAnd, TokenKind::Eof]);
+}
+
+#[test]
+fn test_or_or() {
+    let kinds = tokenize_kinds("||");
+    assert_eq!(kinds, vec![TokenKind::OrOr, TokenKind::Eof]);
+}
+
+#[test]
 fn test_less_than() {
     let kinds = tokenize_kinds("< ");
     assert_eq!(kinds, vec![TokenKind::LessThan, TokenKind::Eof]);

@@ -663,3 +663,105 @@ fn test_unary_minus_on_string_literal_in_println() {
         "Unary operator '-' cannot be used with 'string' type"
     );
 }
+
+#[test]
+fn test_logical_and_on_bool_valid() {
+    let program = program_with_main(vec![Stmt::new(
+        StmtKind::Let {
+            name: "x".to_string(),
+            ty: Type::Bool,
+            init: Expr::new(
+                ExprKind::BinaryOp {
+                    left: Box::new(Expr::new(ExprKind::BoolLiteral(true), dummy_span())),
+                    op: crate::ast::BinaryOperator::LogicalAnd,
+                    right: Box::new(Expr::new(ExprKind::BoolLiteral(false), dummy_span())),
+                },
+                dummy_span(),
+            ),
+        },
+        dummy_span(),
+    )]);
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze(&program);
+    assert!(result.is_ok());
+}
+
+#[test]
+fn test_logical_and_on_integer_error() {
+    let program = program_with_main(vec![Stmt::new(
+        StmtKind::Let {
+            name: "x".to_string(),
+            ty: Type::Bool,
+            init: Expr::new(
+                ExprKind::BinaryOp {
+                    left: Box::new(Expr::new(ExprKind::IntLiteral(1), dummy_span())),
+                    op: crate::ast::BinaryOperator::LogicalAnd,
+                    right: Box::new(Expr::new(ExprKind::IntLiteral(2), dummy_span())),
+                },
+                span_at(2, 18),
+            ),
+        },
+        dummy_span(),
+    )]);
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze(&program);
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert_eq!(err.kind(), SemanticErrorKind::TypeMismatch);
+    assert_eq!(
+        err.message(),
+        "Operator '&&' cannot be used with 'i64' type"
+    );
+}
+
+#[test]
+fn test_unary_not_on_bool_valid() {
+    let program = program_with_main(vec![Stmt::new(
+        StmtKind::Let {
+            name: "x".to_string(),
+            ty: Type::Bool,
+            init: Expr::new(
+                ExprKind::UnaryOp {
+                    op: UnaryOperator::Not,
+                    operand: Box::new(Expr::new(ExprKind::BoolLiteral(false), dummy_span())),
+                },
+                dummy_span(),
+            ),
+        },
+        dummy_span(),
+    )]);
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze(&program);
+    assert!(result.is_ok());
+}
+
+#[test]
+fn test_unary_not_on_integer_error() {
+    let program = program_with_main(vec![Stmt::new(
+        StmtKind::Let {
+            name: "x".to_string(),
+            ty: Type::Bool,
+            init: Expr::new(
+                ExprKind::UnaryOp {
+                    op: UnaryOperator::Not,
+                    operand: Box::new(Expr::new(ExprKind::IntLiteral(1), dummy_span())),
+                },
+                span_at(2, 18),
+            ),
+        },
+        dummy_span(),
+    )]);
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze(&program);
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert_eq!(err.kind(), SemanticErrorKind::TypeMismatch);
+    assert_eq!(
+        err.message(),
+        "Unary operator '!' cannot be used with 'i64' type"
+    );
+}

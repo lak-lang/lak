@@ -140,14 +140,14 @@ This document tracks the implementation status of Lak language features as defin
 
 ### 4.3 Logical Operators
 
-- [ ] `&&` logical AND
-- [ ] `||` logical OR
+- [x] `&&` logical AND
+- [x] `||` logical OR
 
 ### 4.4 Unary Operators
 
 - [x] `-` negation (unary minus)
   - [x] Overflow detection with panic
-- [ ] `!` logical NOT
+- [x] `!` logical NOT
 
 ### 4.5 Assignment Operators
 

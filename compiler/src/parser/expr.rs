@@ -22,11 +22,15 @@ use crate::token::{Span, TokenKind};
 /// - Level 3: `+`, `-` (additive)
 /// - Level 4: `<`, `>`, `<=`, `>=` (comparison)
 /// - Level 5: `==`, `!=` (equality) - looser binding
+/// - Level 6: `&&` (logical AND)
+/// - Level 7: `||` (logical OR)
 const PRECEDENCE_UNARY: u8 = 1;
 const PRECEDENCE_MULTIPLICATIVE: u8 = 2;
 const PRECEDENCE_ADDITIVE: u8 = 3;
 const PRECEDENCE_COMPARISON: u8 = 4;
 const PRECEDENCE_EQUALITY: u8 = 5;
+const PRECEDENCE_LOGICAL_AND: u8 = 6;
+const PRECEDENCE_LOGICAL_OR: u8 = 7;
 
 /// Returns the precedence of a binary operator token, if it is one.
 ///
@@ -40,6 +44,8 @@ fn binary_op_precedence(kind: &TokenKind) -> Option<u8> {
         | TokenKind::LessEqual
         | TokenKind::GreaterEqual => Some(PRECEDENCE_COMPARISON),
         TokenKind::EqualEqual | TokenKind::BangEqual => Some(PRECEDENCE_EQUALITY),
+        TokenKind::AndAnd => Some(PRECEDENCE_LOGICAL_AND),
+        TokenKind::OrOr => Some(PRECEDENCE_LOGICAL_OR),
         _ => None,
     }
 }
@@ -60,6 +66,8 @@ fn token_to_binary_op(kind: &TokenKind) -> Option<BinaryOperator> {
         TokenKind::GreaterThan => Some(BinaryOperator::GreaterThan),
         TokenKind::LessEqual => Some(BinaryOperator::LessEqual),
         TokenKind::GreaterEqual => Some(BinaryOperator::GreaterEqual),
+        TokenKind::AndAnd => Some(BinaryOperator::LogicalAnd),
+        TokenKind::OrOr => Some(BinaryOperator::LogicalOr),
         _ => None,
     }
 }
@@ -150,7 +158,7 @@ impl Parser {
     /// Parses a primary expression (atom).
     ///
     /// Primary expressions are the basic building blocks:
-    /// - Unary operators (`-`)
+    /// - Unary operators (`-`, `!`)
     /// - Integer literals
     /// - String literals
     /// - Identifiers (variable references)
@@ -160,13 +168,20 @@ impl Parser {
         let start_span = self.current_span();
 
         match self.current_kind() {
-            TokenKind::Minus => {
-                // Unary negation
-                self.advance(); // consume '-'
+            TokenKind::Minus | TokenKind::Bang => {
+                // Unary negation or logical NOT
+                let op = if matches!(self.current_kind(), TokenKind::Minus) {
+                    UnaryOperator::Neg
+                } else {
+                    UnaryOperator::Not
+                };
+                self.advance();
                 self.skip_newlines(); // allow newlines after operator
 
                 // Fold negation into integer literal to allow i64::MIN
-                if let TokenKind::IntLiteral(unsigned_value) = self.current_kind() {
+                if matches!(op, UnaryOperator::Neg)
+                    && let TokenKind::IntLiteral(unsigned_value) = self.current_kind()
+                {
                     let unsigned_value = *unsigned_value;
                     let literal_span = self.current_span();
                     self.advance(); // consume the literal
@@ -204,7 +219,7 @@ impl Parser {
 
                 Ok(Expr::new(
                     ExprKind::UnaryOp {
-                        op: UnaryOperator::Neg,
+                        op,
                         operand: Box::new(operand),
                     },
                     span,
@@ -345,7 +360,6 @@ impl Parser {
                 self.advance();
                 Ok(Expr::new(ExprKind::BoolLiteral(value), start_span))
             }
-            TokenKind::Bang => Err(ParseError::unsupported_logical_not(start_span)),
             _ => Err(ParseError::unexpected_expression_start(
                 &Self::token_kind_display(self.current_kind()),
                 start_span,

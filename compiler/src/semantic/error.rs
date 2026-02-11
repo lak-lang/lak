@@ -538,6 +538,37 @@ impl SemanticError {
         )
     }
 
+    /// Creates a type mismatch error for logical result assigned to wrong type.
+    pub fn type_mismatch_logical_to_type(
+        op: crate::ast::BinaryOperator,
+        expected_ty: &str,
+        span: Span,
+    ) -> Self {
+        Self::new_with_help(
+            SemanticErrorKind::TypeMismatch,
+            format!(
+                "Logical operator '{}' produces 'bool', but expected '{}'",
+                op, expected_ty
+            ),
+            span,
+            "logical operators always produce 'bool' type",
+        )
+    }
+
+    /// Creates an error for invalid operand type in logical operation.
+    pub fn invalid_logical_op_type(
+        op: crate::ast::BinaryOperator,
+        actual_ty: &str,
+        span: Span,
+    ) -> Self {
+        Self::new_with_help(
+            SemanticErrorKind::TypeMismatch,
+            format!("Operator '{}' cannot be used with '{}' type", op, actual_ty),
+            span,
+            "logical operators (&&, ||) only work with 'bool' type",
+        )
+    }
+
     /// Creates an error for invalid operand type in unary operation.
     pub fn invalid_unary_op_type(
         op: crate::ast::UnaryOperator,
@@ -551,7 +582,12 @@ impl SemanticError {
                 op, actual_ty
             ),
             span,
-            "unary negation (-) only works with numeric types (i32, i64)",
+            match op {
+                crate::ast::UnaryOperator::Neg => {
+                    "unary negation (-) only works with numeric types (i32, i64)"
+                }
+                crate::ast::UnaryOperator::Not => "logical NOT (!) only works with 'bool' type",
+            },
         );
         err.with_unary_context()
     }

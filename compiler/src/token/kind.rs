@@ -83,6 +83,12 @@ pub enum TokenKind {
     /// A bang (exclamation mark) `!`.
     Bang,
 
+    /// Double ampersand `&&` for logical AND.
+    AndAnd,
+
+    /// Double pipe `||` for logical OR.
+    OrOr,
+
     /// Double equals `==` for equality comparison.
     EqualEqual,
 

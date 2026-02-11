@@ -94,6 +94,32 @@ impl<'a> Lexer<'a> {
                     Ok(Token::new(TokenKind::Bang, span))
                 }
             }
+            '&' => {
+                self.advance();
+                if self.current_char() == Some('&') {
+                    self.advance();
+                    let span = Span::new(start_pos, self.pos, start_line, start_column);
+                    Ok(Token::new(TokenKind::AndAnd, span))
+                } else {
+                    Err(LexError::unexpected_character(
+                        '&',
+                        Span::new(start_pos, self.pos, start_line, start_column),
+                    ))
+                }
+            }
+            '|' => {
+                self.advance();
+                if self.current_char() == Some('|') {
+                    self.advance();
+                    let span = Span::new(start_pos, self.pos, start_line, start_column);
+                    Ok(Token::new(TokenKind::OrOr, span))
+                } else {
+                    Err(LexError::unexpected_character(
+                        '|',
+                        Span::new(start_pos, self.pos, start_line, start_column),
+                    ))
+                }
+            }
             '<' => {
                 self.advance();
                 if self.current_char() == Some('=') {

@@ -276,13 +276,16 @@ impl<'ctx> Codegen<'ctx> {
                 Ok(binding.ty().clone())
             }
             ExprKind::BinaryOp { left, op, .. } => {
-                if op.is_comparison() {
+                if op.is_comparison() || op.is_logical() {
                     Ok(Type::Bool)
                 } else {
                     self.infer_expr_type_for_comparison(left)
                 }
             }
-            ExprKind::UnaryOp { operand, .. } => self.infer_expr_type_for_comparison(operand),
+            ExprKind::UnaryOp { op, operand } => match op {
+                UnaryOperator::Not => Ok(Type::Bool),
+                UnaryOperator::Neg => self.infer_expr_type_for_comparison(operand),
+            },
             ExprKind::BoolLiteral(_) => Ok(Type::Bool),
             ExprKind::StringLiteral(_) => Ok(Type::String),
             ExprKind::Call { callee, .. } => {
@@ -344,7 +347,9 @@ impl<'ctx> Codegen<'ctx> {
                     | BinaryOperator::Sub
                     | BinaryOperator::Mul
                     | BinaryOperator::Div
-                    | BinaryOperator::Mod => {
+                    | BinaryOperator::Mod
+                    | BinaryOperator::LogicalAnd
+                    | BinaryOperator::LogicalOr => {
                         return Err(CodegenError::internal_binary_op_failed(
                             op,
                             "not a comparison operator",
@@ -436,6 +441,97 @@ impl<'ctx> Codegen<'ctx> {
         }
     }
 
+    /// Generates LLVM IR for logical operators with short-circuit evaluation.
+    fn generate_logical_op_short_circuit(
+        &mut self,
+        left: &Expr,
+        op: BinaryOperator,
+        right: &Expr,
+        span: crate::token::Span,
+    ) -> Result<BasicValueEnum<'ctx>, CodegenError> {
+        let current_fn = self
+            .builder
+            .get_insert_block()
+            .and_then(|bb| bb.get_parent())
+            .ok_or_else(|| CodegenError::internal_no_current_function(span))?;
+
+        let left_basic = self.generate_expr_value(left, &Type::Bool)?;
+        let left_value = match left_basic {
+            BasicValueEnum::IntValue(v) => v,
+            _ => return Err(CodegenError::internal_non_integer_value("logical", span)),
+        };
+
+        let rhs_block = self.context.append_basic_block(current_fn, "logical_rhs");
+        let short_block = self.context.append_basic_block(current_fn, "logical_short");
+        let merge_block = self.context.append_basic_block(current_fn, "logical_merge");
+
+        match op {
+            BinaryOperator::LogicalAnd => {
+                self.builder
+                    .build_conditional_branch(left_value, rhs_block, short_block)
+                    .map_err(|e| CodegenError::internal_branch_failed(&e.to_string(), span))?;
+            }
+            BinaryOperator::LogicalOr => {
+                self.builder
+                    .build_conditional_branch(left_value, short_block, rhs_block)
+                    .map_err(|e| CodegenError::internal_branch_failed(&e.to_string(), span))?;
+            }
+            _ => {
+                return Err(CodegenError::internal_binary_op_failed(
+                    op,
+                    "not a logical operator",
+                    span,
+                ));
+            }
+        }
+
+        self.builder.position_at_end(short_block);
+        let short_value = match op {
+            BinaryOperator::LogicalAnd => self.context.bool_type().const_zero(),
+            BinaryOperator::LogicalOr => self.context.bool_type().const_all_ones(),
+            _ => {
+                return Err(CodegenError::internal_binary_op_failed(
+                    op,
+                    "not a logical operator",
+                    span,
+                ));
+            }
+        };
+        let short_value_block = self
+            .builder
+            .get_insert_block()
+            .ok_or_else(|| CodegenError::internal_no_current_function(span))?;
+        self.builder
+            .build_unconditional_branch(merge_block)
+            .map_err(|e| CodegenError::internal_branch_failed(&e.to_string(), span))?;
+
+        self.builder.position_at_end(rhs_block);
+        let right_basic = self.generate_expr_value(right, &Type::Bool)?;
+        let right_value = match right_basic {
+            BasicValueEnum::IntValue(v) => v,
+            _ => return Err(CodegenError::internal_non_integer_value("logical", span)),
+        };
+        let right_value_block = self
+            .builder
+            .get_insert_block()
+            .ok_or_else(|| CodegenError::internal_no_current_function(span))?;
+        self.builder
+            .build_unconditional_branch(merge_block)
+            .map_err(|e| CodegenError::internal_branch_failed(&e.to_string(), span))?;
+
+        self.builder.position_at_end(merge_block);
+        let phi = self
+            .builder
+            .build_phi(self.context.bool_type(), "logical_phi")
+            .map_err(|e| CodegenError::internal_binary_op_failed(op, &e.to_string(), span))?;
+        phi.add_incoming(&[
+            (&short_value, short_value_block),
+            (&right_value, right_value_block),
+        ]);
+
+        Ok(phi.as_basic_value())
+    }
+
     /// Generates LLVM IR for a binary operation.
     ///
     /// # Arguments
@@ -471,6 +567,17 @@ impl<'ctx> Codegen<'ctx> {
         expected_ty: &Type,
         span: crate::token::Span,
     ) -> Result<BasicValueEnum<'ctx>, CodegenError> {
+        if op.is_logical() {
+            if *expected_ty != Type::Bool {
+                return Err(CodegenError::internal_logical_expected_bool(
+                    op,
+                    expected_ty,
+                    span,
+                ));
+            }
+            return self.generate_logical_op_short_circuit(left, op, right, span);
+        }
+
         // Dispatch comparison operators to dedicated handler
         if op.is_comparison() {
             if *expected_ty != Type::Bool {
@@ -543,10 +650,12 @@ impl<'ctx> Codegen<'ctx> {
             | BinaryOperator::LessThan
             | BinaryOperator::GreaterThan
             | BinaryOperator::LessEqual
-            | BinaryOperator::GreaterEqual => {
+            | BinaryOperator::GreaterEqual
+            | BinaryOperator::LogicalAnd
+            | BinaryOperator::LogicalOr => {
                 return Err(CodegenError::internal_binary_op_failed(
                     op,
-                    "comparison operators should have been dispatched before reaching this match",
+                    "non-arithmetic operators should have been dispatched before reaching this match",
                     span,
                 ));
             }
@@ -583,23 +692,22 @@ impl<'ctx> Codegen<'ctx> {
         expected_ty: &Type,
         span: crate::token::Span,
     ) -> Result<BasicValueEnum<'ctx>, CodegenError> {
-        // Semantic analysis guarantees the type is numeric (not string or bool)
-        if *expected_ty == Type::String || *expected_ty == Type::Bool {
-            return Err(CodegenError::internal_unary_op_string(op, span));
-        }
-
-        // Generate value for the operand, adding context to any errors
-        let operand_basic = self
-            .generate_expr_value(operand, expected_ty)
-            .map_err(|e| CodegenError::wrap_in_unary_context(&e, op, span))?;
-        let operand_value = match operand_basic {
-            BasicValueEnum::IntValue(v) => v,
-            _ => return Err(CodegenError::internal_non_integer_value("unary", span)),
-        };
-
-        // Generate the appropriate LLVM instruction based on the operator
         let result = match op {
             UnaryOperator::Neg => {
+                // Semantic analysis guarantees the type is numeric (not string or bool)
+                if *expected_ty == Type::String || *expected_ty == Type::Bool {
+                    return Err(CodegenError::internal_unary_op_string(op, span));
+                }
+
+                // Generate value for the operand, adding context to any errors
+                let operand_basic = self
+                    .generate_expr_value(operand, expected_ty)
+                    .map_err(|e| CodegenError::wrap_in_unary_context(&e, op, span))?;
+                let operand_value = match operand_basic {
+                    BasicValueEnum::IntValue(v) => v,
+                    _ => return Err(CodegenError::internal_non_integer_value("unary", span)),
+                };
+
                 let zero = operand_value.get_type().const_int(0, false);
                 self.generate_overflow_checked_binop(
                     zero,
@@ -608,6 +716,30 @@ impl<'ctx> Codegen<'ctx> {
                     span,
                 )
                 .map_err(|e| CodegenError::wrap_in_unary_context(&e, op, span))?
+            }
+            UnaryOperator::Not => {
+                if *expected_ty != Type::Bool {
+                    return Err(CodegenError::internal_unary_not_expected_bool(
+                        expected_ty,
+                        span,
+                    ));
+                }
+                let operand_basic = self
+                    .generate_expr_value(operand, &Type::Bool)
+                    .map_err(|e| CodegenError::wrap_in_unary_context(&e, op, span))?;
+                let operand_value = match operand_basic {
+                    BasicValueEnum::IntValue(v) => v,
+                    _ => return Err(CodegenError::internal_non_integer_value("unary", span)),
+                };
+                self.builder
+                    .build_not(operand_value, "not_tmp")
+                    .map_err(|e| {
+                        CodegenError::wrap_in_unary_context(
+                            &CodegenError::internal_compare_failed(&e.to_string(), span),
+                            op,
+                            span,
+                        )
+                    })?
             }
         };
 

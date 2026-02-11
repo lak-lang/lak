@@ -550,10 +550,10 @@ fn test_compile_error_parenthesized_i64_overflow() {
 }
 
 #[test]
-fn test_unsupported_logical_not() {
+fn test_missing_rhs_for_logical_and() {
     let result = compile_error_with_kind(
         r#"fn main() -> void {
-    let x: bool = !true
+    let x: bool = true &&
 }"#,
     );
     let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
@@ -563,14 +563,11 @@ fn test_unsupported_logical_not() {
         stage,
         msg
     );
-    assert_eq!(
-        msg,
-        "Logical NOT operator '!' is not yet supported. Lak does not currently have a boolean negation operator."
-    );
-    assert_eq!(short_msg, "Unsupported operator");
+    assert_eq!(msg, "Unexpected token: '}'");
+    assert_eq!(short_msg, "Unexpected token");
     assert_eq!(
         kind,
-        CompileErrorKind::Parse(ParseErrorKind::UnsupportedLogicalNot),
-        "Expected UnsupportedLogicalNot error kind"
+        CompileErrorKind::Parse(ParseErrorKind::UnexpectedToken),
+        "Expected UnexpectedToken error kind"
     );
 }

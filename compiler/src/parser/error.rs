@@ -45,8 +45,6 @@ pub enum ParseErrorKind {
     EmptyImportPath,
     /// Integer literal exceeds representable range.
     IntegerLiteralOutOfRange,
-    /// Logical NOT operator '!' is not yet supported.
-    UnsupportedLogicalNot,
     /// Internal parser inconsistency (compiler bug).
     InternalError,
 }
@@ -119,7 +117,6 @@ impl ParseError {
             ParseErrorKind::NestedMemberAccessNotSupported => "Nested member access not supported",
             ParseErrorKind::EmptyImportPath => "Empty import path",
             ParseErrorKind::IntegerLiteralOutOfRange => "Integer overflow",
-            ParseErrorKind::UnsupportedLogicalNot => "Unsupported operator",
             ParseErrorKind::InternalError => "Internal error",
         }
     }
@@ -223,15 +220,6 @@ impl ParseError {
     // =========================================================================
     // Expression errors
     // =========================================================================
-
-    /// Creates an error for unsupported logical NOT operator.
-    pub fn unsupported_logical_not(span: Span) -> Self {
-        Self::new(
-            ParseErrorKind::UnsupportedLogicalNot,
-            "Logical NOT operator '!' is not yet supported. Lak does not currently have a boolean negation operator.",
-            span,
-        )
-    }
 
     /// Creates an error for unexpected token at expression start.
     pub fn unexpected_expression_start(found: &str, span: Span) -> Self {

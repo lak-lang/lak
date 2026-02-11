@@ -572,13 +572,16 @@ impl SemanticAnalyzer {
                 Ok(var.ty.clone())
             }
             ExprKind::BinaryOp { left, op, .. } => {
-                if op.is_comparison() {
+                if op.is_comparison() || op.is_logical() {
                     Ok(Type::Bool)
                 } else {
                     self.infer_expr_type(left)
                 }
             }
-            ExprKind::UnaryOp { operand, .. } => self.infer_expr_type(operand),
+            ExprKind::UnaryOp { op, operand } => match op {
+                UnaryOperator::Not => Ok(Type::Bool),
+                UnaryOperator::Neg => self.infer_expr_type(operand),
+            },
             ExprKind::Call { callee, .. } => Err(SemanticError::type_mismatch_call_as_value(
                 callee, expr.span,
             )),
@@ -654,6 +657,38 @@ impl SemanticAnalyzer {
             self.check_expr_type(left, &operand_ty)?;
 
             Ok(())
+        } else if op.is_logical() {
+            // Logical operators produce bool
+            if *expected_ty != Type::Bool {
+                return Err(SemanticError::type_mismatch_logical_to_type(
+                    op,
+                    &expected_ty.to_string(),
+                    span,
+                ));
+            }
+
+            let left_ty = self.infer_expr_type(left)?;
+            if left_ty != Type::Bool {
+                return Err(SemanticError::invalid_logical_op_type(
+                    op,
+                    &left_ty.to_string(),
+                    span,
+                ));
+            }
+
+            let right_ty = self.infer_expr_type(right)?;
+            if right_ty != Type::Bool {
+                return Err(SemanticError::invalid_logical_op_type(
+                    op,
+                    &right_ty.to_string(),
+                    span,
+                ));
+            }
+
+            self.check_expr_type(left, &Type::Bool)?;
+            self.check_expr_type(right, &Type::Bool)?;
+
+            Ok(())
         } else if op.is_arithmetic() {
             // Arithmetic operators: expected type must be numeric
             if *expected_ty == Type::String || *expected_ty == Type::Bool {
@@ -686,20 +721,45 @@ impl SemanticAnalyzer {
         expected_ty: &Type,
         span: Span,
     ) -> Result<(), SemanticError> {
-        // Verify the expected type is numeric (not string or bool)
-        if *expected_ty == Type::String || *expected_ty == Type::Bool {
-            return Err(SemanticError::invalid_unary_op_type(
-                op,
-                &expected_ty.to_string(),
-                span,
-            ));
+        match op {
+            UnaryOperator::Neg => {
+                // Verify the expected type is numeric (not string or bool)
+                if *expected_ty == Type::String || *expected_ty == Type::Bool {
+                    return Err(SemanticError::invalid_unary_op_type(
+                        op,
+                        &expected_ty.to_string(),
+                        span,
+                    ));
+                }
+
+                // Check the operand has the expected type, adding unary context to errors
+                self.check_expr_type(operand, expected_ty)
+                    .map_err(|e| SemanticError::wrap_in_unary_context(&e, op, span))?;
+                Ok(())
+            }
+            UnaryOperator::Not => {
+                if *expected_ty != Type::Bool {
+                    return Err(SemanticError::invalid_unary_op_type(
+                        op,
+                        &expected_ty.to_string(),
+                        span,
+                    ));
+                }
+
+                let operand_ty = self.infer_expr_type(operand)?;
+                if operand_ty != Type::Bool {
+                    return Err(SemanticError::invalid_unary_op_type(
+                        op,
+                        &operand_ty.to_string(),
+                        span,
+                    ));
+                }
+
+                self.check_expr_type(operand, &Type::Bool)
+                    .map_err(|e| SemanticError::wrap_in_unary_context(&e, op, span))?;
+                Ok(())
+            }
         }
-
-        // Check the operand has the expected type, adding unary context to errors
-        self.check_expr_type(operand, expected_ty)
-            .map_err(|e| SemanticError::wrap_in_unary_context(&e, op, span))?;
-
-        Ok(())
     }
 
     /// Validates an expression for use in println.
@@ -727,6 +787,25 @@ impl SemanticAnalyzer {
                 // Then type-check the comparison operands
                 if op.is_comparison() {
                     self.validate_comparison_operands(left, *op, right, expr.span)?;
+                } else if op.is_logical() {
+                    let left_ty = self.infer_expr_type(left)?;
+                    if left_ty != Type::Bool {
+                        return Err(SemanticError::invalid_logical_op_type(
+                            *op,
+                            &left_ty.to_string(),
+                            expr.span,
+                        ));
+                    }
+                    let right_ty = self.infer_expr_type(right)?;
+                    if right_ty != Type::Bool {
+                        return Err(SemanticError::invalid_logical_op_type(
+                            *op,
+                            &right_ty.to_string(),
+                            expr.span,
+                        ));
+                    }
+                    self.check_expr_type(left, &Type::Bool)?;
+                    self.check_expr_type(right, &Type::Bool)?;
                 }
 
                 Ok(())
@@ -735,22 +814,23 @@ impl SemanticAnalyzer {
                 // First validate the operand recursively
                 self.validate_expr_for_println(operand)?;
 
-                // Then check that the immediate operand is not a string type
-                match &operand.kind {
-                    ExprKind::StringLiteral(_) => {
+                let operand_ty = self.infer_expr_type(operand)?;
+                match op {
+                    UnaryOperator::Neg
+                        if operand_ty == Type::String || operand_ty == Type::Bool =>
+                    {
                         return Err(SemanticError::invalid_unary_op_type(
-                            *op, "string", expr.span,
+                            *op,
+                            &operand_ty.to_string(),
+                            expr.span,
                         ));
                     }
-                    ExprKind::Identifier(name) => {
-                        // Variable was already validated to exist in the recursive call
-                        if let Some(var_info) = self.symbols.lookup_variable(name)
-                            && var_info.ty == Type::String
-                        {
-                            return Err(SemanticError::invalid_unary_op_type(
-                                *op, "string", expr.span,
-                            ));
-                        }
+                    UnaryOperator::Not if operand_ty != Type::Bool => {
+                        return Err(SemanticError::invalid_unary_op_type(
+                            *op,
+                            &operand_ty.to_string(),
+                            expr.span,
+                        ));
                     }
                     _ => {}
                 }

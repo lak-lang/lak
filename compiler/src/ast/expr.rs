@@ -5,18 +5,21 @@ use std::fmt;
 
 /// Unary operators.
 ///
-/// These operators are used in unary expressions like `-x`.
+/// These operators are used in unary expressions like `-x` and `!x`.
 /// Unary operators have the highest precedence (level 1).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnaryOperator {
     /// Negation operator `-`
     Neg,
+    /// Logical NOT operator `!`
+    Not,
 }
 
 impl fmt::Display for UnaryOperator {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             UnaryOperator::Neg => write!(f, "-"),
+            UnaryOperator::Not => write!(f, "!"),
         }
     }
 }
@@ -29,6 +32,8 @@ impl fmt::Display for UnaryOperator {
 /// - Additive operators (`+`, `-`)
 /// - Comparison operators (`<`, `>`, `<=`, `>=`)
 /// - Equality operators (`==`, `!=`)
+/// - Logical AND (`&&`)
+/// - Logical OR (`||`)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BinaryOperator {
     /// Addition operator `+`
@@ -53,6 +58,10 @@ pub enum BinaryOperator {
     LessEqual,
     /// Greater than or equal operator `>=`
     GreaterEqual,
+    /// Logical AND operator `&&`
+    LogicalAnd,
+    /// Logical OR operator `||`
+    LogicalOr,
 }
 
 impl fmt::Display for BinaryOperator {
@@ -69,6 +78,8 @@ impl fmt::Display for BinaryOperator {
             BinaryOperator::GreaterThan => write!(f, ">"),
             BinaryOperator::LessEqual => write!(f, "<="),
             BinaryOperator::GreaterEqual => write!(f, ">="),
+            BinaryOperator::LogicalAnd => write!(f, "&&"),
+            BinaryOperator::LogicalOr => write!(f, "||"),
         }
     }
 }
@@ -102,6 +113,11 @@ impl BinaryOperator {
                 | BinaryOperator::Div
                 | BinaryOperator::Mod
         )
+    }
+
+    /// Returns true if this is a logical operator (&& or ||).
+    pub fn is_logical(&self) -> bool {
+        matches!(self, BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr)
     }
 }
 

@@ -651,6 +651,23 @@ impl CodegenError {
         )
     }
 
+    /// Creates an internal error when a logical operator is dispatched with a non-bool expected type.
+    pub fn internal_logical_expected_bool(
+        op: crate::ast::BinaryOperator,
+        expected_ty: &crate::ast::Type,
+        span: Span,
+    ) -> Self {
+        Self::new(
+            CodegenErrorKind::InternalError,
+            format!(
+                "Internal error: logical operator '{}' expected bool type but got '{}'. \
+                 Semantic analysis should have caught this. This is a compiler bug.",
+                op, expected_ty
+            ),
+            span,
+        )
+    }
+
     /// Creates an internal error for failed branch.
     pub fn internal_branch_failed(error: &str, span: Span) -> Self {
         Self::new(
@@ -671,6 +688,20 @@ impl CodegenError {
                 "Internal error: unary operator '{}' applied to string type in codegen. \
                  Semantic analysis should have caught this. This is a compiler bug.",
                 op
+            ),
+            span,
+        );
+        err.with_unary_context()
+    }
+
+    /// Creates an internal error when logical NOT is dispatched with a non-bool expected type.
+    pub fn internal_unary_not_expected_bool(expected_ty: &crate::ast::Type, span: Span) -> Self {
+        let err = Self::new(
+            CodegenErrorKind::InternalError,
+            format!(
+                "Internal error: unary operator '!' expected bool type but got '{}'. \
+                 Semantic analysis should have caught this. This is a compiler bug.",
+                expected_ty
             ),
             span,
         );

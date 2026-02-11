@@ -394,6 +394,62 @@ fn test_binary_op_with_variables() {
     }
 }
 
+#[test]
+fn test_logical_and_or_precedence() {
+    // true || false && true should parse as true || (false && true)
+    let program = parse("fn main() -> void { let x: bool = true || false && true }").unwrap();
+    match &program.functions[0].body[0].kind {
+        StmtKind::Let { init, .. } => match &init.kind {
+            ExprKind::BinaryOp { left, op, right } => {
+                assert_eq!(*op, BinaryOperator::LogicalOr);
+                assert!(matches!(left.kind, ExprKind::BoolLiteral(true)));
+                match &right.kind {
+                    ExprKind::BinaryOp {
+                        left: inner_left,
+                        op: inner_op,
+                        right: inner_right,
+                    } => {
+                        assert_eq!(*inner_op, BinaryOperator::LogicalAnd);
+                        assert!(matches!(inner_left.kind, ExprKind::BoolLiteral(false)));
+                        assert!(matches!(inner_right.kind, ExprKind::BoolLiteral(true)));
+                    }
+                    _ => panic!("Expected nested BinaryOp for false && true"),
+                }
+            }
+            _ => panic!("Expected BinaryOp"),
+        },
+        _ => panic!("Expected Let statement"),
+    }
+}
+
+#[test]
+fn test_logical_left_associativity() {
+    // true && false && true should parse as (true && false) && true
+    let program = parse("fn main() -> void { let x: bool = true && false && true }").unwrap();
+    match &program.functions[0].body[0].kind {
+        StmtKind::Let { init, .. } => match &init.kind {
+            ExprKind::BinaryOp { left, op, right } => {
+                assert_eq!(*op, BinaryOperator::LogicalAnd);
+                assert!(matches!(right.kind, ExprKind::BoolLiteral(true)));
+                match &left.kind {
+                    ExprKind::BinaryOp {
+                        left: inner_left,
+                        op: inner_op,
+                        right: inner_right,
+                    } => {
+                        assert_eq!(*inner_op, BinaryOperator::LogicalAnd);
+                        assert!(matches!(inner_left.kind, ExprKind::BoolLiteral(true)));
+                        assert!(matches!(inner_right.kind, ExprKind::BoolLiteral(false)));
+                    }
+                    _ => panic!("Expected nested BinaryOp for true && false"),
+                }
+            }
+            _ => panic!("Expected BinaryOp"),
+        },
+        _ => panic!("Expected Let statement"),
+    }
+}
+
 // ===================
 // Unary operation parsing
 // ===================
@@ -406,6 +462,47 @@ fn test_unary_minus_literal() {
         StmtKind::Let { init, .. } => {
             assert!(matches!(init.kind, ExprKind::IntLiteral(-5)));
         }
+        _ => panic!("Expected Let statement"),
+    }
+}
+
+#[test]
+fn test_unary_not_literal() {
+    let program = parse("fn main() -> void { let x: bool = !true }").unwrap();
+    match &program.functions[0].body[0].kind {
+        StmtKind::Let { init, .. } => match &init.kind {
+            ExprKind::UnaryOp { op, operand } => {
+                assert_eq!(*op, UnaryOperator::Not);
+                assert!(matches!(operand.kind, ExprKind::BoolLiteral(true)));
+            }
+            _ => panic!("Expected UnaryOp"),
+        },
+        _ => panic!("Expected Let statement"),
+    }
+}
+
+#[test]
+fn test_unary_not_precedence() {
+    // !true && false should parse as (!true) && false
+    let program = parse("fn main() -> void { let x: bool = !true && false }").unwrap();
+    match &program.functions[0].body[0].kind {
+        StmtKind::Let { init, .. } => match &init.kind {
+            ExprKind::BinaryOp { left, op, right } => {
+                assert_eq!(*op, BinaryOperator::LogicalAnd);
+                assert!(matches!(right.kind, ExprKind::BoolLiteral(false)));
+                match &left.kind {
+                    ExprKind::UnaryOp {
+                        op: inner_op,
+                        operand,
+                    } => {
+                        assert_eq!(*inner_op, UnaryOperator::Not);
+                        assert!(matches!(operand.kind, ExprKind::BoolLiteral(true)));
+                    }
+                    _ => panic!("Expected UnaryOp for !true"),
+                }
+            }
+            _ => panic!("Expected BinaryOp"),
+        },
         _ => panic!("Expected Let statement"),
     }
 }
