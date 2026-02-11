@@ -67,6 +67,8 @@ Report the following to the user:
 - Summary of the fix
 - List of changed files
 - Test results
+- Ask whether to delete the resolved issue file (`./issues/<slug>.md`)
+- Delete the issue file only after explicit user approval
 
 ## Notes
 
