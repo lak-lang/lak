@@ -1,8 +1,5 @@
 # Enums with Values
 
-## Phase
-Phase 6: Algebraic Data Types (Medium Priority)
-
 ## Overview
 値を持つenum（代数的データ型）を実装する。
 
@@ -38,11 +35,3 @@ match shape {
 }
 ```
 
-## Dependencies
-- Simple enums (phase6-01)
-- `match` expression (phase6-03)
-- Tuple-like value storage
-
-## Dependents
-- `Option<T>` (phase6-02) - `Some(T)`
-- `Result<T, E>` (phase6-05) - `Ok(T)`, `Err(E)`

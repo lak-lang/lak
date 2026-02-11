@@ -1,8 +1,5 @@
 # Return Statement
 
-## Phase
-Phase 2: Control Flow (High Priority)
-
 ## Overview
 `return` 文を実装する。
 
@@ -33,10 +30,3 @@ fn greet_if(flag: bool) -> void {
 }
 ```
 
-## Dependencies
-- Function definitions (completed)
-- `if`/`else` statement (phase2-01) - for early return patterns
-
-## Dependents
-- Non-void return types (phase3-02)
-- Multiple return values (future)

@@ -1,8 +1,5 @@
 # match Expression
 
-## Phase
-Phase 6: Algebraic Data Types (Medium Priority)
-
 ## Overview
 `match` 式を実装する。網羅性チェック付きのパターンマッチング。
 
@@ -45,12 +42,3 @@ match color {
 }
 ```
 
-## Dependencies
-- Simple enums (phase6-01)
-- `if`/`else` (phase2-01) - similar expression semantics
-- Comparison operators (completed) - for literal patterns
-
-## Dependents
-- `Option<T>` handling (phase6-02)
-- `Result<T, E>` handling (phase6-05)
-- Enum destructuring

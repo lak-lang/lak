@@ -1,8 +1,5 @@
 # Interfaces
 
-## Phase
-Phase 9: Advanced Features (Lower Priority)
-
 ## Overview
 インターフェースを実装する。Goスタイルの暗黙的実装。
 
@@ -42,12 +39,3 @@ print_string(u)                  // OK
 - `self`: 読み取りのみのメソッド
 - `mut self`: 変更を行うメソッド
 
-## Dependencies
-- Struct definition (phase7-01)
-- Methods (phase7-04)
-- Function parameters (phase3-01)
-
-## Dependents
-- Generic constraints (phase9-02)
-- Stringer interface for `any` type
-- Iterator interface

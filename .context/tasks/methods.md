@@ -1,8 +1,5 @@
 # Methods
 
-## Phase
-Phase 7: User-Defined Types (Medium Priority)
-
 ## Overview
 構造体のメソッドを実装する。
 
@@ -54,12 +51,3 @@ let mut u2 = User { name: "alice", age: 30 }
 u2.set_name("bob")              // OK
 ```
 
-## Dependencies
-- Struct definition (phase7-01)
-- Field access (phase7-03)
-- `mut` modifier (phase4-01) - for mut self
-- Function parameters (phase3-01)
-
-## Dependents
-- Interfaces (phase9-01) - method signatures
-- Stringer interface

@@ -1,8 +1,5 @@
 # while Loop with break/continue
 
-## Phase
-Phase 2: Control Flow (High Priority)
-
 ## Overview
 `while` ループと `break`/`continue` 文を実装する。
 
@@ -42,10 +39,3 @@ while condition {
 }
 ```
 
-## Dependencies
-- `bool` type (completed)
-- Comparison operators (completed) - for loop conditions
-- Logical operators (phase1-04) - for complex conditions
-
-## Dependents
-- `for` loop (phase8-03) - similar loop control flow

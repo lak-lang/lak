@@ -1,8 +1,5 @@
 # Logical Operators
 
-## Phase
-Phase 1: Basic Expressions (High Priority)
-
 ## Overview
 論理演算子 (`&&`, `||`, `!`) を実装する。
 
@@ -18,9 +15,3 @@ Phase 1: Basic Expressions (High Priority)
 ### Short-circuit Evaluation
 `&&` と `||` は短絡評価を行う。左辺で結果が確定した場合、右辺は評価されない。
 
-## Dependencies
-- `bool` type (completed)
-
-## Dependents
-- `if`/`else` statement (phase2-01)
-- `while` loop (phase2-04)

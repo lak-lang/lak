@@ -1,8 +1,5 @@
 # Struct Definition
 
-## Phase
-Phase 7: User-Defined Types (Medium Priority)
-
 ## Overview
 構造体の定義を実装する。
 
@@ -30,11 +27,3 @@ pub struct User {
 }
 ```
 
-## Dependencies
-- Type system basics (completed)
-- `pub` visibility keyword (phase1-08)
-
-## Dependents
-- Struct instantiation (phase7-02)
-- Field access (phase7-03)
-- Methods (phase7-04)

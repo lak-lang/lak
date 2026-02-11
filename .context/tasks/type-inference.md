@@ -1,8 +1,5 @@
 # Type Inference
 
-## Phase
-Phase 4: Variables Enhancement (Medium Priority)
-
 ## Overview
 型注釈なしでの変数宣言を可能にする型推論を実装する。
 
@@ -26,10 +23,3 @@ let y: i64 = 5              // i64 (explicit)
 let z = 5 + 10              // int (from expression)
 ```
 
-## Dependencies
-- Variable declarations (completed)
-- Expression type checking (completed)
-
-## Dependents
-- Tuple destructuring (future)
-- Generic type inference (phase9-02)

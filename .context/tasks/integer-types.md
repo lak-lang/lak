@@ -1,8 +1,5 @@
 # Remaining Integer Types
 
-## Phase
-Phase 5: Additional Types (Medium Priority)
-
 ## Overview
 残りの整数型を実装する。
 
@@ -23,11 +20,3 @@ Phase 5: Additional Types (Medium Priority)
 - `byte` は `u8` のエイリアス
 - 各型に対して算術演算子と比較演算子をサポート
 
-## Dependencies
-- i32/i64 types (completed)
-- Arithmetic operators (completed)
-- Comparison operators (completed)
-
-## Dependents
-- `byte` type alias
-- Collection index types

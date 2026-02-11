@@ -1,8 +1,5 @@
 # Float Types
 
-## Phase
-Phase 5: Additional Types (Medium Priority)
-
 ## Overview
 浮動小数点型 `f32` と `f64` を実装する。
 
@@ -27,11 +24,3 @@ let z = -0.5            // f64
 ### Default Format
 - `3.14`, `-0.5` など
 
-## Dependencies
-- Arithmetic operators (completed)
-- Comparison operators (completed)
-- Unary minus (completed)
-
-## Dependents
-- `println` float support
-- Mathematical operations

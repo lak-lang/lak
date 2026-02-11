@@ -1,8 +1,5 @@
 # Struct Instantiation
 
-## Phase
-Phase 7: User-Defined Types (Medium Priority)
-
 ## Overview
 構造体のインスタンス作成を実装する。
 
@@ -35,11 +32,3 @@ import "./user"
 let u = user.new_user("alice", 30)
 ```
 
-## Dependencies
-- Struct definition (phase7-01)
-- Function parameters (phase3-01) - for factory functions
-- Modules (phase1-08) - for visibility
-
-## Dependents
-- Field access (phase7-03)
-- Methods (phase7-04)

@@ -1,8 +1,5 @@
 # Tuple Type
 
-## Phase
-Phase 5: Additional Types (Medium Priority)
-
 ## Overview
 タプル型を実装する。複数の値をグループ化する。
 
@@ -31,11 +28,3 @@ let pair = (1, "hello")
 let x, y = pair         // x = 1, y = "hello"
 ```
 
-## Dependencies
-- Basic types (completed)
-- Type inference (phase4-03) - for tuple element types
-
-## Dependents
-- Multiple return values
-- `match` with tuple patterns (phase6-03)
-- Destructuring assignment

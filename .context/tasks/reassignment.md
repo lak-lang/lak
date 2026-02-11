@@ -1,8 +1,5 @@
 # Reassignment for Mutable Variables
 
-## Phase
-Phase 4: Variables Enhancement (Medium Priority)
-
 ## Overview
 `mut` で宣言された変数への再代入を実装する。
 
@@ -30,9 +27,3 @@ let mut z: int = 5
 z = "hello"         // Compile error: type mismatch
 ```
 
-## Dependencies
-- `mut` modifier (phase4-01)
-
-## Dependents
-- Collection mutability (future)
-- Loop counter patterns

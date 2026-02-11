@@ -1,8 +1,5 @@
 # Map Type
 
-## Phase
-Phase 8: Collections (Lower Priority)
-
 ## Overview
 マップ型を実装する。キーと値のペアを保持。
 
@@ -44,10 +41,3 @@ ages2.set("bob", 25)                   // OK
 - `contains(key: K) -> bool`
 - `len() -> int`
 
-## Dependencies
-- Generics (phase9-02) - for `Map<K, V>`
-- `Option<T>` (phase6-02) - for `get` return type
-- `mut` modifier (phase4-01) - for mutable maps
-
-## Dependents
-- `for` loop (phase8-03) - key-value iteration

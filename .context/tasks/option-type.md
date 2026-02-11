@@ -1,8 +1,5 @@
 # Option<T> in Prelude
 
-## Phase
-Phase 6: Algebraic Data Types (Medium Priority)
-
 ## Overview
 `Option<T>` 型をpreludeに追加する。値の有無を表現するためのenum。
 
@@ -30,13 +27,3 @@ match name {
 - null安全性を提供
 - パターンマッチングで安全に値を取り出す
 
-## Dependencies
-- Simple enums (phase6-01)
-- Enums with values (phase6-04)
-- Generics (phase9-02) - for `<T>`
-- `match` expression (phase6-03)
-
-## Dependents
-- Collection `get` methods
-- Optional function parameters
-- Error handling patterns

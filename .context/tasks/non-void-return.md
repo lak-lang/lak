@@ -1,8 +1,5 @@
 # Non-void Return Types
 
-## Phase
-Phase 3: Functions Enhancement (High Priority)
-
 ## Overview
 void以外の戻り値型を持つ関数を実装する。
 
@@ -32,10 +29,3 @@ add(1, 2)                   // Compile error: 戻り値が受け取られてい�
 let _ = add(1, 2)           // OK: 破棄
 ```
 
-## Dependencies
-- Function parameters (phase3-01)
-- `return` statement (phase2-03)
-
-## Dependents
-- Multiple return values (future)
-- Implicit return (future)

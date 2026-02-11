@@ -1,8 +1,5 @@
 # Field Access
 
-## Phase
-Phase 7: User-Defined Types (Medium Priority)
-
 ## Overview
 構造体のフィールドへのアクセスを実装する。
 
@@ -37,10 +34,3 @@ let team = Team { leader: User { name: "alice", age: 30 } }
 let name = team.leader.name
 ```
 
-## Dependencies
-- Struct definition (phase7-01)
-- Struct instantiation (phase7-02)
-- Modules (phase1-08) - for visibility
-
-## Dependents
-- Methods (phase7-04) - self.field access

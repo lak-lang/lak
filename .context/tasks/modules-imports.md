@@ -1,8 +1,5 @@
 # Modules and Imports
 
-## Phase
-Phase 1: Basic Expressions (High Priority)
-
 ## Overview
 モジュールシステムとimport文を実装する。
 
@@ -25,10 +22,3 @@ import "path" as alias     // エイリアス
 - importされたモジュールの `main` は実行されない
 - publicな定義のみアクセス可能
 
-## Dependencies
-- Function definitions (completed)
-- `pub` visibility keyword (new)
-
-## Dependents
-- Standard library access
-- Code organization for larger projects

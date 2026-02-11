@@ -1,8 +1,5 @@
 # Simple Enums
 
-## Phase
-Phase 6: Algebraic Data Types (Medium Priority)
-
 ## Overview
 値を持たないシンプルなenumを実装する。
 
@@ -36,11 +33,3 @@ match color {
 let color = Color.Red
 ```
 
-## Dependencies
-- Type system basics (completed)
-- `match` expression (phase6-03) - for pattern matching
-
-## Dependents
-- Enums with values (phase6-04)
-- `Option<T>` (phase6-02)
-- `Result<T, E>` (phase6-05)

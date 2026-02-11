@@ -1,8 +1,5 @@
 # print Built-in Function
 
-## Phase
-Phase 3: Functions Enhancement (High Priority)
-
 ## Overview
 改行なしで出力する `print` 組み込み関数を実装する。
 
@@ -23,9 +20,3 @@ print(42)
 print(true)
 ```
 
-## Dependencies
-- `println` function (completed)
-- `any` type (completed)
-
-## Dependents
-- String interpolation (phase9-03) - formatted output

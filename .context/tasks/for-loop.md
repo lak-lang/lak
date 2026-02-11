@@ -1,8 +1,5 @@
 # for Loop
 
-## Phase
-Phase 8: Collections (Lower Priority)
-
 ## Overview
 `for` ループを実装する。コレクションのイテレーション用。
 
@@ -57,11 +54,3 @@ for _, item in list {
 ### Rules
 - ループ変数は immutable（ループ内で変更不可）
 
-## Dependencies
-- List type (phase8-01)
-- Map type (phase8-02)
-- `while` loop (phase2-04) - similar control flow, break/continue
-- Tuple destructuring (phase5-03) - for multi-value iteration
-
-## Dependents
-- Iterator protocol (future)

@@ -1,8 +1,5 @@
 # String Interpolation
 
-## Phase
-Phase 9: Advanced Features (Lower Priority)
-
 ## Overview
 文字列補間を実装する。`${}` 構文で式を埋め込む。
 
@@ -43,11 +40,3 @@ let u = User { name: "alice" }
 println("${u}")    // "User: alice" (uses to_string())
 ```
 
-## Dependencies
-- String type (completed)
-- Interfaces (phase9-01) - for Stringer
-- Expression evaluation
-
-## Dependents
-- Formatted output
-- Debugging

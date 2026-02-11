@@ -1,8 +1,5 @@
 # Generics
 
-## Phase
-Phase 9: Advanced Features (Lower Priority)
-
 ## Overview
 ジェネリクス（型パラメータ）を実装する。
 
@@ -46,13 +43,3 @@ fn compare_and_print<T: Stringer + Comparable>(a: T, b: T) {
 }
 ```
 
-## Dependencies
-- Interfaces (phase9-01) - for constraints
-- Struct definition (phase7-01)
-- Function parameters (phase3-01)
-
-## Dependents
-- `Option<T>` (phase6-02)
-- `Result<T, E>` (phase6-05)
-- `List<T>` (phase8-01)
-- `Map<K, V>` (phase8-02)

@@ -1,8 +1,5 @@
 # List Type
 
-## Phase
-Phase 8: Collections (Lower Priority)
-
 ## Overview
 リスト型を実装する。
 
@@ -38,11 +35,3 @@ items.push(4)                          // OK
 - `push(item: T)` (requires mut)
 - `len() -> int`
 
-## Dependencies
-- Generics (phase9-02) - for `List<T>`
-- `Option<T>` (phase6-02) - for `get` return type
-- `mut` modifier (phase4-01) - for mutable lists
-
-## Dependents
-- `for` loop (phase8-03) - iteration
-- Collection operations
