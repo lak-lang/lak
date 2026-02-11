@@ -499,7 +499,3 @@ This document tracks the implementation status of Lak language features as defin
 | Entry Point | 5 | 5 | 100% |
 
 **Overall Progress: ~25%**
-
----
-
-*Last updated: 2026-02-07*
