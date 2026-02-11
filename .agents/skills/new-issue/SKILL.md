@@ -1,12 +1,12 @@
 ---
 name: new-issue
-description: Create an issue in markdown format as ./issues/<slug>.md. Document only the problem itself, without including any proposed fixes.
+description: Create an issue in markdown format as .context/issues/<slug>.md. Document only the problem itself, without including any proposed fixes.
 argument-hint: <problem description>
 ---
 
 # Issue Creation Skill
 
-Record issues reported by users as issue files in `./issues/<slug>.md`.
+Record issues reported by users as issue files in `.context/issues/<slug>.md`.
 
 ## Important Constraints
 
@@ -37,7 +37,7 @@ Decide on a concise English slug that represents the issue:
 
 ### 3. Create the Issue File
 
-Create `./issues/<slug>.md` using the following format.
+Create `.context/issues/<slug>.md` using the following format.
 Include **only relevant sections** based on the type of issue, and omit sections that do not apply.
 
 ```markdown

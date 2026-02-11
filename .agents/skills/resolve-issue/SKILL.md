@@ -1,17 +1,17 @@
 ---
 name: resolve-issue
-description: Resolve an issue described in ./issues/<slug>.md. Read the issue file, investigate, plan, implement, and test to fix the problem.
+description: Resolve an issue described in .context/issues/<slug>.md. Read the issue file, investigate, plan, implement, and test to fix the problem.
 argument-hint: <slug or issue file path>
 ---
 
 # Resolve Issue Skill
 
-Resolves problems described in issue files under `./issues/`.
+Resolves problems described in issue files under `.context/issues/`.
 
 ## Input
 
 - Issue specification: $ARGUMENTS
-  - Accepts a slug only (e.g., `unhelpful-toplevel-statement-error`) or a file path (e.g., `issues/unhelpful-toplevel-statement-error.md`)
+  - Accepts a slug only (e.g., `unhelpful-toplevel-statement-error`) or a file path (e.g., `.context/issues/unhelpful-toplevel-statement-error.md`)
 
 ## Execution Steps
 
@@ -19,7 +19,7 @@ Resolves problems described in issue files under `./issues/`.
 
 Resolve the file path from the arguments and read the issue file:
 
-- If only a slug is given: read as `./issues/<slug>.md`
+- If only a slug is given: read as `.context/issues/<slug>.md`
 - If a file path is given: read it directly
 
 Issue files contain the following sections:
@@ -67,7 +67,7 @@ Report the following to the user:
 - Summary of the fix
 - List of changed files
 - Test results
-- Ask whether to delete the resolved issue file (`./issues/<slug>.md`)
+- Ask whether to delete the resolved issue file (`.context/issues/<slug>.md`)
 - Delete the issue file only after explicit user approval
 
 ## Notes
