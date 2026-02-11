@@ -11,8 +11,6 @@ When an `i32` variable is used in a binary operation (arithmetic or comparison) 
 **Case 1: Arithmetic Operation (`+`)**
 
 ```lak
-import "./foo"
-
 fn main() -> void {
   let x: i32 = 6
   println(5 + x)
@@ -32,8 +30,6 @@ Error: Internal error
 **Case 2: Comparison Operation (`>`)**
 
 ```lak
-import "./foo"
-
 fn main() -> void {
   let x: i32 = 6
   println(5 > x)
