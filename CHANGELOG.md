@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.0.2](https://github.com/lak-lang/lak/compare/v0.0.1...v0.0.2) (2026-02-11)
+
+
+### Features
+
+* Add comparison operators (==, !=, &lt;, &gt;, &lt;=, &gt;=) ([021e20a](https://github.com/lak-lang/lak/commit/021e20a125ed486a5b4bfae6e620376d8dcf297e))
+* add logical operators with short-circuit evaluation ([b0e5a16](https://github.com/lak-lang/lak/commit/b0e5a162ae40691ab9027f124af80d4da98cc678))
+* implement if/else statements ([d0a7496](https://github.com/lak-lang/lak/commit/d0a74965d395c08a59459bd598d718de5a122d7d))
+* Release v0.0.2 ([de152fa](https://github.com/lak-lang/lak/commit/de152fa16e9009b373c2fedd1b8521dfdf327e2c))
+* support if expressions ([8365850](https://github.com/lak-lang/lak/commit/836585098e18962c9fefb7e474c2db029b935fce))
+
+
+### Patches
+
+* isolate build object files to temp dir ([2cbcb93](https://github.com/lak-lang/lak/commit/2cbcb93ba85aef9b549eab4051c3f81ac3d4d9fe))
+* isolate function symbols and reserve prelude names ([401cdce](https://github.com/lak-lang/lak/commit/401cdceb6be531db7de0fc443af02e0650c58025))
+* reject self-referential let initializer in semantic phase ([24cb880](https://github.com/lak-lang/lak/commit/24cb8800fed5fe9623b35104fbc227441fda2573))
+
 ## 0.0.1 (2026-02-10)
 
 
