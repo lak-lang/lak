@@ -12,6 +12,7 @@ Execution order and dependencies are documented only in this `README.md`, and sh
 
 ### Basic Expressions
 - `logical-operators.md` - Logical Operators
+- `string-comparison-operators.md` - Ordered Comparison for string
 - `modules-imports.md` - Modules and Imports
 
 ### Control Flow
@@ -60,38 +61,40 @@ Execution order and dependencies are documented only in this `README.md`, and sh
 
 ## Recommended Implementation Order
 1. `logical-operators.md`
-2. `modules-imports.md`
-3. `if-else.md`
-4. `if-expression.md`
-5. `return-statement.md`
-6. `while-loop.md`
-7. `function-parameters.md`
-8. `non-void-return.md`
-9. `print-function.md`
-10. `mut-modifier.md`
-11. `reassignment.md`
-12. `type-inference.md`
-13. `integer-types.md`
-14. `float-types.md`
-15. `tuple-type.md`
-16. `simple-enums.md`
-17. `match-expression.md`
-18. `enums-with-values.md`
-19. `struct-definition.md`
-20. `struct-instantiation.md`
-21. `field-access.md`
-22. `methods.md`
-23. `interfaces.md`
-24. `generics.md`
-25. `option-type.md`
-26. `result-type.md`
-27. `list-type.md`
-28. `map-type.md`
-29. `for-loop.md`
-30. `string-interpolation.md`
+2. `string-comparison-operators.md`
+3. `modules-imports.md`
+4. `if-else.md`
+5. `if-expression.md`
+6. `return-statement.md`
+7. `while-loop.md`
+8. `function-parameters.md`
+9. `non-void-return.md`
+10. `print-function.md`
+11. `mut-modifier.md`
+12. `reassignment.md`
+13. `type-inference.md`
+14. `integer-types.md`
+15. `float-types.md`
+16. `tuple-type.md`
+17. `simple-enums.md`
+18. `match-expression.md`
+19. `enums-with-values.md`
+20. `struct-definition.md`
+21. `struct-instantiation.md`
+22. `field-access.md`
+23. `methods.md`
+24. `interfaces.md`
+25. `generics.md`
+26. `option-type.md`
+27. `result-type.md`
+28. `list-type.md`
+29. `map-type.md`
+30. `for-loop.md`
+31. `string-interpolation.md`
 
 ## Inter-Task Dependencies
 - `if-else.md` depends on `logical-operators.md`.
+- `string-comparison-operators.md` depends on `logical-operators.md`.
 - `if-expression.md` depends on `if-else.md`.
 - `return-statement.md` depends on `if-else.md`.
 - `while-loop.md` depends on `logical-operators.md`.
