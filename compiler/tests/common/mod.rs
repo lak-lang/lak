@@ -14,11 +14,118 @@ use lak::semantic::{SemanticAnalyzer, SemanticErrorKind};
 use lak::token::Span;
 
 use inkwell::context::Context;
+use std::fs;
+use std::path::Path;
+use std::path::PathBuf;
 use std::process::Command;
 use tempfile::tempdir;
 
-/// Path to the Lak runtime library, set at compile time by build.rs.
-pub const LAK_RUNTIME_PATH: &str = env!("LAK_RUNTIME_PATH");
+/// Returns the runtime static library filename for the current target.
+#[cfg(all(target_os = "windows", target_env = "msvc"))]
+pub fn runtime_library_filename() -> &'static str {
+    "lak_runtime.lib"
+}
+
+/// Returns the runtime static library filename for the current target.
+#[cfg(not(all(target_os = "windows", target_env = "msvc")))]
+pub fn runtime_library_filename() -> &'static str {
+    "liblak_runtime.a"
+}
+
+/// Returns the runtime library path expected next to the given `lak` binary path.
+pub fn runtime_library_path_for_binary(binary_path: &Path) -> Result<PathBuf, String> {
+    let binary_dir = binary_path.parent().ok_or_else(|| {
+        format!(
+            "Lak binary path '{}' has no parent directory",
+            binary_path.display()
+        )
+    })?;
+    Ok(binary_dir.join(runtime_library_filename()))
+}
+
+/// Copies the built `lak` binary into `dir` and returns the copied path.
+pub fn copy_lak_binary_to(dir: &Path) -> Result<PathBuf, String> {
+    let source = PathBuf::from(lak_binary());
+    let file_name = source.file_name().ok_or_else(|| {
+        format!(
+            "Lak binary path '{}' does not contain a file name",
+            source.display()
+        )
+    })?;
+    let destination = dir.join(file_name);
+    fs::copy(&source, &destination).map_err(|e| {
+        format!(
+            "Failed to copy lak binary from '{}' to '{}': {}",
+            source.display(),
+            destination.display(),
+            e
+        )
+    })?;
+    Ok(destination)
+}
+
+/// Resolves the runtime library path for integration test linking and
+/// validates that the path exists and points to a regular file.
+fn resolve_runtime_library_path() -> Result<PathBuf, String> {
+    let lak_path = PathBuf::from(lak_binary());
+    let runtime_path = runtime_library_path_for_binary(&lak_path)?;
+    match std::fs::metadata(&runtime_path) {
+        Ok(metadata) => {
+            if !metadata.is_file() {
+                return Err(format!(
+                    "Lak runtime library path '{}' is not a regular file (resolved from executable '{}'). Place the 'lak' executable and runtime library in the same directory.",
+                    runtime_path.display(),
+                    lak_path.display()
+                ));
+            }
+        }
+        Err(io_err) if io_err.kind() == std::io::ErrorKind::NotFound => {
+            return Err(format!(
+                "Lak runtime library not found at '{}' (resolved from executable '{}'). Place the 'lak' executable and runtime library in the same directory.",
+                runtime_path.display(),
+                lak_path.display()
+            ));
+        }
+        Err(io_err) => {
+            return Err(format!(
+                "Failed to access Lak runtime library path '{}' (resolved from executable '{}'): {}",
+                runtime_path.display(),
+                lak_path.display(),
+                io_err
+            ));
+        }
+    }
+
+    Ok(runtime_path)
+}
+
+/// Maps Rust architecture identifiers to MSVC architecture identifiers.
+#[cfg(all(target_os = "windows", target_env = "msvc"))]
+fn msvc_linker_arch() -> Result<&'static str, String> {
+    match std::env::consts::ARCH {
+        "x86_64" => Ok("x64"),
+        "aarch64" => Ok("arm64"),
+        "x86" => Ok("x86"),
+        unsupported => Err(format!(
+            "Unsupported architecture '{}' for MSVC linker auto-detection. Supported architectures are 'x86_64', 'aarch64', and 'x86'.",
+            unsupported
+        )),
+    }
+}
+
+/// Resolves an MSVC `link.exe` command with its toolchain environment.
+#[cfg(all(target_os = "windows", target_env = "msvc"))]
+fn resolve_msvc_linker_command() -> Result<Command, String> {
+    let arch = msvc_linker_arch()?;
+    // `find` returns a command preconfigured with MSVC environment variables
+    // (including LIB), so callers don't need to set them manually.
+    cc::windows_registry::find(arch, "link.exe").ok_or_else(|| {
+        format!(
+            "Failed to find MSVC linker (link.exe) for target architecture '{}'",
+            arch
+        )
+    })
+}
 
 /// Returns an executable filename with the correct platform extension.
 /// e.g., "test" → "test" on Unix, "test.exe" on Windows.
@@ -83,17 +190,18 @@ pub fn compile_and_run(source: &str) -> Result<String, String> {
     let exec_str = executable_path
         .to_str()
         .ok_or_else(|| format!("Executable path {:?} is not valid UTF-8", executable_path))?;
+    let runtime_path = resolve_runtime_library_path()?;
+    let runtime_str = runtime_path
+        .to_str()
+        .ok_or_else(|| format!("Runtime path {:?} is not valid UTF-8", runtime_path))?;
 
     #[cfg(all(target_os = "windows", target_env = "msvc"))]
     let link_output = {
-        let mut cmd = Command::new(env!("LAK_MSVC_LINKER"));
-        if let Some(lib) = option_env!("LAK_MSVC_LIB") {
-            cmd.env("LIB", lib);
-        }
+        let mut cmd = resolve_msvc_linker_command()?;
         cmd.args([
             "/NOLOGO",
             object_str,
-            LAK_RUNTIME_PATH,
+            runtime_str,
             &format!("/OUT:{}", exec_str),
             "/DEFAULTLIB:msvcrt",
             "/DEFAULTLIB:legacy_stdio_definitions",
@@ -110,7 +218,7 @@ pub fn compile_and_run(source: &str) -> Result<String, String> {
 
     #[cfg(not(all(target_os = "windows", target_env = "msvc")))]
     let link_output = Command::new("cc")
-        .args([object_str, LAK_RUNTIME_PATH, "-o", exec_str])
+        .args([object_str, runtime_str, "-o", exec_str])
         .output()
         .map_err(|e| format!("Failed to run linker: {}", e))?;
 

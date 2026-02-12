@@ -5,10 +5,25 @@
 
 mod common;
 
-use common::{executable_name, lak_binary};
+use common::{copy_lak_binary_to, executable_name, lak_binary, runtime_library_path_for_binary};
 use std::fs;
+use std::path::PathBuf;
 use std::process::Command;
 use tempfile::tempdir;
+
+fn runtime_library_path_for(binary_path: &std::path::Path) -> PathBuf {
+    runtime_library_path_for_binary(binary_path)
+        .expect("lak binary path should have a parent directory")
+}
+
+fn contains_bytes(haystack: &[u8], needle: &[u8]) -> bool {
+    if needle.is_empty() {
+        return true;
+    }
+    haystack
+        .windows(needle.len())
+        .any(|window| window == needle)
+}
 
 #[test]
 fn test_build_basic() {
@@ -292,5 +307,125 @@ fn test_build_negation_overflow_span_includes_minus() {
         stderr.contains("neg_overflow.lak:2:13"),
         "Expected span to start at column 13 (minus sign), not column 14: {}",
         stderr
+    );
+}
+
+#[test]
+fn test_build_requires_runtime_library_next_to_lak_binary() {
+    let tools_dir = tempdir().unwrap();
+    let source_dir = tempdir().unwrap();
+    let copied_lak =
+        copy_lak_binary_to(tools_dir.path()).expect("failed to copy lak binary to tools directory");
+
+    fs::write(source_dir.path().join("main.lak"), "fn main() -> void {}").unwrap();
+
+    let output = Command::new(&copied_lak)
+        .current_dir(source_dir.path())
+        .args(["build", "main.lak"])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Lak runtime library not found at"),
+        "Expected runtime library missing error, got: {}",
+        stderr
+    );
+    assert!(
+        stderr.contains("Place the 'lak' executable and runtime library in the same directory."),
+        "Expected placement guidance in error, got: {}",
+        stderr
+    );
+}
+
+#[test]
+fn test_build_fails_when_runtime_path_is_not_regular_file() {
+    let tools_dir = tempdir().unwrap();
+    let source_dir = tempdir().unwrap();
+    let copied_lak =
+        copy_lak_binary_to(tools_dir.path()).expect("failed to copy lak binary to tools directory");
+
+    let copied_runtime = runtime_library_path_for(&copied_lak);
+    fs::create_dir(&copied_runtime).expect("failed to create directory at runtime library path");
+
+    fs::write(source_dir.path().join("main.lak"), "fn main() -> void {}").unwrap();
+
+    let output = Command::new(&copied_lak)
+        .current_dir(source_dir.path())
+        .args(["build", "main.lak"])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Lak runtime library path"),
+        "Expected runtime path error, got: {}",
+        stderr
+    );
+    assert!(
+        stderr.contains("is not a regular file"),
+        "Expected non-regular-file error, got: {}",
+        stderr
+    );
+    assert!(
+        stderr.contains("Place the 'lak' executable and runtime library in the same directory."),
+        "Expected placement guidance in error, got: {}",
+        stderr
+    );
+}
+
+#[test]
+fn test_build_succeeds_with_runtime_library_next_to_lak_binary() {
+    let tools_dir = tempdir().unwrap();
+    let source_dir = tempdir().unwrap();
+    let copied_lak =
+        copy_lak_binary_to(tools_dir.path()).expect("failed to copy lak binary to tools directory");
+
+    let original_lak = PathBuf::from(lak_binary());
+    let source_runtime = runtime_library_path_for(&original_lak);
+    let copied_runtime = runtime_library_path_for(&copied_lak);
+    fs::copy(&source_runtime, &copied_runtime).expect("failed to copy runtime library");
+
+    fs::write(source_dir.path().join("main.lak"), "fn main() -> void {}").unwrap();
+
+    let output = Command::new(&copied_lak)
+        .current_dir(source_dir.path())
+        .args(["build", "main.lak"])
+        .output()
+        .unwrap();
+
+    assert!(
+        output.status.success(),
+        "build should succeed when runtime is co-located: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(source_dir.path().join(executable_name("main")).exists());
+}
+
+#[test]
+fn test_build_binary_does_not_embed_runtime_absolute_path() {
+    let lak_path = PathBuf::from(lak_binary());
+    let runtime_path = runtime_library_path_for(&lak_path);
+    let runtime_path_string = runtime_path.to_string_lossy().to_string();
+    let runtime_path_canonical = runtime_path
+        .canonicalize()
+        .expect("runtime library path should be canonicalizable")
+        .to_string_lossy()
+        .to_string();
+
+    let bytes = fs::read(&lak_path).unwrap();
+
+    assert!(
+        !contains_bytes(&bytes, runtime_path_string.as_bytes()),
+        "lak binary unexpectedly embeds runtime absolute path: {}",
+        runtime_path_string
+    );
+
+    assert!(
+        !contains_bytes(&bytes, runtime_path_canonical.as_bytes()),
+        "lak binary unexpectedly embeds canonical runtime absolute path: {}",
+        runtime_path_canonical
     );
 }

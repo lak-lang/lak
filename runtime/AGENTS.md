@@ -13,7 +13,9 @@ This crate is compiled as a **static library** (`staticlib`) and linked with gen
 crate-type = ["staticlib"]
 ```
 
-Output: `liblak_runtime.a`
+Output:
+- Unix and Windows GNU: `liblak_runtime.a`
+- Windows MSVC: `lak_runtime.lib`
 
 ## ABI
 
@@ -80,8 +82,8 @@ All exported functions are `unsafe` because they accept raw pointers from C/LLVM
 ## Integration with Compiler
 
 1. Compiler generates calls to runtime functions (`lak_println`, `lak_println_i32`, `lak_println_i64`, `lak_println_bool`, `lak_panic`) in LLVM IR
-2. `build.rs` in compiler crate sets `LAK_RUNTIME_PATH` to `liblak_runtime.a`
-3. System linker (`cc`) links the object file with the runtime
+2. Compiler resolves the runtime static library from the same directory as the running `lak` executable
+3. System linker (`cc` on Unix, `link.exe` on Windows MSVC) links the object file with the runtime
 
 ## Coding Guidelines
 

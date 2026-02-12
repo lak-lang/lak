@@ -150,6 +150,26 @@ struct ModuleSemanticContext {
 enum LinkError {
     /// Failed to execute the linker command.
     ExecutionFailed(std::io::Error),
+    /// Failed to resolve the absolute path of the current executable.
+    CurrentExecutablePathResolutionFailed(std::io::Error),
+    /// Current executable path has no parent directory.
+    CurrentExecutableParentNotFound { executable: PathBuf },
+    /// Lak runtime library was not found next to the lak executable.
+    RuntimeLibraryNotFound { executable: PathBuf, path: PathBuf },
+    /// Lak runtime library path exists but is not a regular file.
+    RuntimeLibraryNotAFile { executable: PathBuf, path: PathBuf },
+    /// Failed to access the runtime library path due to an I/O error.
+    RuntimeLibraryAccessFailed {
+        executable: PathBuf,
+        path: PathBuf,
+        source: std::io::Error,
+    },
+    /// Unsupported architecture for MSVC linker auto-detection.
+    #[cfg(all(target_os = "windows", target_env = "msvc"))]
+    UnsupportedMsvcArchitecture { arch: String },
+    /// Failed to find MSVC linker automatically.
+    #[cfg(all(target_os = "windows", target_env = "msvc"))]
+    MsvcLinkerNotFound { msvc_arch: &'static str },
     /// Linker exited with non-zero status.
     Failed {
         exit_code: String,
@@ -164,6 +184,49 @@ impl std::fmt::Display for LinkError {
             LinkError::ExecutionFailed(io_err) => {
                 write!(f, "Failed to run linker: {}", io_err)
             }
+            LinkError::CurrentExecutablePathResolutionFailed(io_err) => {
+                write!(f, "Failed to resolve current executable path: {}", io_err)
+            }
+            LinkError::CurrentExecutableParentNotFound { executable } => write!(
+                f,
+                "Current executable path '{}' has no parent directory. This is a compiler bug.",
+                executable.display()
+            ),
+            LinkError::RuntimeLibraryNotFound { executable, path } => write!(
+                f,
+                "Lak runtime library not found at '{}' (resolved from executable '{}'). Place the 'lak' executable and runtime library in the same directory.",
+                path.display(),
+                executable.display()
+            ),
+            LinkError::RuntimeLibraryNotAFile { executable, path } => write!(
+                f,
+                "Lak runtime library path '{}' is not a regular file (resolved from executable '{}'). Place the 'lak' executable and runtime library in the same directory.",
+                path.display(),
+                executable.display()
+            ),
+            LinkError::RuntimeLibraryAccessFailed {
+                executable,
+                path,
+                source,
+            } => write!(
+                f,
+                "Failed to access Lak runtime library path '{}' (resolved from executable '{}'): {}",
+                path.display(),
+                executable.display(),
+                source
+            ),
+            #[cfg(all(target_os = "windows", target_env = "msvc"))]
+            LinkError::UnsupportedMsvcArchitecture { arch } => write!(
+                f,
+                "Unsupported architecture '{}' for MSVC linker auto-detection. Supported architectures are 'x86_64', 'aarch64', and 'x86'.",
+                arch
+            ),
+            #[cfg(all(target_os = "windows", target_env = "msvc"))]
+            LinkError::MsvcLinkerNotFound { msvc_arch } => write!(
+                f,
+                "Failed to find MSVC linker (link.exe) for target architecture '{}'. Install Visual Studio Build Tools with C++ build tools.",
+                msvc_arch
+            ),
             LinkError::Failed {
                 exit_code,
                 stdout,
@@ -507,8 +570,79 @@ fn report_error(filename: &str, source: &str, error: &CompileError) {
     }
 }
 
-/// Path to the Lak runtime library, set at compile time by build.rs.
-const LAK_RUNTIME_PATH: &str = env!("LAK_RUNTIME_PATH");
+/// Returns the runtime static library filename for the current target.
+#[cfg(all(target_os = "windows", target_env = "msvc"))]
+fn runtime_library_filename() -> &'static str {
+    "lak_runtime.lib"
+}
+
+/// Returns the runtime static library filename for the current target.
+#[cfg(not(all(target_os = "windows", target_env = "msvc")))]
+fn runtime_library_filename() -> &'static str {
+    "liblak_runtime.a"
+}
+
+/// Resolves the runtime static library path next to the running `lak` binary.
+fn resolve_runtime_library_path() -> Result<PathBuf, CompileError> {
+    let executable = std::env::current_exe()
+        .map_err(|e| CompileError::Link(LinkError::CurrentExecutablePathResolutionFailed(e)))?;
+    let executable_dir = executable.parent().ok_or_else(|| {
+        CompileError::Link(LinkError::CurrentExecutableParentNotFound {
+            executable: executable.clone(),
+        })
+    })?;
+    let runtime_path = executable_dir.join(runtime_library_filename());
+    // Preflight diagnostics for missing runtime libraries.
+    // The final link step is still authoritative, so a TOCTOU race here is acceptable.
+    match std::fs::metadata(&runtime_path) {
+        Ok(metadata) => {
+            if !metadata.is_file() {
+                return Err(CompileError::Link(LinkError::RuntimeLibraryNotAFile {
+                    executable: executable.clone(),
+                    path: runtime_path,
+                }));
+            }
+        }
+        Err(io_err) if io_err.kind() == std::io::ErrorKind::NotFound => {
+            return Err(CompileError::Link(LinkError::RuntimeLibraryNotFound {
+                executable: executable.clone(),
+                path: runtime_path,
+            }));
+        }
+        Err(io_err) => {
+            return Err(CompileError::Link(LinkError::RuntimeLibraryAccessFailed {
+                executable: executable.clone(),
+                path: runtime_path,
+                source: io_err,
+            }));
+        }
+    }
+
+    Ok(runtime_path)
+}
+
+/// Maps Rust architecture identifiers to MSVC architecture identifiers.
+#[cfg(all(target_os = "windows", target_env = "msvc"))]
+fn msvc_linker_arch() -> Result<&'static str, CompileError> {
+    match std::env::consts::ARCH {
+        "x86_64" => Ok("x64"),
+        "aarch64" => Ok("arm64"),
+        "x86" => Ok("x86"),
+        unsupported => Err(CompileError::Link(LinkError::UnsupportedMsvcArchitecture {
+            arch: unsupported.to_string(),
+        })),
+    }
+}
+
+/// Resolves an MSVC `link.exe` command with its toolchain environment.
+#[cfg(all(target_os = "windows", target_env = "msvc"))]
+fn resolve_msvc_linker_command() -> Result<Command, CompileError> {
+    let arch = msvc_linker_arch()?;
+    // `find` returns a command preconfigured with MSVC environment variables,
+    // including LIB, so the linker can resolve system libraries in CI.
+    cc::windows_registry::find(arch, "link.exe")
+        .ok_or_else(|| CompileError::Link(LinkError::MsvcLinkerNotFound { msvc_arch: arch }))
+}
 
 /// Formats an exit status for display, including signal information on Unix.
 fn format_exit_status(status: &ExitStatus) -> String {
@@ -565,17 +699,18 @@ fn link(object_path: &Path, output_path: &Path) -> Result<(), CompileError> {
     let output_str = output_path
         .to_str()
         .ok_or_else(|| CompileError::path_not_utf8(output_path, "Output file"))?;
+    let runtime_path = resolve_runtime_library_path()?;
+    let runtime_str = runtime_path
+        .to_str()
+        .ok_or_else(|| CompileError::path_not_utf8(&runtime_path, "Lak runtime library"))?;
 
     #[cfg(all(target_os = "windows", target_env = "msvc"))]
     let output = {
-        let mut cmd = Command::new(env!("LAK_MSVC_LINKER"));
-        if let Some(lib) = option_env!("LAK_MSVC_LIB") {
-            cmd.env("LIB", lib);
-        }
+        let mut cmd = resolve_msvc_linker_command()?;
         cmd.args([
             "/NOLOGO",
             object_str,
-            LAK_RUNTIME_PATH,
+            runtime_str,
             &format!("/OUT:{}", output_str),
             "/DEFAULTLIB:msvcrt",
             "/DEFAULTLIB:legacy_stdio_definitions",
@@ -592,7 +727,7 @@ fn link(object_path: &Path, output_path: &Path) -> Result<(), CompileError> {
 
     #[cfg(not(all(target_os = "windows", target_env = "msvc")))]
     let output = Command::new("cc")
-        .args([object_str, LAK_RUNTIME_PATH, "-o", output_str])
+        .args([object_str, runtime_str, "-o", output_str])
         .output()
         .map_err(|e| CompileError::Link(LinkError::ExecutionFailed(e)))?;
 
@@ -716,7 +851,7 @@ fn compile_to_executable(
 /// 4. Run semantic analysis on entry module
 /// 5. Generate LLVM IR
 /// 6. Write to an object file
-/// 7. Link with the system linker (`cc`) and Lak runtime
+/// 7. Link with the system linker (`cc` on Unix, MSVC `link.exe` on Windows) and Lak runtime
 /// 8. Clean up temporary files
 ///
 /// # Arguments
@@ -906,6 +1041,86 @@ mod tests {
         let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "cc not found");
         let err = LinkError::ExecutionFailed(io_err);
         assert_eq!(err.to_string(), "Failed to run linker: cc not found");
+    }
+
+    #[test]
+    fn test_display_link_error_current_executable_path_resolution_failed() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "missing executable");
+        let err = LinkError::CurrentExecutablePathResolutionFailed(io_err);
+        assert_eq!(
+            err.to_string(),
+            "Failed to resolve current executable path: missing executable"
+        );
+    }
+
+    #[test]
+    fn test_display_link_error_current_executable_parent_not_found() {
+        let err = LinkError::CurrentExecutableParentNotFound {
+            executable: PathBuf::from("lak"),
+        };
+        assert_eq!(
+            err.to_string(),
+            "Current executable path 'lak' has no parent directory. This is a compiler bug."
+        );
+    }
+
+    #[test]
+    fn test_display_link_error_runtime_library_not_found() {
+        let err = LinkError::RuntimeLibraryNotFound {
+            executable: PathBuf::from("/tmp/lak"),
+            path: PathBuf::from("/tmp/liblak_runtime.a"),
+        };
+        assert_eq!(
+            err.to_string(),
+            "Lak runtime library not found at '/tmp/liblak_runtime.a' (resolved from executable '/tmp/lak'). Place the 'lak' executable and runtime library in the same directory."
+        );
+    }
+
+    #[test]
+    fn test_display_link_error_runtime_library_not_a_file() {
+        let err = LinkError::RuntimeLibraryNotAFile {
+            executable: PathBuf::from("/tmp/lak"),
+            path: PathBuf::from("/tmp/liblak_runtime.a"),
+        };
+        assert_eq!(
+            err.to_string(),
+            "Lak runtime library path '/tmp/liblak_runtime.a' is not a regular file (resolved from executable '/tmp/lak'). Place the 'lak' executable and runtime library in the same directory."
+        );
+    }
+
+    #[test]
+    fn test_display_link_error_runtime_library_access_failed() {
+        let err = LinkError::RuntimeLibraryAccessFailed {
+            executable: PathBuf::from("/tmp/lak"),
+            path: PathBuf::from("/tmp/liblak_runtime.a"),
+            source: std::io::Error::new(std::io::ErrorKind::PermissionDenied, "permission denied"),
+        };
+        assert_eq!(
+            err.to_string(),
+            "Failed to access Lak runtime library path '/tmp/liblak_runtime.a' (resolved from executable '/tmp/lak'): permission denied"
+        );
+    }
+
+    #[cfg(all(target_os = "windows", target_env = "msvc"))]
+    #[test]
+    fn test_display_link_error_unsupported_msvc_architecture() {
+        let err = LinkError::UnsupportedMsvcArchitecture {
+            arch: "riscv64".to_string(),
+        };
+        assert_eq!(
+            err.to_string(),
+            "Unsupported architecture 'riscv64' for MSVC linker auto-detection. Supported architectures are 'x86_64', 'aarch64', and 'x86'."
+        );
+    }
+
+    #[cfg(all(target_os = "windows", target_env = "msvc"))]
+    #[test]
+    fn test_display_link_error_msvc_linker_not_found() {
+        let err = LinkError::MsvcLinkerNotFound { msvc_arch: "x64" };
+        assert_eq!(
+            err.to_string(),
+            "Failed to find MSVC linker (link.exe) for target architecture 'x64'. Install Visual Studio Build Tools with C++ build tools."
+        );
     }
 
     #[test]

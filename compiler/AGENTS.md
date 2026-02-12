@@ -17,7 +17,6 @@ compiler/
 │   ├── resolver/    # Module resolution (multi-file compilation)
 │   └── codegen/     # LLVM codegen (see codegen/AGENTS.md)
 ├── tests/           # Integration and E2E tests
-├── build.rs         # Build script for runtime path and MSVC linker detection
 └── Cargo.toml
 ```
 
@@ -57,7 +56,7 @@ Executable
 | `ariadne` | Beautiful error reporting |
 | `clap` | CLI argument parsing |
 | `tempfile` | Temporary files for `lak run` |
-| `cc` (build-dep) | MSVC toolchain detection on Windows |
+| `cc` (Windows MSVC only) | Runtime MSVC linker auto-detection (`windows_registry`) |
 
 ## Core Modules
 
@@ -190,13 +189,17 @@ CompileError::path_not_utf8(path, "object file")
 4. **Use the helper** at the call site
 5. **Add tests** that verify both `kind()` and `message()` of the new error
 
-## Build Script (build.rs)
+## Runtime and Linker Resolution
 
-Sets compile-time environment variables:
+The compiler resolves linker inputs at runtime (not compile time):
 
-- `LAK_RUNTIME_PATH` — Path to the runtime static library (`liblak_runtime.a` on Unix, `lak_runtime.lib` on Windows MSVC). Used by the linker to link generated programs with the runtime.
-- `LAK_MSVC_LINKER` (Windows MSVC only) — Full path to MSVC `link.exe`, detected via the `cc` crate. Avoids PATH conflicts with GNU coreutils `link.exe` from Git for Windows.
-- `LAK_MSVC_LIB` (Windows MSVC only) — MSVC library search paths (`LIB` environment variable). Required in CI environments where `vcvarsall.bat` has not been run.
+- **Runtime library path** — Resolved as a file in the same directory as the running `lak` executable.
+  - Unix and Windows GNU: `liblak_runtime.a`
+  - Windows MSVC: `lak_runtime.lib`
+  - Resolution uses `std::env::current_exe()`, so symlinked launchers resolve to the symlink target location.
+- **MSVC linker path** (Windows MSVC only) — Resolved at runtime via `cc::windows_registry::find(..., "link.exe")`.
+
+Distribution packages must keep `lak` and the runtime static library in the same directory.
 
 ## Tests
 

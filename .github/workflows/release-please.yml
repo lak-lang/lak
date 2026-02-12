@@ -94,12 +94,32 @@ jobs:
       # Archive
       # ============================================================
 
+      - name: Verify runtime library exists (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          RUNTIME_PATH="target/${TARGET}/release/liblak_runtime.a"
+          test -f "$RUNTIME_PATH" || {
+            echo "ERROR: Runtime library not found at '$RUNTIME_PATH'."
+            exit 1
+          }
+
+      - name: Verify runtime library exists (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $runtimePath = "target/${env:TARGET}/release/lak_runtime.lib"
+          if (-not (Test-Path -Path $runtimePath -PathType Leaf)) {
+            Write-Error "Runtime library not found at '$runtimePath'."
+            exit 1
+          }
+
       - name: Create archive (Unix)
         if: runner.os != 'Windows'
         run: |
           ARCHIVE_NAME="lak-${TAG}-${TARGET}.tar.gz"
           mkdir -p archive
           cp "target/${TARGET}/release/lak" archive/
+          cp "target/${TARGET}/release/liblak_runtime.a" archive/
           cp LICENSE README.md archive/
           tar czvf "$ARCHIVE_NAME" -C archive .
           echo "ARCHIVE_NAME=$ARCHIVE_NAME" >> "$GITHUB_ENV"
@@ -111,6 +131,7 @@ jobs:
           $ARCHIVE_NAME = "lak-${env:TAG}-${env:TARGET}.zip"
           New-Item -ItemType Directory -Force -Path archive
           Copy-Item "target/${env:TARGET}/release/lak.exe" -Destination archive/
+          Copy-Item "target/${env:TARGET}/release/lak_runtime.lib" -Destination archive/
           Copy-Item "LICENSE", "README.md" -Destination archive/
           Compress-Archive -Path archive/* -DestinationPath $ARCHIVE_NAME
           echo "ARCHIVE_NAME=$ARCHIVE_NAME" >> $env:GITHUB_ENV

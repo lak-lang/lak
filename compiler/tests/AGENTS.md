@@ -14,26 +14,28 @@ Comprehensive test suite verifying the compiler's functionality from source code
 | `e2e_any.rs` | E2E | 13 | Mixed type println tests |
 | `e2e_arithmetic.rs` | E2E | 82 | Arithmetic operations, division-by-zero, and integer overflow |
 | `e2e_basic.rs` | E2E | 7 | Basic functionality (println, comments, functions) |
-| `e2e_bool.rs` | E2E | 8 | Boolean type handling |
-| `e2e_build.rs` | E2E | 9 | `lak build` command behavior |
+| `e2e_bool.rs` | E2E | 12 | Boolean type handling |
+| `e2e_build.rs` | E2E | 15 | `lak build` command behavior |
 | `e2e_comparison.rs` | E2E | 67 | Comparison operators (==, !=, <, >, <=, >=) |
-| `e2e_functions.rs` | E2E | 14 | User-defined function calls |
+| `e2e_functions.rs` | E2E | 16 | User-defined function calls |
+| `e2e_if_else.rs` | E2E | 6 | `if`/`else if`/`else` statement behavior |
+| `e2e_if_expression.rs` | E2E | 9 | `if` expression behavior |
 | `e2e_imports.rs` | E2E | 4 | `import` syntax parsing |
-| `e2e_modules.rs` | E2E | 20 | Multi-file module compilation |
+| `e2e_modules.rs` | E2E | 21 | Multi-file module compilation |
 | `e2e_panic.rs` | E2E | 7 | `panic()` function behavior |
-| `e2e_run.rs` | E2E | 15 | `lak run` command execution |
+| `e2e_run.rs` | E2E | 17 | `lak run` command execution |
 | `e2e_strings.rs` | E2E | 21 | String literals and escape sequences |
 | `e2e_variables.rs` | E2E | 14 | Variable declarations (i32, i64) |
 | `e2e_visibility.rs` | E2E | 4 | `pub fn` visibility keyword |
 | `errors_lex.rs` | Errors | 8 | Lexical analysis error detection |
-| `errors_modules.rs` | Errors | 17 | Module resolution error detection |
-| `errors_parse.rs` | Errors | 23 | Parser error detection |
-| `errors_semantic.rs` | Errors | 83 | Semantic analysis error detection |
+| `errors_modules.rs` | Errors | 18 | Module resolution error detection |
+| `errors_parse.rs` | Errors | 25 | Parser error detection |
+| `errors_semantic.rs` | Errors | 87 | Semantic analysis error detection |
 | `pipeline.rs` | Integration | 9 | Phase integration and direct AST construction |
 
 ## Test Categories
 
-### E2E Tests (286 tests)
+### E2E Tests (315 tests)
 
 Compile, link, and execute real Lak programs, validating stdout output.
 
@@ -42,7 +44,7 @@ let output = compile_and_run(r#"fn main() -> void { println("test") }"#).unwrap(
 assert_eq!(output, "test\n");
 ```
 
-### Error Tests (131 tests)
+### Error Tests (138 tests)
 
 Verify errors are detected at the correct compilation stage with correct error kind.
 

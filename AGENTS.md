@@ -97,7 +97,7 @@ Source (.lak) → Lexer → Parser → Semantic Analyzer → Codegen → LLVM �
 - **ariadne** - Beautiful error reporting with source highlighting
 - **clap** - Command-line argument parsing
 - **tempfile** - Temporary file handling for compilation pipeline
-- **cc** (build-dependency) - MSVC toolchain detection on Windows (linker path, LIB environment)
+- **cc** (Windows MSVC only) - Runtime MSVC linker auto-detection (`windows_registry`)
 
 ### Compilation Flow
 

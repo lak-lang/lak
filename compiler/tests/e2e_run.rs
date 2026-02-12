@@ -5,7 +5,7 @@
 
 mod common;
 
-use common::lak_binary;
+use common::{copy_lak_binary_to, lak_binary, runtime_library_path_for_binary};
 use std::fs;
 use std::process::Command;
 use tempfile::tempdir;
@@ -260,6 +260,74 @@ fn test_run_path_with_spaces() {
         "Expected 'Module names must be valid identifiers' error for filename with spaces, got: {}",
         stderr
     );
+}
+
+#[test]
+fn test_run_requires_runtime_library_next_to_lak_binary() {
+    let tools_dir = tempdir().unwrap();
+    let source_dir = tempdir().unwrap();
+    let copied_lak =
+        copy_lak_binary_to(tools_dir.path()).expect("failed to copy lak binary to tools directory");
+    let source_path = source_dir.path().join("main.lak");
+    fs::write(&source_path, "fn main() -> void {}").unwrap();
+
+    let output = Command::new(&copied_lak)
+        .args([
+            "run",
+            source_path
+                .to_str()
+                .expect("source path should be valid UTF-8"),
+        ])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Lak runtime library not found at"),
+        "Expected runtime library missing error, got: {}",
+        stderr
+    );
+    assert!(
+        stderr.contains("Place the 'lak' executable and runtime library in the same directory."),
+        "Expected placement guidance in error, got: {}",
+        stderr
+    );
+}
+
+#[test]
+fn test_run_succeeds_with_runtime_library_next_to_lak_binary() {
+    let tools_dir = tempdir().unwrap();
+    let source_dir = tempdir().unwrap();
+    let copied_lak =
+        copy_lak_binary_to(tools_dir.path()).expect("failed to copy lak binary to tools directory");
+
+    let original_lak = std::path::PathBuf::from(lak_binary());
+    let source_runtime = runtime_library_path_for_binary(&original_lak)
+        .expect("lak binary path should have a parent directory");
+    let copied_runtime = runtime_library_path_for_binary(&copied_lak)
+        .expect("copied lak binary path should have a parent directory");
+    fs::copy(&source_runtime, &copied_runtime).expect("failed to copy runtime library");
+
+    let source_path = source_dir.path().join("main.lak");
+    fs::write(&source_path, r#"fn main() -> void { println("ok") }"#).unwrap();
+
+    let output = Command::new(&copied_lak)
+        .args([
+            "run",
+            source_path
+                .to_str()
+                .expect("source path should be valid UTF-8"),
+        ])
+        .output()
+        .unwrap();
+
+    assert!(
+        output.status.success(),
+        "run should succeed when runtime is co-located: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "ok\n");
 }
 
 // ========================================

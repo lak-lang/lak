@@ -9,7 +9,7 @@ clap = { version = "4.5.57", features = ["derive"] }
 inkwell = { version = "0.8.0", default-features = false, features = ["llvm21-1"] }
 tempfile = "3.24.0"
 
-[build-dependencies]
+[target.'cfg(all(target_os = "windows", target_env = "msvc"))'.dependencies]
 cc = "1.2.55"
 
 [dev-dependencies]
