@@ -210,17 +210,24 @@ let x = 10    // Compile error: variable x is already declared
 | `-` | Subtraction |
 | `*` | Multiplication |
 | `/` | Division |
-| `%` | Modulo |
+| `%` | Modulo (integers only) |
 
-### Integer Literal Adaptation
+### Numeric Operand Type Resolution
 
-In binary arithmetic/comparison expressions, integer literals adapt to the
-non-literal integer operand type when possible:
+In binary arithmetic/comparison expressions, numeric operand types are resolved
+as follows:
 
-- `int_literal <op> i32` / `i32 <op> int_literal` are evaluated as `i32`
-- `int_literal <op> i64` / `i64 <op> int_literal` are evaluated as `i64`
+- `i32 <op> i32` evaluates as `i32`
+- `i64 <op> i64` evaluates as `i64`
+- `i32 <op> i64` / `i64 <op> i32` evaluate as `i64` (widening conversion)
+- `f32 <op> f32` evaluates as `f32`
+- `f64 <op> f64` evaluates as `f64`
+- `f32 <op> f64` / `f64 <op> f32` evaluate as `f64` (widening conversion)
+- `int_literal <op> i32` / `i32 <op> int_literal` evaluate as `i32`
+- `int_literal <op> i64` / `i64 <op> int_literal` evaluate as `i64`
 - `int_literal <op> int_literal` defaults to `i64`
-- non-literal `i32`/`i64` mixes (e.g. `a + b`) are a type error
+- integer/float mixes are a type error unless explicitly cast
+- implicit narrowing conversions are not allowed
 
 ### Integer Overflow
 
@@ -245,6 +252,9 @@ This behavior is consistent with division by zero, which also panics at runtime.
 | `>` | Greater than |
 | `<=` | Less than or equal |
 | `>=` | Greater than or equal |
+
+For numeric comparisons, the same numeric operand type resolution rules above
+are applied before comparison, and the result type is `bool`.
 
 ### Logical Operators
 

@@ -118,7 +118,11 @@ This document tracks the implementation status of Lak language features as defin
 - [x] `+` addition
   - [x] Integer addition (i32, i64)
   - [x] Overflow detection with panic
+  - [x] Integer literal adaptation (`int_literal <op> i32/i64`)
+  - [ ] Non-literal mixed integer arithmetic (`i32` + `i64`) with widening to `i64`
   - [ ] Float addition
+  - [ ] Mixed float arithmetic (`f32` + `f64`) with widening to `f64`
+  - [ ] Integer/float mixed arithmetic requires explicit cast (no implicit conversion)
   - [ ] String concatenation
 - [x] `-` subtraction (i32, i64)
   - [x] Overflow detection with panic
@@ -137,6 +141,10 @@ This document tracks the implementation status of Lak language features as defin
 - [x] `>` greater than (i32, i64)
 - [x] `<=` less than or equal (i32, i64)
 - [x] `>=` greater than or equal (i32, i64)
+- [x] Integer literal adaptation in numeric comparisons
+- [ ] Non-literal mixed integer comparison (`i32` vs `i64`) with widening to `i64`
+- [ ] Mixed float comparison (`f32` vs `f64`) with widening to `f64`
+- [ ] Integer/float mixed comparison requires explicit cast (no implicit conversion)
 
 ### 4.3 Logical Operators
 

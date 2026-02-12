@@ -21,5 +21,10 @@ let z = -0.5            // f64
 - Comparison: `==`, `!=`, `<`, `>`, `<=`, `>=`
 - Unary: `-`
 
+### Numeric Mixing Rules
+- `f32` and `f64` in the same arithmetic/comparison expression are promoted to `f64`.
+- Integer and float mixed arithmetic/comparison is a compile error unless an explicit cast is provided.
+- Implicit narrowing conversion is not allowed.
+
 ### Default Format
 - `3.14`, `-0.5`, etc.
