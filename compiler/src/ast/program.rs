@@ -2,7 +2,7 @@
 
 use crate::token::Span;
 
-use super::stmt::Stmt;
+use super::{Type, stmt::Stmt};
 
 /// Visibility of a function or other declaration.
 ///
@@ -75,6 +75,7 @@ impl ImportDecl {
 ///
 /// The following invariants should hold for a well-formed `FnDef`:
 /// - `name` should be a non-empty valid identifier
+/// - each item in `params` should have a non-empty valid identifier name
 /// - `return_type` should be a valid type name (currently only "void")
 /// - `return_type_span` should point to the actual return type token in source
 /// - `span` should encompass the function signature from `pub` (if present) or `fn` to before `{`
@@ -94,12 +95,24 @@ impl ImportDecl {
 ///     println("Hello!")
 /// }
 /// ```
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FnParam {
+    /// The parameter name.
+    pub name: String,
+    /// The parameter type.
+    pub ty: Type,
+    /// The source location of the parameter declaration.
+    pub span: Span,
+}
+
 #[derive(Debug, Clone)]
 pub struct FnDef {
     /// The visibility of the function (public or private).
     pub visibility: Visibility,
     /// The name of the function.
     pub name: String,
+    /// The parameters accepted by this function.
+    pub params: Vec<FnParam>,
     /// The return type of the function. Currently only "void" is supported.
     pub return_type: String,
     /// The source location of the return type token (e.g., `void` or `int`).
@@ -128,6 +141,7 @@ impl FnDef {
         FnDef {
             visibility: Visibility::Private,
             name: name.to_string(),
+            params: vec![],
             return_type: return_type.to_string(),
             return_type_span: dummy,
             body,

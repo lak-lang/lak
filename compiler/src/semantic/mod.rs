@@ -156,6 +156,11 @@ impl SemanticAnalyzer {
 
             let info = FunctionInfo {
                 name: function.name.clone(),
+                param_types: function
+                    .params
+                    .iter()
+                    .map(|param| param.ty.clone())
+                    .collect(),
                 return_type: function.return_type.clone(),
                 return_type_span: function.return_type_span,
                 definition_span: function.span,
@@ -181,6 +186,13 @@ impl SemanticAnalyzer {
         })?;
 
         // Validate signature
+        if !main_fn.param_types.is_empty() {
+            return Err(SemanticError::invalid_main_signature_has_params(
+                main_fn.param_types.len(),
+                main_fn.definition_span,
+            ));
+        }
+
         if main_fn.return_type != "void" {
             return Err(SemanticError::invalid_main_signature(
                 &main_fn.return_type,
@@ -195,6 +207,15 @@ impl SemanticAnalyzer {
 
     fn analyze_function(&mut self, function: &FnDef) -> Result<(), SemanticError> {
         self.symbols.enter_scope();
+
+        for param in &function.params {
+            let info = VariableInfo {
+                name: param.name.clone(),
+                ty: param.ty.clone(),
+                definition_span: param.span,
+            };
+            self.symbols.define_variable(info)?;
+        }
 
         for stmt in &function.body {
             self.analyze_stmt(stmt)?;
@@ -448,30 +469,44 @@ impl SemanticAnalyzer {
         }
 
         // Check if function is defined
-        let func_info = self
-            .symbols
-            .lookup_function(callee)
-            .ok_or_else(|| SemanticError::undefined_function(callee, span))?;
+        let (param_types, return_type) = {
+            let func_info = self
+                .symbols
+                .lookup_function(callee)
+                .ok_or_else(|| SemanticError::undefined_function(callee, span))?;
+            (func_info.param_types.clone(), func_info.return_type.clone())
+        };
 
         // Disallow calling main function directly
         if callee == "main" {
             return Err(SemanticError::invalid_argument_cannot_call_main(span));
         }
 
-        // Check argument count (currently only parameterless functions are supported)
-        if !args.is_empty() {
-            return Err(SemanticError::invalid_argument_fn_expects_no_args(
-                callee,
-                args.len(),
-                span,
-            ));
+        // Check argument count
+        let expected_arg_count = param_types.len();
+        if args.len() != expected_arg_count {
+            return Err(if expected_arg_count == 0 {
+                SemanticError::invalid_argument_fn_expects_no_args(callee, args.len(), span)
+            } else {
+                SemanticError::invalid_argument_fn_expects_args(
+                    callee,
+                    expected_arg_count,
+                    args.len(),
+                    span,
+                )
+            });
+        }
+
+        // Check argument types
+        for (arg, expected_ty) in args.iter().zip(param_types.iter()) {
+            self.check_expr_type(arg, expected_ty)?;
         }
 
         // Check that the function returns void (only void functions can be called as statements)
-        if func_info.return_type != "void" {
+        if return_type != "void" {
             return Err(SemanticError::type_mismatch_non_void_fn_as_stmt(
                 callee,
-                &func_info.return_type,
+                &return_type,
                 span,
             ));
         }
@@ -486,53 +521,76 @@ impl SemanticAnalyzer {
         args: &[Expr],
         span: Span,
     ) -> Result<(), SemanticError> {
-        // Get the module table based on the current analysis mode
-        let module_table = match &self.mode {
-            AnalysisMode::EntryWithModules(table) => table,
-            AnalysisMode::ImportedModule(Some(table)) => table,
-            AnalysisMode::ImportedModule(None) => {
-                // Imported module has no module table (no imports of its own).
-                // This means it has a ModuleCall expression but no way to resolve it.
-                return Err(SemanticError::cross_module_call_in_imported_module(
-                    module_name,
-                    function_name,
-                    span,
-                ));
-            }
-            AnalysisMode::SingleFile => {
-                // No module table means module resolution is not enabled
-                return Err(SemanticError::module_not_imported(
-                    module_name,
-                    function_name,
-                    span,
-                ));
-            }
+        let (param_types, return_type) = {
+            // Get the module table based on the current analysis mode
+            let module_table = match &self.mode {
+                AnalysisMode::EntryWithModules(table) => table,
+                AnalysisMode::ImportedModule(Some(table)) => table,
+                AnalysisMode::ImportedModule(None) => {
+                    // Imported module has no module table (no imports of its own).
+                    // This means it has a ModuleCall expression but no way to resolve it.
+                    return Err(SemanticError::cross_module_call_in_imported_module(
+                        module_name,
+                        function_name,
+                        span,
+                    ));
+                }
+                AnalysisMode::SingleFile => {
+                    // No module table means module resolution is not enabled
+                    return Err(SemanticError::module_not_imported(
+                        module_name,
+                        function_name,
+                        span,
+                    ));
+                }
+            };
+
+            // Look up the module
+            let module_exports = module_table
+                .get_module(module_name)
+                .ok_or_else(|| SemanticError::undefined_module(module_name, span))?;
+
+            // Look up the function in the module
+            let func_export = module_exports.get_function(function_name).ok_or_else(|| {
+                SemanticError::undefined_module_function(module_name, function_name, span)
+            })?;
+
+            (
+                func_export.param_types().to_vec(),
+                func_export.return_type().to_string(),
+            )
         };
 
-        // Look up the module
-        let module_exports = module_table
-            .get_module(module_name)
-            .ok_or_else(|| SemanticError::undefined_module(module_name, span))?;
+        // Check argument count
+        let full_function_name = format!("{}.{}", module_name, function_name);
+        let expected_arg_count = param_types.len();
+        if args.len() != expected_arg_count {
+            return Err(if expected_arg_count == 0 {
+                SemanticError::invalid_argument_fn_expects_no_args(
+                    &full_function_name,
+                    args.len(),
+                    span,
+                )
+            } else {
+                SemanticError::invalid_argument_fn_expects_args(
+                    &full_function_name,
+                    expected_arg_count,
+                    args.len(),
+                    span,
+                )
+            });
+        }
 
-        // Look up the function in the module
-        let func_export = module_exports.get_function(function_name).ok_or_else(|| {
-            SemanticError::undefined_module_function(module_name, function_name, span)
-        })?;
-
-        // Check argument count (currently only parameterless functions are supported)
-        if !args.is_empty() {
-            return Err(SemanticError::invalid_argument_fn_expects_no_args(
-                &format!("{}.{}", module_name, function_name),
-                args.len(),
-                span,
-            ));
+        // Check argument types
+        for (arg, expected_ty) in args.iter().zip(param_types.iter()) {
+            self.check_expr_type(arg, expected_ty)?;
         }
 
         // Check that the function returns void (only void functions can be called as statements)
-        if func_export.return_type() != "void" {
+        if return_type != "void" {
             return Err(SemanticError::type_mismatch_non_void_fn_as_stmt(
-                &format!("{}.{}", module_name, function_name),
-                func_export.return_type(),
+                &full_function_name,
+                &return_type,
                 span,
             ));
         }

@@ -16,7 +16,8 @@
 //! ```text
 //! program     → import* fn_def* EOF
 //! import      → "import" STRING ("as" IDENTIFIER)?
-//! fn_def      → ("pub")? "fn" IDENTIFIER "(" ")" "->" IDENTIFIER "{" stmt* "}"
+//! fn_def      → ("pub")? "fn" IDENTIFIER "(" param_list? ")" "->" IDENTIFIER "{" stmt* "}"
+//! param_list  → IDENTIFIER ":" type ("," IDENTIFIER ":" type)*
 //! stmt        → let_stmt | if_stmt | expr_stmt
 //! let_stmt    → "let" IDENTIFIER ":" type "=" expr
 //! if_stmt     → "if" expr "{" stmt* "}" ("else" (if_stmt | "{" stmt* "}"))?

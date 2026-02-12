@@ -36,6 +36,55 @@ fn test_main_function_with_body() {
 }
 
 #[test]
+fn test_function_with_single_parameter() {
+    let program = parse("fn greet(name: string) -> void { println(name) }").unwrap();
+    assert_eq!(program.functions.len(), 1);
+
+    let fn_def = &program.functions[0];
+    assert_eq!(fn_def.name, "greet");
+    assert_eq!(fn_def.params.len(), 1);
+    assert_eq!(fn_def.params[0].name, "name");
+    assert_eq!(fn_def.params[0].ty, Type::String);
+}
+
+#[test]
+fn test_function_with_multiple_parameters() {
+    let program = parse("fn add(a: i32, b: i64, ok: bool) -> void {}").unwrap();
+    assert_eq!(program.functions.len(), 1);
+
+    let fn_def = &program.functions[0];
+    assert_eq!(fn_def.name, "add");
+    assert_eq!(fn_def.params.len(), 3);
+    assert_eq!(fn_def.params[0].name, "a");
+    assert_eq!(fn_def.params[0].ty, Type::I32);
+    assert_eq!(fn_def.params[1].name, "b");
+    assert_eq!(fn_def.params[1].ty, Type::I64);
+    assert_eq!(fn_def.params[2].name, "ok");
+    assert_eq!(fn_def.params[2].ty, Type::Bool);
+}
+
+#[test]
+fn test_function_parameters_allow_newlines() {
+    let program = parse(
+        r#"fn greet(
+            name: string,
+            age: i32
+        ) -> void {
+            println(name)
+            println(age)
+        }"#,
+    )
+    .unwrap();
+
+    let fn_def = &program.functions[0];
+    assert_eq!(fn_def.params.len(), 2);
+    assert_eq!(fn_def.params[0].name, "name");
+    assert_eq!(fn_def.params[0].ty, Type::String);
+    assert_eq!(fn_def.params[1].name, "age");
+    assert_eq!(fn_def.params[1].ty, Type::I32);
+}
+
+#[test]
 fn test_multiple_functions() {
     let program = parse("fn foo() -> void {}\nfn bar() -> void {}").unwrap();
     assert_eq!(program.functions.len(), 2);

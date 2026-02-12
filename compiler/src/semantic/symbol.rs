@@ -13,6 +13,8 @@ use std::collections::HashMap;
 pub struct FunctionInfo {
     /// The function name.
     pub name: String,
+    /// The parameter types in declaration order.
+    pub param_types: Vec<Type>,
     /// The return type (currently only "void").
     pub return_type: String,
     /// The span of the return type token (for error reporting).

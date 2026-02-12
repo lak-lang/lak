@@ -115,6 +115,28 @@ fn test_compile_error_duplicate_variable() {
 }
 
 #[test]
+fn test_compile_error_duplicate_parameter_name() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {}
+fn dup(a: i32, a: i32) -> void {}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(msg, "Variable 'a' is already defined at 2:8");
+    assert_eq!(short_msg, "Duplicate variable");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::DuplicateVariable),
+        "Expected DuplicateVariable error kind"
+    );
+}
+
+#[test]
 fn test_compile_error_undefined_variable() {
     let result = compile_error_with_kind(
         r#"fn main() -> void {
@@ -581,6 +603,93 @@ fn main() -> void {
         kind,
         CompileErrorKind::Semantic(SemanticErrorKind::InvalidArgument),
         "Expected InvalidArgument error kind"
+    );
+}
+
+#[test]
+fn test_compile_error_function_call_with_too_few_args_for_parameterized_function() {
+    let result = compile_error_with_kind(
+        r#"
+fn helper(name: string, age: i32) -> void {
+    println(name)
+    println(age)
+}
+
+fn main() -> void {
+    helper("alice")
+}
+"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(msg, "Function 'helper' expects 2 arguments, but got 1");
+    assert_eq!(short_msg, "Invalid argument");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::InvalidArgument),
+        "Expected InvalidArgument error kind"
+    );
+}
+
+#[test]
+fn test_compile_error_function_call_with_param_type_mismatch() {
+    let result = compile_error_with_kind(
+        r#"
+fn helper(name: string) -> void {
+    println(name)
+}
+
+fn main() -> void {
+    helper(42)
+}
+"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Type mismatch: integer literal '42' cannot be assigned to type 'string'"
+    );
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch),
+        "Expected TypeMismatch error kind"
+    );
+}
+
+#[test]
+fn test_compile_error_main_function_with_parameters() {
+    let result = compile_error_with_kind(
+        r#"
+fn main(x: i32) -> void {
+    println(x)
+}
+"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(msg, "main function must not have parameters, but found 1");
+    assert_eq!(short_msg, "Invalid main signature");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::InvalidMainSignature),
+        "Expected InvalidMainSignature error kind"
     );
 }
 

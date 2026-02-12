@@ -1,7 +1,9 @@
 //! Unit tests for code generation.
 
 use super::*;
-use crate::ast::{Expr, ExprKind, FnDef, Program, Stmt, StmtKind, Type, UnaryOperator, Visibility};
+use crate::ast::{
+    Expr, ExprKind, FnDef, FnParam, Program, Stmt, StmtKind, Type, UnaryOperator, Visibility,
+};
 use crate::resolver::ResolvedModule;
 use crate::token::Span;
 use inkwell::context::Context;
@@ -17,6 +19,7 @@ fn make_program(body: Vec<Stmt>) -> Program {
         functions: vec![FnDef {
             visibility: Visibility::Private,
             name: "main".to_string(),
+            params: vec![],
             return_type: "void".to_string(),
             return_type_span: dummy_span(),
             body,
@@ -103,6 +106,7 @@ fn test_compile_single_file_user_functions_are_mangled() {
             FnDef {
                 visibility: Visibility::Private,
                 name: "helper".to_string(),
+                params: vec![],
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
                 body: vec![],
@@ -111,6 +115,7 @@ fn test_compile_single_file_user_functions_are_mangled() {
             FnDef {
                 visibility: Visibility::Private,
                 name: "main".to_string(),
+                params: vec![],
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
                 body: vec![expr_stmt(ExprKind::Call {
@@ -129,6 +134,59 @@ fn test_compile_single_file_user_functions_are_mangled() {
     assert!(codegen.module.get_function("main").is_some());
     assert!(codegen.module.get_function("helper").is_none());
     assert!(codegen.module.get_function("_L5_entry_helper").is_some());
+}
+
+#[test]
+fn test_compile_single_file_function_with_parameters() {
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "test");
+
+    let program = Program {
+        imports: vec![],
+        functions: vec![
+            FnDef {
+                visibility: Visibility::Private,
+                name: "helper".to_string(),
+                params: vec![FnParam {
+                    name: "name".to_string(),
+                    ty: Type::String,
+                    span: dummy_span(),
+                }],
+                return_type: "void".to_string(),
+                return_type_span: dummy_span(),
+                body: vec![expr_stmt(ExprKind::Call {
+                    callee: "println".to_string(),
+                    args: vec![Expr::new(
+                        ExprKind::Identifier("name".to_string()),
+                        dummy_span(),
+                    )],
+                })],
+                span: dummy_span(),
+            },
+            FnDef {
+                visibility: Visibility::Private,
+                name: "main".to_string(),
+                params: vec![],
+                return_type: "void".to_string(),
+                return_type_span: dummy_span(),
+                body: vec![expr_stmt(ExprKind::Call {
+                    callee: "helper".to_string(),
+                    args: vec![Expr::new(
+                        ExprKind::StringLiteral("hello".to_string()),
+                        dummy_span(),
+                    )],
+                })],
+                span: dummy_span(),
+            },
+        ],
+    };
+
+    codegen
+        .compile(&program)
+        .expect("single-file parameterized functions should compile");
+
+    let helper = codegen.module.get_function("_L5_entry_helper").unwrap();
+    assert_eq!(helper.count_params(), 1);
 }
 
 #[test]
@@ -236,6 +294,7 @@ fn test_main_function_not_first() {
             FnDef {
                 visibility: Visibility::Private,
                 name: "helper".to_string(),
+                params: vec![],
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
                 body: vec![],
@@ -244,6 +303,7 @@ fn test_main_function_not_first() {
             FnDef {
                 visibility: Visibility::Private,
                 name: "main".to_string(),
+                params: vec![],
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
                 body: vec![],
@@ -977,6 +1037,7 @@ fn test_compile_modules_basic() {
         functions: vec![FnDef {
             visibility: Visibility::Public,
             name: "greet".to_string(),
+            params: vec![],
             return_type: "void".to_string(),
             return_type_span: dummy_span(),
             body: vec![expr_stmt(ExprKind::Call {
@@ -1007,6 +1068,7 @@ fn test_compile_modules_basic() {
         functions: vec![FnDef {
             visibility: Visibility::Private,
             name: "main".to_string(),
+            params: vec![],
             return_type: "void".to_string(),
             return_type_span: dummy_span(),
             body: vec![expr_stmt(ExprKind::ModuleCall {
@@ -1041,6 +1103,90 @@ fn test_compile_modules_basic() {
 }
 
 #[test]
+fn test_compile_modules_function_call_with_arguments() {
+    use crate::ast::ImportDecl;
+    use crate::resolver::ResolvedModule;
+
+    let temp_dir = std::env::temp_dir();
+
+    let imported_program = Program {
+        imports: vec![],
+        functions: vec![FnDef {
+            visibility: Visibility::Public,
+            name: "greet".to_string(),
+            params: vec![FnParam {
+                name: "name".to_string(),
+                ty: Type::String,
+                span: dummy_span(),
+            }],
+            return_type: "void".to_string(),
+            return_type_span: dummy_span(),
+            body: vec![expr_stmt(ExprKind::Call {
+                callee: "println".to_string(),
+                args: vec![Expr::new(
+                    ExprKind::Identifier("name".to_string()),
+                    dummy_span(),
+                )],
+            })],
+            span: dummy_span(),
+        }],
+    };
+    let imported_path = temp_dir.join("utils_with_args.lak");
+    let imported_module = ResolvedModule::for_testing(
+        imported_path.clone(),
+        "utils_with_args".to_string(),
+        imported_program,
+        "".to_string(),
+    );
+
+    let entry_program = Program {
+        imports: vec![ImportDecl {
+            path: "./utils_with_args".to_string(),
+            alias: Some("utils".to_string()),
+            span: dummy_span(),
+        }],
+        functions: vec![FnDef {
+            visibility: Visibility::Private,
+            name: "main".to_string(),
+            params: vec![],
+            return_type: "void".to_string(),
+            return_type_span: dummy_span(),
+            body: vec![expr_stmt(ExprKind::ModuleCall {
+                module: "utils".to_string(),
+                function: "greet".to_string(),
+                args: vec![Expr::new(
+                    ExprKind::StringLiteral("hello".to_string()),
+                    dummy_span(),
+                )],
+            })],
+            span: dummy_span(),
+        }],
+    };
+    let entry_path = temp_dir.join("main_with_args.lak");
+    let mut entry_module = ResolvedModule::for_testing(
+        entry_path.clone(),
+        "main_with_args".to_string(),
+        entry_program,
+        "".to_string(),
+    );
+    entry_module.add_resolved_import_for_testing("./utils_with_args".to_string(), imported_path);
+
+    let modules = [imported_module, entry_module];
+
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "test");
+    codegen
+        .compile_modules(&modules, &entry_path)
+        .expect("compile_modules with arguments should succeed");
+
+    let greet = codegen
+        .module
+        .get_function("_L15_utils_with_args_greet")
+        .unwrap();
+    assert_eq!(greet.count_params(), 1);
+}
+
+#[test]
 fn test_compile_modules_with_alias() {
     use crate::ast::ImportDecl;
     use crate::resolver::ResolvedModule;
@@ -1053,6 +1199,7 @@ fn test_compile_modules_with_alias() {
         functions: vec![FnDef {
             visibility: Visibility::Public,
             name: "greet".to_string(),
+            params: vec![],
             return_type: "void".to_string(),
             return_type_span: dummy_span(),
             body: vec![expr_stmt(ExprKind::Call {
@@ -1083,6 +1230,7 @@ fn test_compile_modules_with_alias() {
         functions: vec![FnDef {
             visibility: Visibility::Private,
             name: "main".to_string(),
+            params: vec![],
             return_type: "void".to_string(),
             return_type_span: dummy_span(),
             body: vec![expr_stmt(ExprKind::ModuleCall {
@@ -1128,6 +1276,7 @@ fn test_compile_modules_entry_and_imported_mangled_name_collision() {
         functions: vec![FnDef {
             visibility: Visibility::Public,
             name: "foo".to_string(),
+            params: vec![],
             return_type: "void".to_string(),
             return_type_span: dummy_span(),
             body: vec![expr_stmt(ExprKind::Call {
@@ -1158,6 +1307,7 @@ fn test_compile_modules_entry_and_imported_mangled_name_collision() {
             FnDef {
                 visibility: Visibility::Private,
                 name: "_L5_utils_foo".to_string(),
+                params: vec![],
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
                 body: vec![expr_stmt(ExprKind::Call {
@@ -1172,6 +1322,7 @@ fn test_compile_modules_entry_and_imported_mangled_name_collision() {
             FnDef {
                 visibility: Visibility::Private,
                 name: "main".to_string(),
+                params: vec![],
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
                 body: vec![
@@ -1230,6 +1381,7 @@ fn test_compile_modules_subdirectory() {
         functions: vec![FnDef {
             visibility: Visibility::Public,
             name: "greet".to_string(),
+            params: vec![],
             return_type: "void".to_string(),
             return_type_span: dummy_span(),
             body: vec![expr_stmt(ExprKind::Call {
@@ -1261,6 +1413,7 @@ fn test_compile_modules_subdirectory() {
         functions: vec![FnDef {
             visibility: Visibility::Private,
             name: "main".to_string(),
+            params: vec![],
             return_type: "void".to_string(),
             return_type_span: dummy_span(),
             body: vec![expr_stmt(ExprKind::ModuleCall {

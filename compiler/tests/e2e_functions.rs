@@ -28,6 +28,42 @@ fn main() -> void {
 }
 
 #[test]
+fn test_function_call_with_single_parameter() {
+    let output = compile_and_run(
+        r#"
+fn greet(name: string) -> void {
+    println(name)
+}
+
+fn main() -> void {
+    greet("lak")
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "lak\n");
+}
+
+#[test]
+fn test_function_call_with_multiple_parameters() {
+    let output = compile_and_run(
+        r#"
+fn show(name: string, age: i32, ok: bool) -> void {
+    println(name)
+    println(age)
+    println(ok)
+}
+
+fn main() -> void {
+    show("alice", 20, true)
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "alice\n20\ntrue\n");
+}
+
+#[test]
 fn test_user_function_name_lak_println_does_not_override_builtin() {
     let output = compile_and_run(
         r#"

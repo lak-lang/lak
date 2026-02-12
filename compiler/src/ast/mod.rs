@@ -37,6 +37,6 @@ mod types;
 mod tests;
 
 pub use expr::{BinaryOperator, Expr, ExprKind, IfExprBlock, UnaryOperator};
-pub use program::{FnDef, ImportDecl, Program, Visibility};
+pub use program::{FnDef, FnParam, ImportDecl, Program, Visibility};
 pub use stmt::{Stmt, StmtKind};
 pub use types::Type;

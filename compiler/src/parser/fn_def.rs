@@ -2,7 +2,7 @@
 
 use super::Parser;
 use super::error::ParseError;
-use crate::ast::{FnDef, Visibility};
+use crate::ast::{FnDef, FnParam, Visibility};
 use crate::token::{Span, TokenKind};
 
 impl Parser {
@@ -11,10 +11,9 @@ impl Parser {
     /// # Grammar
     ///
     /// ```text
-    /// fn_def → ("pub")? "fn" IDENTIFIER "(" ")" "->" IDENTIFIER "{" stmt* "}"
+    /// fn_def → ("pub")? "fn" IDENTIFIER "(" param_list? ")" "->" IDENTIFIER "{" stmt* "}"
+    /// param_list → IDENTIFIER ":" type ("," IDENTIFIER ":" type)*
     /// ```
-    ///
-    /// Currently only parameterless functions are supported.
     pub(super) fn parse_fn_def(&mut self) -> Result<FnDef, ParseError> {
         // Record start position for span (could be `pub` or `fn`)
         let start_span = self.current().span;
@@ -33,8 +32,59 @@ impl Parser {
         // Expect function name (identifier)
         let name = self.expect_identifier()?;
 
-        // Expect `(` `)`
+        // Expect `(` param_list? `)`
         self.expect(&TokenKind::LeftParen)?;
+        self.skip_newlines();
+
+        let mut params = Vec::new();
+        if !matches!(self.current_kind(), TokenKind::RightParen) {
+            loop {
+                if !matches!(self.current_kind(), TokenKind::Identifier(_)) {
+                    let expected = if params.is_empty() {
+                        "parameter name or ')'"
+                    } else {
+                        "parameter name"
+                    };
+                    return Err(ParseError::unexpected_token(
+                        expected,
+                        &Self::token_kind_display(self.current_kind()),
+                        self.current_span(),
+                    ));
+                }
+
+                let param_start = self.current_span();
+                let name = self.expect_identifier()?;
+
+                self.skip_newlines();
+                self.expect(&TokenKind::Colon)?;
+                self.skip_newlines();
+
+                let ty_span = self.current_span();
+                let ty = self.parse_type()?;
+
+                let param_span = Span::new(
+                    param_start.start,
+                    ty_span.end,
+                    param_start.line,
+                    param_start.column,
+                );
+                params.push(FnParam {
+                    name,
+                    ty,
+                    span: param_span,
+                });
+
+                self.skip_newlines();
+                if matches!(self.current_kind(), TokenKind::Comma) {
+                    self.advance();
+                    self.skip_newlines();
+                } else {
+                    break;
+                }
+            }
+        }
+
+        self.skip_newlines();
         self.expect(&TokenKind::RightParen)?;
 
         // Expect `->` return_type
@@ -70,6 +120,7 @@ impl Parser {
         Ok(FnDef {
             visibility,
             name,
+            params,
             return_type,
             return_type_span,
             body,

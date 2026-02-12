@@ -28,6 +28,7 @@ fn test_define_and_lookup_function() {
     let mut table = SymbolTable::new();
     let info = FunctionInfo {
         name: "test_fn".to_string(),
+        param_types: vec![],
         return_type: "void".to_string(),
         return_type_span: dummy_span(),
         definition_span: span_at(1, 1),
@@ -44,6 +45,7 @@ fn test_duplicate_function_error() {
     let mut table = SymbolTable::new();
     let info1 = FunctionInfo {
         name: "dup".to_string(),
+        param_types: vec![],
         return_type: "void".to_string(),
         return_type_span: dummy_span(),
         definition_span: span_at(1, 1),
@@ -51,6 +53,7 @@ fn test_duplicate_function_error() {
     };
     let info2 = FunctionInfo {
         name: "dup".to_string(),
+        param_types: vec![],
         return_type: "void".to_string(),
         return_type_span: dummy_span(),
         definition_span: span_at(5, 1),

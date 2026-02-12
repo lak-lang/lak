@@ -1,7 +1,9 @@
 //! Unit tests for the semantic analyzer.
 
 use super::*;
-use crate::ast::{Expr, ExprKind, FnDef, Program, Stmt, StmtKind, Type, UnaryOperator, Visibility};
+use crate::ast::{
+    Expr, ExprKind, FnDef, FnParam, Program, Stmt, StmtKind, Type, UnaryOperator, Visibility,
+};
 use crate::token::Span;
 
 mod function_tests;
@@ -28,6 +30,7 @@ pub fn program_with_main(body: Vec<Stmt>) -> Program {
         functions: vec![FnDef {
             visibility: Visibility::Private,
             name: "main".to_string(),
+            params: vec![],
             return_type: "void".to_string(),
             return_type_span: dummy_span(),
             body,
@@ -147,6 +150,16 @@ fn test_invalid_argument_println_count_constructor() {
 }
 
 #[test]
+fn test_invalid_argument_fn_expects_args_constructor() {
+    let err = SemanticError::invalid_argument_fn_expects_args("foo", 2, 1, span_at(4, 3));
+    assert_eq!(err.kind(), SemanticErrorKind::InvalidArgument);
+    assert_eq!(
+        err.message(),
+        "Function 'foo' expects 2 arguments, but got 1"
+    );
+}
+
+#[test]
 fn test_reserved_prelude_function_name_constructor() {
     let err = SemanticError::reserved_prelude_function_name("println", span_at(2, 1));
     assert_eq!(err.kind(), SemanticErrorKind::InvalidArgument);
@@ -180,6 +193,16 @@ fn test_invalid_main_signature_constructor() {
     );
     // InvalidMainSignature has a span (pointing to return type)
     assert!(err.span().is_some());
+}
+
+#[test]
+fn test_invalid_main_signature_has_params_constructor() {
+    let err = SemanticError::invalid_main_signature_has_params(1, span_at(1, 1));
+    assert_eq!(err.kind(), SemanticErrorKind::InvalidMainSignature);
+    assert_eq!(
+        err.message(),
+        "main function must not have parameters, but found 1"
+    );
 }
 
 #[test]

@@ -37,6 +37,7 @@
 //!     functions: vec![FnDef {
 //!         visibility: Visibility::Private,
 //!         name: "main".to_string(),
+//!         params: vec![],
 //!         return_type: "void".to_string(),
 //!         return_type_span: Span::new(0, 0, 1, 1),
 //!         body: vec![Stmt::new(
@@ -93,7 +94,7 @@ use crate::resolver::ResolvedModule;
 use binding::VarBinding;
 use inkwell::AddressSpace;
 use inkwell::context::Context;
-use inkwell::types::BasicTypeEnum;
+use inkwell::types::{BasicMetadataTypeEnum, BasicTypeEnum};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
@@ -149,6 +150,10 @@ pub struct Codegen<'ctx> {
     ///
     /// `None` when no module is currently being generated.
     current_module_prefix: Option<String>,
+    /// Function parameter types keyed by LLVM function name.
+    ///
+    /// Used to type-check call arguments during code generation.
+    function_param_types: HashMap<String, Vec<Type>>,
 }
 
 /// Creates a mangled function name using a length-prefix scheme.
@@ -352,6 +357,7 @@ impl<'ctx> Codegen<'ctx> {
             variables: Vec::new(),
             module_aliases: HashMap::new(),
             current_module_prefix: None,
+            function_param_types: HashMap::new(),
         }
     }
 
@@ -390,13 +396,19 @@ impl<'ctx> Codegen<'ctx> {
         // Declare built-in functions
         self.declare_builtins();
         self.current_module_prefix = Some(SINGLE_FILE_MANGLE_PREFIX.to_string());
+        self.function_param_types.clear();
 
         let result = (|| -> Result<(), CodegenError> {
             // Pass 1: Declare all user-defined functions (except main, which has a special signature)
             for function in &program.functions {
                 if function.name != "main" {
                     let llvm_name = mangle_name(SINGLE_FILE_MANGLE_PREFIX, &function.name);
-                    self.declare_function(&llvm_name)?;
+                    let param_types = function
+                        .params
+                        .iter()
+                        .map(|param| param.ty.clone())
+                        .collect::<Vec<_>>();
+                    self.declare_function(&llvm_name, &param_types)?;
                 }
             }
 
@@ -449,6 +461,7 @@ impl<'ctx> Codegen<'ctx> {
     ) -> Result<(), CodegenError> {
         // Declare built-in functions
         self.declare_builtins();
+        self.function_param_types.clear();
 
         // Validate that entry module exists in the module list
         if !modules.iter().any(|m| m.path() == entry_path) {
@@ -475,7 +488,12 @@ impl<'ctx> Codegen<'ctx> {
                     }
 
                     let mangled_name = mangle_name(module_prefix, &function.name);
-                    self.declare_function(&mangled_name)?;
+                    let param_types = function
+                        .params
+                        .iter()
+                        .map(|param| param.ty.clone())
+                        .collect::<Vec<_>>();
+                    self.declare_function(&mangled_name, &param_types)?;
                 }
             }
 
@@ -541,10 +559,16 @@ impl<'ctx> Codegen<'ctx> {
     ///
     /// This method is called in Pass 1 to create function declarations before
     /// any function bodies are generated. This allows forward references.
-    fn declare_function(&mut self, name: &str) -> Result<(), CodegenError> {
+    fn declare_function(&mut self, name: &str, param_types: &[Type]) -> Result<(), CodegenError> {
         let void_type = self.context.void_type();
-        let fn_type = void_type.fn_type(&[], false);
+        let llvm_param_types: Vec<BasicMetadataTypeEnum<'ctx>> = param_types
+            .iter()
+            .map(|ty| self.get_llvm_type(ty).into())
+            .collect();
+        let fn_type = void_type.fn_type(&llvm_param_types, false);
         self.module.add_function(name, fn_type, None);
+        self.function_param_types
+            .insert(name.to_string(), param_types.to_vec());
         Ok(())
     }
 
@@ -572,6 +596,37 @@ impl<'ctx> Codegen<'ctx> {
 
         let entry = self.context.append_basic_block(function, "entry");
         self.builder.position_at_end(entry);
+
+        if function.count_params() as usize != fn_def.params.len() {
+            return Err(CodegenError::internal_function_param_count_mismatch(
+                llvm_name,
+                fn_def.params.len(),
+                function.count_params() as usize,
+            ));
+        }
+
+        for (idx, param) in fn_def.params.iter().enumerate() {
+            let llvm_param = function.get_nth_param(idx as u32).ok_or_else(|| {
+                CodegenError::internal_function_param_missing(llvm_name, idx, param.span)
+            })?;
+            let binding = VarBinding::new(
+                &self.builder,
+                self.context,
+                &param.ty,
+                &param.name,
+                param.span,
+            )?;
+            self.builder
+                .build_store(binding.alloca(), llvm_param)
+                .map_err(|e| {
+                    CodegenError::internal_variable_store_failed(
+                        &param.name,
+                        &e.to_string(),
+                        param.span,
+                    )
+                })?;
+            self.define_variable_in_current_scope(&param.name, binding, param.span)?;
+        }
 
         for stmt in &fn_def.body {
             self.generate_stmt(stmt)?;

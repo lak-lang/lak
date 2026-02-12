@@ -235,8 +235,8 @@ fn test_run_parser_error() {
     );
     // Verify detailed message in label
     assert!(
-        stderr.contains("Expected ')', found '->'"),
-        "Expected \"Expected ')', found '->'\" in stderr: {}",
+        stderr.contains("Expected parameter name or ')', found '->'"),
+        "Expected \"Expected parameter name or ')', found '->'\" in stderr: {}",
         stderr
     );
 }

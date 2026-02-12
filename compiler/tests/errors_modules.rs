@@ -486,7 +486,7 @@ fn main() -> void {
     );
     // Verify detailed message in label
     assert!(
-        stderr.contains("Expected ')', found '->'"),
+        stderr.contains("Expected parameter name or ')', found '->'"),
         "Expected parse error details in label, got: {}",
         stderr
     );
@@ -706,6 +706,52 @@ fn main() -> void {
     // Verify detailed message in label
     assert!(
         stderr.contains("Function 'utils.greet' expects 0 arguments, but got 1"),
+        "Expected error to mention argument count, got: {}",
+        stderr
+    );
+}
+
+#[test]
+fn test_error_module_call_missing_required_argument() {
+    let temp = tempdir().unwrap();
+
+    let utils_path = temp.path().join("utils.lak");
+    fs::write(
+        &utils_path,
+        r#"pub fn greet(name: string) -> void {
+    println(name)
+}
+"#,
+    )
+    .unwrap();
+
+    let main_path = temp.path().join("main.lak");
+    fs::write(
+        &main_path,
+        r#"import "./utils"
+
+fn main() -> void {
+    utils.greet()
+}
+"#,
+    )
+    .unwrap();
+
+    let output = Command::new(lak_binary())
+        .current_dir(temp.path())
+        .args(["build", "main.lak"])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("\x1b[31mError:\x1b[0m Invalid argument"),
+        "Expected 'Invalid argument' error, got: {}",
+        stderr
+    );
+    assert!(
+        stderr.contains("Function 'utils.greet' expects 1 arguments, but got 0"),
         "Expected error to mention argument count, got: {}",
         stderr
     );

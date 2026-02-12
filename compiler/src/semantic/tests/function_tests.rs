@@ -22,6 +22,7 @@ fn test_duplicate_function_error() {
             FnDef {
                 visibility: Visibility::Private,
                 name: "main".to_string(),
+                params: vec![],
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
                 body: vec![],
@@ -30,6 +31,7 @@ fn test_duplicate_function_error() {
             FnDef {
                 visibility: Visibility::Private,
                 name: "main".to_string(),
+                params: vec![],
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
                 body: vec![],
@@ -54,6 +56,7 @@ fn test_duplicate_non_main_function_error() {
             FnDef {
                 visibility: Visibility::Private,
                 name: "main".to_string(),
+                params: vec![],
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
                 body: vec![],
@@ -62,6 +65,7 @@ fn test_duplicate_non_main_function_error() {
             FnDef {
                 visibility: Visibility::Private,
                 name: "helper".to_string(),
+                params: vec![],
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
                 body: vec![],
@@ -70,6 +74,7 @@ fn test_duplicate_non_main_function_error() {
             FnDef {
                 visibility: Visibility::Private,
                 name: "helper".to_string(),
+                params: vec![],
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
                 body: vec![],
@@ -94,6 +99,7 @@ fn test_reserved_prelude_function_println_error() {
             FnDef {
                 visibility: Visibility::Private,
                 name: "println".to_string(),
+                params: vec![],
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
                 body: vec![],
@@ -102,6 +108,7 @@ fn test_reserved_prelude_function_println_error() {
             FnDef {
                 visibility: Visibility::Private,
                 name: "main".to_string(),
+                params: vec![],
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
                 body: vec![],
@@ -129,6 +136,7 @@ fn test_reserved_prelude_function_panic_error() {
             FnDef {
                 visibility: Visibility::Private,
                 name: "panic".to_string(),
+                params: vec![],
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
                 body: vec![],
@@ -137,6 +145,7 @@ fn test_reserved_prelude_function_panic_error() {
             FnDef {
                 visibility: Visibility::Private,
                 name: "main".to_string(),
+                params: vec![],
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
                 body: vec![],
@@ -185,6 +194,7 @@ fn test_missing_main_function_with_other_functions() {
         functions: vec![FnDef {
             visibility: Visibility::Private,
             name: "helper".to_string(),
+            params: vec![],
             return_type: "void".to_string(),
             return_type_span: dummy_span(),
             body: vec![],
@@ -214,6 +224,7 @@ fn test_invalid_main_signature() {
         functions: vec![FnDef {
             visibility: Visibility::Private,
             name: "main".to_string(),
+            params: vec![],
             return_type: "int".to_string(),
             return_type_span: span_at(1, 15),
             body: vec![],
@@ -270,6 +281,7 @@ fn test_call_user_defined_function() {
             FnDef {
                 visibility: Visibility::Private,
                 name: "helper".to_string(),
+                params: vec![],
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
                 body: vec![],
@@ -278,6 +290,7 @@ fn test_call_user_defined_function() {
             FnDef {
                 visibility: Visibility::Private,
                 name: "main".to_string(),
+                params: vec![],
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
                 body: vec![Stmt::new(
@@ -309,6 +322,7 @@ fn test_call_multiple_user_defined_functions() {
             FnDef {
                 visibility: Visibility::Private,
                 name: "foo".to_string(),
+                params: vec![],
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
                 body: vec![],
@@ -317,6 +331,7 @@ fn test_call_multiple_user_defined_functions() {
             FnDef {
                 visibility: Visibility::Private,
                 name: "bar".to_string(),
+                params: vec![],
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
                 body: vec![],
@@ -325,6 +340,7 @@ fn test_call_multiple_user_defined_functions() {
             FnDef {
                 visibility: Visibility::Private,
                 name: "main".to_string(),
+                params: vec![],
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
                 body: vec![
@@ -359,6 +375,170 @@ fn test_call_multiple_user_defined_functions() {
     assert!(result.is_ok());
 }
 
+#[test]
+fn test_call_user_defined_function_with_params() {
+    let program = Program {
+        imports: vec![],
+        functions: vec![
+            FnDef {
+                visibility: Visibility::Private,
+                name: "helper".to_string(),
+                params: vec![
+                    FnParam {
+                        name: "name".to_string(),
+                        ty: Type::String,
+                        span: dummy_span(),
+                    },
+                    FnParam {
+                        name: "age".to_string(),
+                        ty: Type::I32,
+                        span: dummy_span(),
+                    },
+                ],
+                return_type: "void".to_string(),
+                return_type_span: dummy_span(),
+                body: vec![
+                    Stmt::new(
+                        StmtKind::Expr(Expr::new(
+                            ExprKind::Call {
+                                callee: "println".to_string(),
+                                args: vec![Expr::new(
+                                    ExprKind::Identifier("name".to_string()),
+                                    dummy_span(),
+                                )],
+                            },
+                            dummy_span(),
+                        )),
+                        dummy_span(),
+                    ),
+                    Stmt::new(
+                        StmtKind::Expr(Expr::new(
+                            ExprKind::Call {
+                                callee: "println".to_string(),
+                                args: vec![Expr::new(
+                                    ExprKind::Identifier("age".to_string()),
+                                    dummy_span(),
+                                )],
+                            },
+                            dummy_span(),
+                        )),
+                        dummy_span(),
+                    ),
+                ],
+                span: dummy_span(),
+            },
+            FnDef {
+                visibility: Visibility::Private,
+                name: "main".to_string(),
+                params: vec![],
+                return_type: "void".to_string(),
+                return_type_span: dummy_span(),
+                body: vec![Stmt::new(
+                    StmtKind::Expr(Expr::new(
+                        ExprKind::Call {
+                            callee: "helper".to_string(),
+                            args: vec![
+                                Expr::new(
+                                    ExprKind::StringLiteral("alice".to_string()),
+                                    dummy_span(),
+                                ),
+                                Expr::new(ExprKind::IntLiteral(20), dummy_span()),
+                            ],
+                        },
+                        dummy_span(),
+                    )),
+                    dummy_span(),
+                )],
+                span: dummy_span(),
+            },
+        ],
+    };
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze(&program);
+    assert!(result.is_ok());
+}
+
+#[test]
+fn test_call_user_defined_function_with_param_type_mismatch() {
+    let program = Program {
+        imports: vec![],
+        functions: vec![
+            FnDef {
+                visibility: Visibility::Private,
+                name: "helper".to_string(),
+                params: vec![FnParam {
+                    name: "name".to_string(),
+                    ty: Type::String,
+                    span: dummy_span(),
+                }],
+                return_type: "void".to_string(),
+                return_type_span: dummy_span(),
+                body: vec![],
+                span: dummy_span(),
+            },
+            FnDef {
+                visibility: Visibility::Private,
+                name: "main".to_string(),
+                params: vec![],
+                return_type: "void".to_string(),
+                return_type_span: dummy_span(),
+                body: vec![Stmt::new(
+                    StmtKind::Expr(Expr::new(
+                        ExprKind::Call {
+                            callee: "helper".to_string(),
+                            args: vec![Expr::new(ExprKind::IntLiteral(42), dummy_span())],
+                        },
+                        dummy_span(),
+                    )),
+                    dummy_span(),
+                )],
+                span: dummy_span(),
+            },
+        ],
+    };
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze(&program);
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert_eq!(err.kind(), SemanticErrorKind::TypeMismatch);
+    assert_eq!(
+        err.message(),
+        "Type mismatch: integer literal '42' cannot be assigned to type 'string'"
+    );
+}
+
+#[test]
+fn test_main_function_with_params_error() {
+    let program = Program {
+        imports: vec![],
+        functions: vec![FnDef {
+            visibility: Visibility::Private,
+            name: "main".to_string(),
+            params: vec![FnParam {
+                name: "x".to_string(),
+                ty: Type::I32,
+                span: dummy_span(),
+            }],
+            return_type: "void".to_string(),
+            return_type_span: dummy_span(),
+            body: vec![],
+            span: span_at(1, 1),
+        }],
+    };
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze(&program);
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert_eq!(err.kind(), SemanticErrorKind::InvalidMainSignature);
+    assert_eq!(
+        err.message(),
+        "main function must not have parameters, but found 1"
+    );
+}
+
 // ============================================================================
 // Function scope isolation tests
 // ============================================================================
@@ -372,6 +552,7 @@ fn test_function_variable_scope_isolation() {
             FnDef {
                 visibility: Visibility::Private,
                 name: "helper".to_string(),
+                params: vec![],
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
                 body: vec![Stmt::new(
@@ -387,6 +568,7 @@ fn test_function_variable_scope_isolation() {
             FnDef {
                 visibility: Visibility::Private,
                 name: "main".to_string(),
+                params: vec![],
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
                 body: vec![Stmt::new(
@@ -416,6 +598,7 @@ fn test_function_scope_isolation_different_types() {
             FnDef {
                 visibility: Visibility::Private,
                 name: "helper".to_string(),
+                params: vec![],
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
                 body: vec![Stmt::new(
@@ -431,6 +614,7 @@ fn test_function_scope_isolation_different_types() {
             FnDef {
                 visibility: Visibility::Private,
                 name: "main".to_string(),
+                params: vec![],
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
                 body: vec![Stmt::new(
@@ -463,6 +647,7 @@ fn test_valid_multiple_functions() {
             FnDef {
                 visibility: Visibility::Private,
                 name: "main".to_string(),
+                params: vec![],
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
                 body: vec![],
@@ -471,6 +656,7 @@ fn test_valid_multiple_functions() {
             FnDef {
                 visibility: Visibility::Private,
                 name: "helper".to_string(),
+                params: vec![],
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
                 body: vec![],
@@ -522,6 +708,7 @@ fn test_module_call_in_imported_module_without_table() {
         functions: vec![FnDef {
             visibility: Visibility::Public,
             name: "helper".to_string(),
+            params: vec![],
             return_type: "void".to_string(),
             return_type_span: dummy_span(),
             body: vec![Stmt::new(
@@ -654,6 +841,7 @@ fn test_module_call_in_imported_module_with_table() {
         functions: vec![FnDef {
             visibility: Visibility::Public,
             name: "helper".to_string(),
+            params: vec![],
             return_type: "void".to_string(),
             return_type_span: dummy_span(),
             body: vec![Stmt::new(
@@ -701,6 +889,7 @@ fn test_module_call_success_in_entry() {
         functions: vec![FnDef {
             visibility: Visibility::Private,
             name: "main".to_string(),
+            params: vec![],
             return_type: "void".to_string(),
             return_type_span: dummy_span(),
             body: vec![Stmt::new(
@@ -724,6 +913,101 @@ fn test_module_call_success_in_entry() {
 }
 
 #[test]
+fn test_module_call_success_with_arguments_in_entry() {
+    let mut module_table = crate::semantic::ModuleTable::new();
+    let exports = crate::semantic::module_table::ModuleExports::for_testing_with_params(
+        "utils".to_string(),
+        vec![(
+            "greet".to_string(),
+            vec![Type::String],
+            "void".to_string(),
+            dummy_span(),
+        )],
+    )
+    .unwrap();
+    module_table.insert_for_testing("utils".to_string(), exports);
+
+    let program = Program {
+        imports: vec![],
+        functions: vec![FnDef {
+            visibility: Visibility::Private,
+            name: "main".to_string(),
+            params: vec![],
+            return_type: "void".to_string(),
+            return_type_span: dummy_span(),
+            body: vec![Stmt::new(
+                StmtKind::Expr(Expr::new(
+                    ExprKind::ModuleCall {
+                        module: "utils".to_string(),
+                        function: "greet".to_string(),
+                        args: vec![Expr::new(
+                            ExprKind::StringLiteral("hello".to_string()),
+                            dummy_span(),
+                        )],
+                    },
+                    dummy_span(),
+                )),
+                dummy_span(),
+            )],
+            span: dummy_span(),
+        }],
+    };
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze_with_modules(&program, module_table);
+    assert!(result.is_ok());
+}
+
+#[test]
+fn test_module_call_argument_type_mismatch_in_entry() {
+    let mut module_table = crate::semantic::ModuleTable::new();
+    let exports = crate::semantic::module_table::ModuleExports::for_testing_with_params(
+        "utils".to_string(),
+        vec![(
+            "greet".to_string(),
+            vec![Type::String],
+            "void".to_string(),
+            dummy_span(),
+        )],
+    )
+    .unwrap();
+    module_table.insert_for_testing("utils".to_string(), exports);
+
+    let program = Program {
+        imports: vec![],
+        functions: vec![FnDef {
+            visibility: Visibility::Private,
+            name: "main".to_string(),
+            params: vec![],
+            return_type: "void".to_string(),
+            return_type_span: dummy_span(),
+            body: vec![Stmt::new(
+                StmtKind::Expr(Expr::new(
+                    ExprKind::ModuleCall {
+                        module: "utils".to_string(),
+                        function: "greet".to_string(),
+                        args: vec![Expr::new(ExprKind::IntLiteral(10), dummy_span())],
+                    },
+                    dummy_span(),
+                )),
+                dummy_span(),
+            )],
+            span: dummy_span(),
+        }],
+    };
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze_with_modules(&program, module_table);
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert_eq!(err.kind(), SemanticErrorKind::TypeMismatch);
+    assert_eq!(
+        err.message(),
+        "Type mismatch: integer literal '10' cannot be assigned to type 'string'"
+    );
+}
+
+#[test]
 fn test_analyze_module_success() {
     // ImportedModule mode: valid module program should succeed
     let program = Program {
@@ -731,6 +1015,7 @@ fn test_analyze_module_success() {
         functions: vec![FnDef {
             visibility: Visibility::Public,
             name: "greet".to_string(),
+            params: vec![],
             return_type: "void".to_string(),
             return_type_span: dummy_span(),
             body: vec![],

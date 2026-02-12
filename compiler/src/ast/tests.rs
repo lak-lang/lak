@@ -156,6 +156,7 @@ fn test_program_with_functions() {
     let functions = vec![FnDef {
         visibility: Visibility::Private,
         name: "main".to_string(),
+        params: vec![],
         return_type: "void".to_string(),
         return_type_span: dummy_span(),
         body: vec![Stmt::new(
@@ -186,6 +187,7 @@ fn test_fn_def() {
     let fn_def = FnDef {
         visibility: Visibility::Private,
         name: "test".to_string(),
+        params: vec![],
         return_type: "void".to_string(),
         return_type_span: dummy_span(),
         body: vec![],
@@ -201,6 +203,7 @@ fn test_fn_def_with_body() {
     let fn_def = FnDef {
         visibility: Visibility::Private,
         name: "greet".to_string(),
+        params: vec![],
         return_type: "void".to_string(),
         return_type_span: dummy_span(),
         body: vec![
@@ -241,6 +244,7 @@ fn test_fn_def_clone() {
     let fn_def = FnDef {
         visibility: Visibility::Private,
         name: "test".to_string(),
+        params: vec![],
         return_type: "void".to_string(),
         return_type_span: dummy_span(),
         body: vec![Stmt::new(
@@ -347,6 +351,7 @@ fn test_program_debug() {
         functions: vec![FnDef {
             visibility: Visibility::Private,
             name: "main".to_string(),
+            params: vec![],
             return_type: "void".to_string(),
             return_type_span: dummy_span(),
             body: vec![Stmt::new(
@@ -362,7 +367,7 @@ fn test_program_debug() {
     let debug_str = format!("{:?}", program);
     assert_eq!(
         debug_str,
-        "Program { imports: [], functions: [FnDef { visibility: Private, name: \"main\", return_type: \"void\", return_type_span: Span { start: 0, end: 0, line: 1, column: 1 }, body: [Stmt { kind: Expr(Expr { kind: StringLiteral(\"test\"), span: Span { start: 0, end: 0, line: 1, column: 1 } }), span: Span { start: 0, end: 0, line: 1, column: 1 } }], span: Span { start: 0, end: 0, line: 1, column: 1 } }] }"
+        "Program { imports: [], functions: [FnDef { visibility: Private, name: \"main\", params: [], return_type: \"void\", return_type_span: Span { start: 0, end: 0, line: 1, column: 1 }, body: [Stmt { kind: Expr(Expr { kind: StringLiteral(\"test\"), span: Span { start: 0, end: 0, line: 1, column: 1 } }), span: Span { start: 0, end: 0, line: 1, column: 1 } }], span: Span { start: 0, end: 0, line: 1, column: 1 } }] }"
     );
 }
 

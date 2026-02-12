@@ -442,15 +442,25 @@ impl SemanticError {
     }
 
     /// Creates an error for calling function with arguments when it expects none.
-    pub fn invalid_argument_fn_expects_no_args(fn_name: &str, got: usize, span: Span) -> Self {
+    pub fn invalid_argument_fn_expects_args(
+        fn_name: &str,
+        expected: usize,
+        got: usize,
+        span: Span,
+    ) -> Self {
         Self::new(
             SemanticErrorKind::InvalidArgument,
             format!(
-                "Function '{}' expects 0 arguments, but got {}",
-                fn_name, got
+                "Function '{}' expects {} arguments, but got {}",
+                fn_name, expected, got
             ),
             span,
         )
+    }
+
+    /// Creates an error for calling function with arguments when it expects none.
+    pub fn invalid_argument_fn_expects_no_args(fn_name: &str, got: usize, span: Span) -> Self {
+        Self::invalid_argument_fn_expects_args(fn_name, 0, got, span)
     }
 
     /// Creates an error for redefining a reserved prelude function name.
@@ -662,6 +672,18 @@ impl SemanticError {
             format!(
                 "main function must return void, but found return type '{}'",
                 return_type
+            ),
+            span,
+        )
+    }
+
+    /// Creates an error for `main` function with parameters.
+    pub fn invalid_main_signature_has_params(param_count: usize, span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::InvalidMainSignature,
+            format!(
+                "main function must not have parameters, but found {}",
+                param_count
             ),
             span,
         )

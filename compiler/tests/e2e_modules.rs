@@ -110,6 +110,51 @@ fn main() -> void {
 }
 
 #[test]
+fn test_module_function_call_with_arguments() {
+    let temp = tempdir().unwrap();
+
+    let utils_path = temp.path().join("utils.lak");
+    fs::write(
+        &utils_path,
+        r#"pub fn greet(name: string) -> void {
+    println(name)
+}
+"#,
+    )
+    .unwrap();
+
+    let main_path = temp.path().join("main.lak");
+    fs::write(
+        &main_path,
+        r#"import "./utils"
+
+fn main() -> void {
+    utils.greet("Lak")
+}
+"#,
+    )
+    .unwrap();
+
+    let build_output = Command::new(lak_binary())
+        .current_dir(temp.path())
+        .args(["build", "main.lak"])
+        .output()
+        .unwrap();
+
+    assert!(
+        build_output.status.success(),
+        "Build failed: {}",
+        String::from_utf8_lossy(&build_output.stderr)
+    );
+
+    let exec_path = temp.path().join(executable_name("main"));
+    let run_output = Command::new(&exec_path).output().unwrap();
+
+    assert!(run_output.status.success());
+    assert_eq!(String::from_utf8_lossy(&run_output.stdout), "Lak\n");
+}
+
+#[test]
 fn test_multiple_imports() {
     let temp = tempdir().unwrap();
 

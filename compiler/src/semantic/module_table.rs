@@ -3,7 +3,7 @@
 //! This module provides [`ModuleTable`], which collects and provides access
 //! to public symbols exported by imported modules.
 
-use crate::ast::Visibility;
+use crate::ast::{Type, Visibility};
 use crate::resolver::ResolvedModule;
 use crate::semantic::SemanticError;
 use crate::token::Span;
@@ -15,6 +15,8 @@ use std::collections::HashMap;
 pub struct FunctionExport {
     /// The function name.
     name: String,
+    /// The parameter types in declaration order.
+    param_types: Vec<Type>,
     /// The return type.
     return_type: String,
     /// The span of the function definition.
@@ -25,6 +27,7 @@ impl FunctionExport {
     /// Creates a new FunctionExport.
     fn new(
         name: String,
+        param_types: Vec<Type>,
         return_type: String,
         definition_span: Span,
     ) -> Result<Self, SemanticError> {
@@ -40,6 +43,7 @@ impl FunctionExport {
         }
         Ok(FunctionExport {
             name,
+            param_types,
             return_type,
             definition_span,
         })
@@ -48,6 +52,11 @@ impl FunctionExport {
     /// Returns the function name.
     pub fn name(&self) -> &str {
         &self.name
+    }
+
+    /// Returns the parameter types.
+    pub fn param_types(&self) -> &[Type] {
+        &self.param_types
     }
 
     /// Returns the return type.
@@ -83,6 +92,11 @@ impl ModuleExports {
             if function.visibility == Visibility::Public {
                 let export = FunctionExport::new(
                     function.name.clone(),
+                    function
+                        .params
+                        .iter()
+                        .map(|param| param.ty.clone())
+                        .collect(),
                     function.return_type.clone(),
                     function.span,
                 )?;
@@ -242,9 +256,21 @@ impl ModuleExports {
         name: String,
         functions: Vec<(String, String, Span)>,
     ) -> Result<Self, SemanticError> {
+        let functions: Vec<_> = functions
+            .into_iter()
+            .map(|(fn_name, ret_type, span)| (fn_name, vec![], ret_type, span))
+            .collect();
+        Self::for_testing_with_params(name, functions)
+    }
+
+    /// Creates a ModuleExports with explicit parameter types for testing.
+    pub fn for_testing_with_params(
+        name: String,
+        functions: Vec<(String, Vec<Type>, String, Span)>,
+    ) -> Result<Self, SemanticError> {
         let mut map = HashMap::new();
-        for (fn_name, ret_type, span) in functions {
-            let export = FunctionExport::new(fn_name.clone(), ret_type, span)?;
+        for (fn_name, param_types, ret_type, span) in functions {
+            let export = FunctionExport::new(fn_name.clone(), param_types, ret_type, span)?;
             map.insert(fn_name, export);
         }
         Ok(ModuleExports {
@@ -266,16 +292,22 @@ mod tests {
 
     #[test]
     fn test_function_export_creation() {
-        let result = FunctionExport::new("greet".to_string(), "void".to_string(), dummy_span());
+        let result = FunctionExport::new(
+            "greet".to_string(),
+            vec![],
+            "void".to_string(),
+            dummy_span(),
+        );
         assert!(result.is_ok());
         let export = result.unwrap();
         assert_eq!(export.name(), "greet");
+        assert!(export.param_types().is_empty());
         assert_eq!(export.return_type(), "void");
     }
 
     #[test]
     fn test_function_export_empty_name_fails() {
-        let result = FunctionExport::new("".to_string(), "void".to_string(), dummy_span());
+        let result = FunctionExport::new("".to_string(), vec![], "void".to_string(), dummy_span());
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert_eq!(
@@ -290,7 +322,7 @@ mod tests {
 
     #[test]
     fn test_function_export_empty_return_type_fails() {
-        let result = FunctionExport::new("greet".to_string(), "".to_string(), dummy_span());
+        let result = FunctionExport::new("greet".to_string(), vec![], "".to_string(), dummy_span());
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert_eq!(
@@ -309,6 +341,11 @@ mod tests {
         let public_fn = FnDef {
             visibility: Visibility::Public,
             name: "greet".to_string(),
+            params: vec![crate::ast::FnParam {
+                name: "name".to_string(),
+                ty: crate::ast::Type::String,
+                span: dummy_span(),
+            }],
             return_type: "void".to_string(),
             return_type_span: dummy_span(),
             body: Vec::new(),
@@ -317,6 +354,7 @@ mod tests {
         let private_fn = FnDef {
             visibility: Visibility::Private,
             name: "helper".to_string(),
+            params: vec![],
             return_type: "void".to_string(),
             return_type_span: dummy_span(),
             body: Vec::new(),
@@ -342,6 +380,9 @@ mod tests {
         assert_eq!(exports.functions().len(), 1);
         assert!(exports.get_function("greet").is_some());
         assert!(exports.get_function("helper").is_none());
+        let greet = exports.get_function("greet").unwrap();
+        assert_eq!(greet.param_types().len(), 1);
+        assert_eq!(greet.param_types()[0], crate::ast::Type::String);
     }
 
     // =========================================================================
@@ -357,6 +398,7 @@ mod tests {
             functions: vec![FnDef {
                 visibility: Visibility::Public,
                 name: "greet".to_string(),
+                params: vec![],
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
                 body: Vec::new(),
@@ -381,6 +423,7 @@ mod tests {
             functions: vec![FnDef {
                 visibility: Visibility::Private,
                 name: "main".to_string(),
+                params: vec![],
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
                 body: Vec::new(),
@@ -422,6 +465,7 @@ mod tests {
             functions: vec![FnDef {
                 visibility: Visibility::Private,
                 name: "main".to_string(),
+                params: vec![],
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
                 body: Vec::new(),
@@ -469,6 +513,7 @@ mod tests {
             functions: vec![FnDef {
                 visibility: Visibility::Public,
                 name: "greet".to_string(),
+                params: vec![],
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
                 body: Vec::new(),
@@ -507,6 +552,7 @@ mod tests {
             functions: vec![FnDef {
                 visibility: Visibility::Public,
                 name: "greet".to_string(),
+                params: vec![],
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
                 body: Vec::new(),
@@ -531,6 +577,7 @@ mod tests {
             functions: vec![FnDef {
                 visibility: Visibility::Private,
                 name: "main".to_string(),
+                params: vec![],
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
                 body: Vec::new(),
@@ -565,6 +612,7 @@ mod tests {
             functions: vec![FnDef {
                 visibility: Visibility::Public,
                 name: "greet".to_string(),
+                params: vec![],
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
                 body: Vec::new(),
@@ -580,6 +628,7 @@ mod tests {
             functions: vec![FnDef {
                 visibility: Visibility::Public,
                 name: "greet".to_string(),
+                params: vec![],
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
                 body: Vec::new(),
@@ -617,6 +666,7 @@ mod tests {
             functions: vec![FnDef {
                 visibility: Visibility::Private,
                 name: "main".to_string(),
+                params: vec![],
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
                 body: Vec::new(),
@@ -656,6 +706,7 @@ mod tests {
             functions: vec![FnDef {
                 visibility: Visibility::Public,
                 name: "greet".to_string(),
+                params: vec![],
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
                 body: Vec::new(),
@@ -680,6 +731,7 @@ mod tests {
             functions: vec![FnDef {
                 visibility: Visibility::Private,
                 name: "main".to_string(),
+                params: vec![],
                 return_type: "void".to_string(),
                 return_type_span: dummy_span(),
                 body: Vec::new(),

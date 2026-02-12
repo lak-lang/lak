@@ -71,10 +71,16 @@ fn test_error_missing_left_paren_in_fn_def() {
 }
 
 #[test]
-fn test_error_function_with_params() {
-    // Function definition with parameters (not supported yet)
-    let err = parse_error("fn main(x) -> void {}");
-    assert_eq!(err.message(), "Expected ')', found identifier 'x'");
+fn test_error_function_param_missing_type_annotation() {
+    let err = parse_error("fn main(x i32) -> void {}");
+    assert_eq!(err.message(), "Expected ':', found identifier 'i32'");
+    assert_eq!(err.kind(), ParseErrorKind::UnexpectedToken);
+}
+
+#[test]
+fn test_error_function_param_expected_name_or_right_paren() {
+    let err = parse_error("fn main( -> void {}");
+    assert_eq!(err.message(), "Expected parameter name or ')', found '->'");
     assert_eq!(err.kind(), ParseErrorKind::UnexpectedToken);
 }
 

@@ -169,8 +169,8 @@ This document tracks the implementation status of Lak language features as defin
 - [x] `fn` keyword
 - [x] Function name (identifier)
 - [x] Parameter list `()` (empty only)
-  - [ ] Single parameter `(name: type)`
-  - [ ] Multiple parameters `(a: type, b: type)`
+  - [x] Single parameter `(name: type)`
+  - [x] Multiple parameters `(a: type, b: type)`
 - [x] Return type annotation `-> type`
 - [x] Function body `{ ... }`
 
@@ -190,7 +190,7 @@ This document tracks the implementation status of Lak language features as defin
 
 - [x] Basic function call `func()`
 - [x] User-defined function calls
-- [ ] Function call with arguments `func(arg1, arg2)`
+- [x] Function call with arguments `func(arg1, arg2)`
 - [ ] Discard return value with `_`
 - [ ] Error on ignored return value
 

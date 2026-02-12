@@ -37,6 +37,7 @@ fn test_ast_to_codegen() {
         imports: vec![],
         functions: vec![FnDef {
             name: "main".to_string(),
+            params: vec![],
             visibility: Visibility::Private,
             return_type: "void".to_string(),
             return_type_span: dummy_span(),
@@ -77,6 +78,7 @@ fn test_ast_let_to_codegen() {
         imports: vec![],
         functions: vec![FnDef {
             name: "main".to_string(),
+            params: vec![],
             visibility: Visibility::Private,
             return_type: "void".to_string(),
             return_type_span: dummy_span(),
@@ -123,6 +125,7 @@ fn test_error_string_literal_as_int_value() {
         imports: vec![],
         functions: vec![FnDef {
             name: "main".to_string(),
+            params: vec![],
             visibility: Visibility::Private,
             return_type: "void".to_string(),
             return_type_span: dummy_span(),
@@ -154,6 +157,7 @@ fn test_error_function_call_as_int_value() {
         imports: vec![],
         functions: vec![FnDef {
             name: "main".to_string(),
+            params: vec![],
             visibility: Visibility::Private,
             return_type: "void".to_string(),
             return_type_span: dummy_span(),
@@ -191,6 +195,7 @@ fn test_error_int_literal_as_statement() {
         imports: vec![],
         functions: vec![FnDef {
             name: "main".to_string(),
+            params: vec![],
             visibility: Visibility::Private,
             return_type: "void".to_string(),
             return_type_span: dummy_span(),
@@ -218,6 +223,7 @@ fn test_error_identifier_as_statement() {
         imports: vec![],
         functions: vec![FnDef {
             name: "main".to_string(),
+            params: vec![],
             visibility: Visibility::Private,
             return_type: "void".to_string(),
             return_type_span: dummy_span(),
@@ -258,6 +264,7 @@ fn test_error_string_literal_as_statement() {
         imports: vec![],
         functions: vec![FnDef {
             name: "main".to_string(),
+            params: vec![],
             visibility: Visibility::Private,
             return_type: "void".to_string(),
             return_type_span: dummy_span(),
@@ -290,6 +297,7 @@ fn test_error_i32_underflow_via_ast() {
         imports: vec![],
         functions: vec![FnDef {
             name: "main".to_string(),
+            params: vec![],
             visibility: Visibility::Private,
             return_type: "void".to_string(),
             return_type_span: dummy_span(),

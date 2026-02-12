@@ -263,6 +263,47 @@ impl CodegenError {
         )
     }
 
+    /// Creates an internal error for missing function signature metadata.
+    pub fn internal_function_signature_not_found(name: &str, span: Span) -> Self {
+        Self::new(
+            CodegenErrorKind::InternalError,
+            format!(
+                "Internal error: function signature metadata for '{}' not found in codegen. This is a compiler bug.",
+                name
+            ),
+            span,
+        )
+    }
+
+    /// Creates an internal error for call argument count mismatch.
+    pub fn internal_call_arg_count_mismatch(
+        callee: &str,
+        expected: usize,
+        got: usize,
+        span: Span,
+    ) -> Self {
+        Self::new(
+            CodegenErrorKind::InternalError,
+            format!(
+                "Internal error: call to '{}' has {} argument(s), but function expects {} in codegen. This is a compiler bug.",
+                callee, got, expected
+            ),
+            span,
+        )
+    }
+
+    /// Creates an internal error for missing function parameter in LLVM function.
+    pub fn internal_function_param_missing(function: &str, index: usize, span: Span) -> Self {
+        Self::new(
+            CodegenErrorKind::InternalError,
+            format!(
+                "Internal error: function '{}' is missing parameter {} in LLVM IR. This is a compiler bug.",
+                function, index
+            ),
+            span,
+        )
+    }
+
     /// Creates an internal error for integer used as string.
     pub fn internal_int_as_string(value: i64, span: Span) -> Self {
         Self::new(
@@ -800,6 +841,21 @@ impl CodegenError {
             format!(
                 "Internal error: function '{}' not found in module. This is a compiler bug.",
                 name
+            ),
+        )
+    }
+
+    /// Creates an internal error for function parameter count mismatch.
+    pub fn internal_function_param_count_mismatch(
+        function: &str,
+        expected: usize,
+        actual: usize,
+    ) -> Self {
+        Self::without_span(
+            CodegenErrorKind::InternalError,
+            format!(
+                "Internal error: function '{}' has {} parameter(s) in AST but {} in LLVM declaration. This is a compiler bug.",
+                function, expected, actual
             ),
         )
     }
