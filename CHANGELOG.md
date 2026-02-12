@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.1.0](https://github.com/lak-lang/lak/compare/v0.0.2...v0.1.0) (2026-02-12)
+
+
+### Features
+
+* add return statements and non-void returns ([8463122](https://github.com/lak-lang/lak/commit/84631222bdad1e9f8e1bc8dff90dbcbb23594541))
+* implement function parameters across parser, semantic, and codegen ([09c3e1e](https://github.com/lak-lang/lak/commit/09c3e1e885a84754cbeb283e03ed9ed65f866645))
+* implement while loop with break and continue ([a70b113](https://github.com/lak-lang/lak/commit/a70b113a9d4d73fd13263489ed73ac64b75ded7e))
+
+
+### Patches
+
+* adapt integer literals in binary operations ([79cc03c](https://github.com/lak-lang/lak/commit/79cc03c3d388cd6c5b8a8756fb50432f8a6c7c0d))
+* avoid exposing mangled names in codegen internal errors ([0f920d1](https://github.com/lak-lang/lak/commit/0f920d1576ccdd00a5010f946aed43eb7d25c3a6))
+* resolve runtime and msvc linker paths at runtime ([d1e0ed7](https://github.com/lak-lang/lak/commit/d1e0ed7e970662280722706a308e95781d95283b))
+
 ## [0.0.2](https://github.com/lak-lang/lak/compare/v0.0.1...v0.0.2) (2026-02-11)
 
 
