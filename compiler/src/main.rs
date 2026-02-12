@@ -640,8 +640,9 @@ fn resolve_msvc_linker_command() -> Result<Command, CompileError> {
     let arch = msvc_linker_arch()?;
     // `find` returns a command preconfigured with MSVC environment variables,
     // including LIB, so the linker can resolve system libraries in CI.
-    cc::windows_registry::find(arch, "link.exe")
-        .ok_or_else(|| CompileError::Link(LinkError::MsvcLinkerNotFound { msvc_arch: arch }))
+    cc::windows_registry::find(arch, "link.exe").ok_or(CompileError::Link(
+        LinkError::MsvcLinkerNotFound { msvc_arch: arch },
+    ))
 }
 
 /// Formats an exit status for display, including signal information on Unix.
