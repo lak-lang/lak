@@ -343,9 +343,89 @@ fn test_compile_error_i32_overflow() {
 }
 
 #[test]
+fn test_compile_error_i32_overflow_in_println_binary_op_with_variable() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let x: i32 = 1
+    println(2147483648 + x)
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Integer literal '2147483648' is out of range for i32 (valid range: -2147483648 to 2147483647)"
+    );
+    assert_eq!(short_msg, "Integer overflow");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::IntegerOverflow),
+        "Expected IntegerOverflow error kind"
+    );
+}
+
+#[test]
+fn test_compile_error_i32_overflow_in_typed_binary_op_with_variable() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let x: i32 = 1
+    let y: i32 = 2147483648 + x
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Integer literal '2147483648' is out of range for i32 (valid range: -2147483648 to 2147483647)"
+    );
+    assert_eq!(short_msg, "Integer overflow");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::IntegerOverflow),
+        "Expected IntegerOverflow error kind"
+    );
+}
+
+#[test]
+fn test_compile_error_i32_negative_overflow_in_println_binary_op_with_variable() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let x: i32 = 1
+    println(-2147483649 + x)
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Integer literal '-2147483649' is out of range for i32 (valid range: -2147483648 to 2147483647)"
+    );
+    assert_eq!(short_msg, "Integer overflow");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::IntegerOverflow),
+        "Expected IntegerOverflow error kind"
+    );
+}
+
+#[test]
 fn test_compile_error_i32_large_value_overflow() {
-    // Test that very large values (i64 max) are rejected for i32
-    // Note: Negative literals are not yet supported
+    // Test that very large values (i64 max) are rejected for i32.
     let result = compile_error_with_kind(
         r#"fn main() -> void {
     let x: i32 = 9223372036854775807
@@ -2160,6 +2240,105 @@ fn test_println_ordering_bool_operands() {
         msg
     );
     assert_eq!(msg, "Ordering operator '<' cannot be used with 'bool' type");
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch)
+    );
+}
+
+#[test]
+fn test_println_arithmetic_string_operand() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    println("a" + 1)
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(msg, "Operator '+' cannot be used with 'string' type");
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch)
+    );
+}
+
+#[test]
+fn test_println_arithmetic_bool_operand() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let b: bool = true
+    println(b + 1)
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(msg, "Operator '+' cannot be used with 'bool' type");
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch)
+    );
+}
+
+#[test]
+fn test_println_arithmetic_mixed_i32_i64_variables() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let a: i32 = 1
+    let b: i64 = 2
+    println(a + b)
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Type mismatch: variable 'b' has type 'i64', expected 'i32'"
+    );
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch)
+    );
+}
+
+#[test]
+fn test_println_comparison_mixed_i32_i64_variables() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let a: i32 = 1
+    let b: i64 = 2
+    println(a > b)
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Type mismatch: variable 'b' has type 'i64', expected 'i32'"
+    );
     assert_eq!(short_msg, "Type mismatch");
     assert_eq!(
         kind,

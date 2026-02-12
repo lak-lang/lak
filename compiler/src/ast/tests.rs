@@ -118,6 +118,70 @@ fn test_expr_int_literal() {
 }
 
 #[test]
+fn test_expr_is_integer_literal_int_literal() {
+    let expr = Expr::new(ExprKind::IntLiteral(100), dummy_span());
+    assert!(expr.is_integer_literal());
+}
+
+#[test]
+fn test_expr_is_integer_literal_negated_int_literal() {
+    let expr = Expr::new(
+        ExprKind::UnaryOp {
+            op: UnaryOperator::Neg,
+            operand: Box::new(Expr::new(ExprKind::IntLiteral(1), dummy_span())),
+        },
+        dummy_span(),
+    );
+    assert!(expr.is_integer_literal());
+}
+
+#[test]
+fn test_expr_is_integer_literal_non_literal() {
+    let expr = Expr::new(ExprKind::Identifier("x".to_string()), dummy_span());
+    assert!(!expr.is_integer_literal());
+}
+
+#[test]
+fn test_infer_common_binary_operand_type_same_type() {
+    let left = Expr::new(ExprKind::Identifier("x".to_string()), dummy_span());
+    let right = Expr::new(ExprKind::Identifier("y".to_string()), dummy_span());
+    let ty = Expr::infer_common_binary_operand_type(&left, &Type::I32, &right, &Type::I32);
+    assert_eq!(ty, Some(Type::I32));
+}
+
+#[test]
+fn test_infer_common_binary_operand_type_both_integer_literals() {
+    let left = Expr::new(ExprKind::IntLiteral(1), dummy_span());
+    let right = Expr::new(ExprKind::IntLiteral(2), dummy_span());
+    let ty = Expr::infer_common_binary_operand_type(&left, &Type::I64, &right, &Type::I64);
+    assert_eq!(ty, Some(Type::I64));
+}
+
+#[test]
+fn test_infer_common_binary_operand_type_left_literal_right_i32() {
+    let left = Expr::new(ExprKind::IntLiteral(1), dummy_span());
+    let right = Expr::new(ExprKind::Identifier("x".to_string()), dummy_span());
+    let ty = Expr::infer_common_binary_operand_type(&left, &Type::I64, &right, &Type::I32);
+    assert_eq!(ty, Some(Type::I32));
+}
+
+#[test]
+fn test_infer_common_binary_operand_type_right_literal_left_i32() {
+    let left = Expr::new(ExprKind::Identifier("x".to_string()), dummy_span());
+    let right = Expr::new(ExprKind::IntLiteral(1), dummy_span());
+    let ty = Expr::infer_common_binary_operand_type(&left, &Type::I32, &right, &Type::I64);
+    assert_eq!(ty, Some(Type::I32));
+}
+
+#[test]
+fn test_infer_common_binary_operand_type_non_adaptable_mixed_integer_variables() {
+    let left = Expr::new(ExprKind::Identifier("x".to_string()), dummy_span());
+    let right = Expr::new(ExprKind::Identifier("y".to_string()), dummy_span());
+    let ty = Expr::infer_common_binary_operand_type(&left, &Type::I32, &right, &Type::I64);
+    assert_eq!(ty, None);
+}
+
+#[test]
 fn test_expr_identifier() {
     let expr = Expr::new(ExprKind::Identifier("my_var".to_string()), dummy_span());
     assert!(matches!(expr.kind, ExprKind::Identifier(ref s) if s == "my_var"));
@@ -133,6 +197,14 @@ fn test_type_i32() {
 fn test_type_i64() {
     let ty = Type::I64;
     assert_eq!(ty, Type::I64);
+}
+
+#[test]
+fn test_type_is_integer() {
+    assert!(Type::I32.is_integer());
+    assert!(Type::I64.is_integer());
+    assert!(!Type::String.is_integer());
+    assert!(!Type::Bool.is_integer());
 }
 
 #[test]

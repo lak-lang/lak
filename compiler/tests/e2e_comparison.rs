@@ -720,6 +720,118 @@ fn main() -> void {
     assert_eq!(output, "true\n");
 }
 
+#[test]
+fn test_println_comparison_with_i32_variable_and_literal_left() {
+    let output = compile_and_run(
+        r#"
+fn main() -> void {
+    let x: i32 = 6
+    println(5 > x)
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "false\n");
+}
+
+#[test]
+fn test_println_comparison_with_i32_variable_and_literal_right() {
+    let output = compile_and_run(
+        r#"
+fn main() -> void {
+    let x: i32 = 6
+    println(x < 10)
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "true\n");
+}
+
+#[test]
+fn test_println_comparison_with_i64_variable_and_literal_left() {
+    let output = compile_and_run(
+        r#"
+fn main() -> void {
+    let x: i64 = 6
+    println(5 > x)
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "false\n");
+}
+
+#[test]
+fn test_println_comparison_with_i64_variable_and_literal_right() {
+    let output = compile_and_run(
+        r#"
+fn main() -> void {
+    let x: i64 = 6
+    println(x < 10)
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "true\n");
+}
+
+#[test]
+fn test_println_equality_with_i32_variable_and_literal_left() {
+    let output = compile_and_run(
+        r#"
+fn main() -> void {
+    let x: i32 = 6
+    println(6 == x)
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "true\n");
+}
+
+#[test]
+fn test_println_inequality_with_i32_variable_and_literal_right() {
+    let output = compile_and_run(
+        r#"
+fn main() -> void {
+    let x: i32 = 6
+    println(x != 10)
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "true\n");
+}
+
+#[test]
+fn test_println_equality_with_i64_variable_and_literal_left() {
+    let output = compile_and_run(
+        r#"
+fn main() -> void {
+    let x: i64 = 6
+    println(6 == x)
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "true\n");
+}
+
+#[test]
+fn test_println_inequality_with_i64_variable_and_literal_right() {
+    let output = compile_and_run(
+        r#"
+fn main() -> void {
+    let x: i64 = 6
+    println(x != 10)
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "true\n");
+}
+
 // ============================================================================
 // Bool Equality
 // ============================================================================

@@ -672,6 +672,159 @@ fn test_get_expr_type_defined_i64_variable() {
 }
 
 #[test]
+fn test_get_expr_type_binary_literal_plus_i32_variable() {
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "test");
+
+    let program = make_program(vec![let_stmt("x", Type::I32, ExprKind::IntLiteral(42))]);
+    codegen
+        .compile(&program)
+        .expect("Program should compile successfully");
+
+    let expr = Expr::new(
+        ExprKind::BinaryOp {
+            left: Box::new(Expr::new(ExprKind::IntLiteral(1), dummy_span())),
+            op: crate::ast::BinaryOperator::Add,
+            right: Box::new(Expr::new(
+                ExprKind::Identifier("x".to_string()),
+                dummy_span(),
+            )),
+        },
+        dummy_span(),
+    );
+    let result = codegen.get_expr_type(&expr);
+    assert!(result.is_ok(), "Expected Ok, got: {:?}", result);
+    assert_eq!(result.unwrap(), Type::I32);
+}
+
+#[test]
+fn test_get_expr_type_binary_literal_plus_i64_variable() {
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "test");
+
+    let program = make_program(vec![let_stmt("y", Type::I64, ExprKind::IntLiteral(42))]);
+    codegen
+        .compile(&program)
+        .expect("Program should compile successfully");
+
+    let expr = Expr::new(
+        ExprKind::BinaryOp {
+            left: Box::new(Expr::new(ExprKind::IntLiteral(1), dummy_span())),
+            op: crate::ast::BinaryOperator::Add,
+            right: Box::new(Expr::new(
+                ExprKind::Identifier("y".to_string()),
+                dummy_span(),
+            )),
+        },
+        dummy_span(),
+    );
+    let result = codegen.get_expr_type(&expr);
+    assert!(result.is_ok(), "Expected Ok, got: {:?}", result);
+    assert_eq!(result.unwrap(), Type::I64);
+}
+
+#[test]
+fn test_get_expr_type_binary_mixed_i32_i64_variables_returns_internal_error() {
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "test");
+
+    let program = make_program(vec![
+        let_stmt("x", Type::I32, ExprKind::IntLiteral(1)),
+        let_stmt("y", Type::I64, ExprKind::IntLiteral(2)),
+    ]);
+    codegen
+        .compile(&program)
+        .expect("Program should compile successfully");
+
+    let expr = Expr::new(
+        ExprKind::BinaryOp {
+            left: Box::new(Expr::new(
+                ExprKind::Identifier("x".to_string()),
+                dummy_span(),
+            )),
+            op: crate::ast::BinaryOperator::Add,
+            right: Box::new(Expr::new(
+                ExprKind::Identifier("y".to_string()),
+                dummy_span(),
+            )),
+        },
+        dummy_span(),
+    );
+    let result = codegen.get_expr_type(&expr);
+    assert!(result.is_err(), "Expected Err, got: {:?}", result);
+    let err = result.unwrap_err();
+    assert_eq!(err.kind(), CodegenErrorKind::InternalError);
+    assert_eq!(
+        err.message(),
+        "Internal error: binary operands have incompatible types 'i32' and 'i64' after literal adaptation in codegen. Semantic analysis should have rejected this. This is a compiler bug."
+    );
+}
+
+#[test]
+fn test_get_expr_type_binary_negative_literal_plus_i32_variable() {
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "test");
+
+    let program = make_program(vec![let_stmt("x", Type::I32, ExprKind::IntLiteral(42))]);
+    codegen
+        .compile(&program)
+        .expect("Program should compile successfully");
+
+    let expr = Expr::new(
+        ExprKind::BinaryOp {
+            left: Box::new(Expr::new(
+                ExprKind::UnaryOp {
+                    op: UnaryOperator::Neg,
+                    operand: Box::new(Expr::new(ExprKind::IntLiteral(1), dummy_span())),
+                },
+                dummy_span(),
+            )),
+            op: crate::ast::BinaryOperator::Add,
+            right: Box::new(Expr::new(
+                ExprKind::Identifier("x".to_string()),
+                dummy_span(),
+            )),
+        },
+        dummy_span(),
+    );
+    let result = codegen.get_expr_type(&expr);
+    assert!(result.is_ok(), "Expected Ok, got: {:?}", result);
+    assert_eq!(result.unwrap(), Type::I32);
+}
+
+#[test]
+fn test_get_expr_type_binary_negative_literal_plus_i64_variable() {
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "test");
+
+    let program = make_program(vec![let_stmt("y", Type::I64, ExprKind::IntLiteral(42))]);
+    codegen
+        .compile(&program)
+        .expect("Program should compile successfully");
+
+    let expr = Expr::new(
+        ExprKind::BinaryOp {
+            left: Box::new(Expr::new(
+                ExprKind::UnaryOp {
+                    op: UnaryOperator::Neg,
+                    operand: Box::new(Expr::new(ExprKind::IntLiteral(1), dummy_span())),
+                },
+                dummy_span(),
+            )),
+            op: crate::ast::BinaryOperator::Add,
+            right: Box::new(Expr::new(
+                ExprKind::Identifier("y".to_string()),
+                dummy_span(),
+            )),
+        },
+        dummy_span(),
+    );
+    let result = codegen.get_expr_type(&expr);
+    assert!(result.is_ok(), "Expected Ok, got: {:?}", result);
+    assert_eq!(result.unwrap(), Type::I64);
+}
+
+#[test]
 fn test_get_expr_type_defined_string_variable() {
     let context = Context::create();
     let mut codegen = Codegen::new(&context, "test");

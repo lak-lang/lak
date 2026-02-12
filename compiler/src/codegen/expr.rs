@@ -321,6 +321,28 @@ impl<'ctx> Codegen<'ctx> {
     ///
     /// Kept in sync with `SemanticAnalyzer::infer_expr_type` in `semantic/mod.rs`
     /// and `Codegen::get_expr_type` in `codegen/builtins.rs`.
+    fn infer_binary_operand_type_for_codegen(
+        &self,
+        left: &Expr,
+        right: &Expr,
+        span: crate::token::Span,
+    ) -> Result<Type, CodegenError> {
+        let left_ty = self.infer_expr_type_for_comparison(left)?;
+        let right_ty = self.infer_expr_type_for_comparison(right)?;
+
+        if let Some(common_ty) =
+            Expr::infer_common_binary_operand_type(left, &left_ty, right, &right_ty)
+        {
+            return Ok(common_ty);
+        }
+
+        Err(CodegenError::internal_binary_operand_type_mismatch(
+            &left_ty.to_string(),
+            &right_ty.to_string(),
+            span,
+        ))
+    }
+
     fn infer_expr_type_for_comparison(&self, expr: &Expr) -> Result<Type, CodegenError> {
         match &expr.kind {
             ExprKind::IntLiteral(_) => Ok(Type::I64),
@@ -330,11 +352,11 @@ impl<'ctx> Codegen<'ctx> {
                     .ok_or_else(|| CodegenError::internal_variable_not_found(name, expr.span))?;
                 Ok(binding.ty().clone())
             }
-            ExprKind::BinaryOp { left, op, .. } => {
+            ExprKind::BinaryOp { left, op, right } => {
                 if op.is_comparison() || op.is_logical() {
                     Ok(Type::Bool)
                 } else {
-                    self.infer_expr_type_for_comparison(left)
+                    self.infer_binary_operand_type_for_codegen(left, right, expr.span)
                 }
             }
             ExprKind::UnaryOp { op, operand } => match op {
@@ -454,7 +476,7 @@ impl<'ctx> Codegen<'ctx> {
         right: &Expr,
         span: crate::token::Span,
     ) -> Result<BasicValueEnum<'ctx>, CodegenError> {
-        let operand_ty = self.infer_expr_type_for_comparison(left)?;
+        let operand_ty = self.infer_binary_operand_type_for_codegen(left, right, span)?;
 
         match operand_ty {
             Type::I32 | Type::I64 | Type::Bool => {

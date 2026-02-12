@@ -367,6 +367,17 @@ fn test_println_binary_op_directly() {
 }
 
 #[test]
+fn test_println_binary_op_literal_plus_literal() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    println(3 + 4)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "7\n");
+}
+
+#[test]
 fn test_println_complex_expression() {
     let output = compile_and_run(
         r#"fn main() -> void {
@@ -375,6 +386,198 @@ fn test_println_complex_expression() {
     )
     .unwrap();
     assert_eq!(output, "10\n");
+}
+
+#[test]
+fn test_println_binary_op_mixed_literal_left_i32() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = 6
+    println(1 + x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "7\n");
+}
+
+#[test]
+fn test_println_binary_op_mixed_literal_right_i32() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = 6
+    println(x + 1)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "7\n");
+}
+
+#[test]
+fn test_println_binary_op_mixed_literal_left_i64() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i64 = 6
+    println(1 + x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "7\n");
+}
+
+#[test]
+fn test_println_binary_op_mixed_literal_right_i64() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i64 = 6
+    println(x + 1)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "7\n");
+}
+
+#[test]
+fn test_println_binary_op_mixed_negative_literal_left_i32() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = 6
+    println(-1 + x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "5\n");
+}
+
+#[test]
+fn test_println_binary_op_mixed_negative_literal_left_i64() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i64 = 6
+    println(-1 + x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "5\n");
+}
+
+#[test]
+fn test_println_nested_binary_op_literal_adaptation_i32() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = 3
+    println((x + 1) * 2)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "8\n");
+}
+
+#[test]
+fn test_println_nested_binary_op_literal_adaptation_i64() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i64 = 3
+    println((x + 1) * 2)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "8\n");
+}
+
+#[test]
+fn test_println_binary_op_mixed_literal_subtraction_i32() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = 3
+    println(10 - x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "7\n");
+}
+
+#[test]
+fn test_println_binary_op_mixed_literal_subtraction_i64() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i64 = 3
+    println(10 - x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "7\n");
+}
+
+#[test]
+fn test_println_binary_op_mixed_literal_multiplication_i32() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = 4
+    println(3 * x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "12\n");
+}
+
+#[test]
+fn test_println_binary_op_mixed_literal_multiplication_i64() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i64 = 4
+    println(3 * x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "12\n");
+}
+
+#[test]
+fn test_println_binary_op_mixed_literal_division_i32() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = 4
+    println(20 / x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "5\n");
+}
+
+#[test]
+fn test_println_binary_op_mixed_literal_division_i64() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i64 = 4
+    println(20 / x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "5\n");
+}
+
+#[test]
+fn test_println_binary_op_mixed_literal_modulo_i32() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i32 = 4
+    println(22 % x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "2\n");
+}
+
+#[test]
+fn test_println_binary_op_mixed_literal_modulo_i64() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: i64 = 4
+    println(22 % x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "2\n");
 }
 
 // ============================================================================

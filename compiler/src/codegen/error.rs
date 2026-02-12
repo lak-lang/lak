@@ -605,6 +605,24 @@ impl CodegenError {
         )
     }
 
+    /// Creates an internal error for non-adaptable binary operand types.
+    pub fn internal_binary_operand_type_mismatch(
+        left_ty: &str,
+        right_ty: &str,
+        span: Span,
+    ) -> Self {
+        Self::new(
+            CodegenErrorKind::InternalError,
+            format!(
+                "Internal error: binary operands have incompatible types '{}' and '{}' after \
+                 literal adaptation in codegen. Semantic analysis should have rejected this. \
+                 This is a compiler bug.",
+                left_ty, right_ty
+            ),
+            span,
+        )
+    }
+
     /// Creates an internal error for failed binary operation.
     pub fn internal_binary_op_failed(
         op: crate::ast::BinaryOperator,

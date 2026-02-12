@@ -173,6 +173,35 @@ impl<'ctx> Codegen<'ctx> {
             .add_function("lak_streq", streq_type, Some(Linkage::External));
     }
 
+    /// Infers a common binary operand type with integer-literal adaptation.
+    ///
+    /// This mirrors semantic analysis rules used by `infer_expr_type`:
+    /// - same type on both sides => that type
+    /// - integer literal mixed with `i32`/`i64` => non-literal integer type
+    /// - non-adaptable mix => internal error (semantic should have rejected it)
+    fn infer_binary_operand_type_with_locals(
+        &self,
+        left: &Expr,
+        right: &Expr,
+        local_types: &HashMap<String, Type>,
+        span: Span,
+    ) -> Result<Type, CodegenError> {
+        let left_ty = self.get_expr_type_with_locals(left, local_types)?;
+        let right_ty = self.get_expr_type_with_locals(right, local_types)?;
+
+        if let Some(common_ty) =
+            Expr::infer_common_binary_operand_type(left, &left_ty, right, &right_ty)
+        {
+            return Ok(common_ty);
+        }
+
+        Err(CodegenError::internal_binary_operand_type_mismatch(
+            &left_ty.to_string(),
+            &right_ty.to_string(),
+            span,
+        ))
+    }
+
     /// Returns the type of an expression for println dispatch.
     ///
     /// This is used to determine which println runtime function to call.
@@ -181,13 +210,13 @@ impl<'ctx> Codegen<'ctx> {
     /// `lak_println_bool`).
     ///
     /// Type mapping:
-    /// - `IntLiteral` → `Type::I64` (bare integer literals always use i64)
+    /// - `IntLiteral` → `Type::I64` (standalone integer literals default to i64)
     /// - `StringLiteral` → `Type::String`
     /// - `BoolLiteral` → `Type::Bool`
     /// - `Identifier` → the variable's declared type (may be i32, i64, string, or bool)
     ///
-    /// Note: Integer literals passed directly to println are always treated as i64.
-    /// To print an i32, assign the literal to an i32 variable first.
+    /// Integer literals in arithmetic/comparison expressions are adapted to
+    /// the non-literal integer operand type (`i32` or `i64`).
     ///
     /// Kept in sync with `SemanticAnalyzer::infer_expr_type` in `semantic/mod.rs`
     /// and `Codegen::infer_expr_type_for_comparison` in `codegen/expr.rs`.
@@ -216,11 +245,11 @@ impl<'ctx> Codegen<'ctx> {
             ExprKind::Call { callee, .. } => {
                 Err(CodegenError::internal_println_call_arg(callee, expr.span))
             }
-            ExprKind::BinaryOp { left, op, .. } => {
+            ExprKind::BinaryOp { left, op, right } => {
                 if op.is_comparison() || op.is_logical() {
                     Ok(Type::Bool)
                 } else {
-                    self.get_expr_type_with_locals(left, local_types)
+                    self.infer_binary_operand_type_with_locals(left, right, local_types, expr.span)
                 }
             }
             ExprKind::UnaryOp { op, operand } => match op {
@@ -289,14 +318,14 @@ impl<'ctx> Codegen<'ctx> {
     ///
     /// Type dispatch:
     /// - `string` → `lak_println` (string literals or string variables)
-    /// - `i32` → `lak_println_i32` (i32 variables only)
-    /// - `i64` → `lak_println_i64` (integer literals or i64 variables)
+    /// - `i32` → `lak_println_i32` (i32 values, including adapted literal mixes)
+    /// - `i64` → `lak_println_i64` (i64 values and standalone integer literals)
     /// - `bool` → `lak_println_bool` (boolean literals or bool variables)
     ///
     /// # Validation responsibilities
     ///
-    /// - **Semantic analysis**: Validates argument count (exactly 1) and that variables
-    ///   exist. Does NOT validate argument types for println.
+    /// - **Semantic analysis**: Validates argument count (exactly 1), variable existence,
+    ///   and type consistency (including integer literal adaptation and integer range checks).
     /// - **Codegen (`get_expr_type`)**: Determines the actual type of the argument and
     ///   dispatches to the appropriate runtime function.
     ///
@@ -382,9 +411,8 @@ impl<'ctx> Codegen<'ctx> {
 
     /// Generates LLVM IR for `println` with an i32 argument.
     ///
-    /// Note: Only i32 variables and i32-typed binary operations reach this function.
-    /// Integer literals are always treated as i64 by `get_expr_type()` and handled by
-    /// `generate_println_i64()`.
+    /// Note: i32-typed expressions, including mixed literal arithmetic adapted to i32,
+    /// reach this function.
     fn generate_println_i32(&mut self, arg: &Expr, span: Span) -> Result<(), CodegenError> {
         let i32_value = match &arg.kind {
             ExprKind::Identifier(name) => {
@@ -421,8 +449,7 @@ impl<'ctx> Codegen<'ctx> {
                     }
                 }
             }
-            // This branch is currently unreachable: integer literals are always typed as i64
-            // by get_expr_type() and routed to generate_println_i64().
+            // Standalone integer literals are routed to generate_println_i64().
             _ => {
                 return Err(CodegenError::internal_println_invalid_i32_arg(arg.span));
             }
@@ -510,7 +537,7 @@ impl<'ctx> Codegen<'ctx> {
 
     /// Generates LLVM IR for `println` with an i64 argument.
     ///
-    /// This handles integer literals (which are always treated as i64),
+    /// This handles standalone integer literals (default i64),
     /// i64 variables, and i64-typed binary operations.
     fn generate_println_i64(&mut self, arg: &Expr, span: Span) -> Result<(), CodegenError> {
         let i64_value = match &arg.kind {

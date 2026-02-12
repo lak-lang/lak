@@ -1,5 +1,6 @@
 //! Expression nodes for the Lak AST.
 
+use super::Type;
 use crate::token::Span;
 use std::fmt;
 
@@ -254,6 +255,41 @@ impl Expr {
     /// Creates a new expression with the given kind and span.
     pub fn new(kind: ExprKind, span: Span) -> Self {
         Expr { kind, span }
+    }
+
+    /// Returns true if this expression is an integer literal, including `-<int>`.
+    pub fn is_integer_literal(&self) -> bool {
+        match &self.kind {
+            ExprKind::IntLiteral(_) => true,
+            ExprKind::UnaryOp { op, operand } => {
+                *op == UnaryOperator::Neg && matches!(operand.kind, ExprKind::IntLiteral(_))
+            }
+            _ => false,
+        }
+    }
+
+    /// Infers a common operand type for binary operations with integer-literal adaptation.
+    ///
+    /// Rules:
+    /// - Same type on both sides => that type
+    /// - Integer literal mixed with `i32`/`i64` => non-literal integer side
+    /// - Otherwise => no common type (`None`)
+    pub fn infer_common_binary_operand_type(
+        left: &Expr,
+        left_ty: &Type,
+        right: &Expr,
+        right_ty: &Type,
+    ) -> Option<Type> {
+        if left_ty == right_ty {
+            return Some(left_ty.clone());
+        }
+        if left.is_integer_literal() && right_ty.is_integer() {
+            return Some(right_ty.clone());
+        }
+        if right.is_integer_literal() && left_ty.is_integer() {
+            return Some(left_ty.clone());
+        }
+        None
     }
 
     /// Creates a member access expression for testing purposes.

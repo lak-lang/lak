@@ -158,7 +158,7 @@ fn test_parse_error_integer_literal_out_of_range_positive_constructor() {
     assert_eq!(err.kind(), ParseErrorKind::IntegerLiteralOutOfRange);
     assert_eq!(
         err.message(),
-        "Integer literal '9223372036854775808' is out of range for i64 (exceeds maximum value 9223372036854775807)"
+        "Integer literal '9223372036854775808' is out of range for i64 (valid range: -9223372036854775808 to 9223372036854775807)"
     );
 }
 
@@ -169,7 +169,7 @@ fn test_parse_error_integer_literal_out_of_range_negative_constructor() {
     assert_eq!(err.kind(), ParseErrorKind::IntegerLiteralOutOfRange);
     assert_eq!(
         err.message(),
-        "Integer literal '9223372036854775809' is too large to negate (minimum value is -9223372036854775808, maximum absolute value is 9223372036854775808)"
+        "Integer literal '-9223372036854775809' is out of range for i64 (valid range: -9223372036854775808 to 9223372036854775807)"
     );
 }
 

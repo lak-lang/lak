@@ -212,6 +212,16 @@ let x = 10    // Compile error: variable x is already declared
 | `/` | Division |
 | `%` | Modulo |
 
+### Integer Literal Adaptation
+
+In binary arithmetic/comparison expressions, integer literals adapt to the
+non-literal integer operand type when possible:
+
+- `int_literal <op> i32` / `i32 <op> int_literal` are evaluated as `i32`
+- `int_literal <op> i64` / `i64 <op> int_literal` are evaluated as `i64`
+- `int_literal <op> int_literal` defaults to `i64`
+- non-literal `i32`/`i64` mixes (e.g. `a + b`) are a type error
+
 ### Integer Overflow
 
 Arithmetic operations (`+`, `-`, `*`, `/`, `%`) and unary negation (`-x`) panic at runtime when the result overflows the integer type's range.

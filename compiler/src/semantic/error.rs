@@ -760,6 +760,23 @@ impl SemanticError {
         )
     }
 
+    /// Creates an internal error for non-adaptable binary operand types.
+    pub fn internal_binary_operand_type_mismatch(
+        left_ty: &str,
+        right_ty: &str,
+        span: Span,
+    ) -> Self {
+        Self::new(
+            SemanticErrorKind::InternalError,
+            format!(
+                "Internal error: binary operands have incompatible types '{}' and '{}' after \
+                 integer literal adaptation in semantic analysis. This is a compiler bug.",
+                left_ty, right_ty
+            ),
+            span,
+        )
+    }
+
     // =========================================================================
     // Module errors
     // =========================================================================

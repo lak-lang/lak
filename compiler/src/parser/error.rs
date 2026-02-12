@@ -295,8 +295,9 @@ impl ParseError {
         Self::new(
             ParseErrorKind::IntegerLiteralOutOfRange,
             format!(
-                "Integer literal '{}' is out of range for i64 (exceeds maximum value {})",
+                "Integer literal '{}' is out of range for i64 (valid range: {} to {})",
                 unsigned_value,
+                i64::MIN,
                 i64::MAX
             ),
             span,
@@ -305,13 +306,14 @@ impl ParseError {
 
     /// Creates an error for a negative integer literal that exceeds i64::MIN.
     pub fn integer_literal_out_of_range_negative(unsigned_value: u64, span: Span) -> Self {
+        let signed_literal = format!("-{}", unsigned_value);
         Self::new(
             ParseErrorKind::IntegerLiteralOutOfRange,
             format!(
-                "Integer literal '{}' is too large to negate (minimum value is {}, maximum absolute value is {})",
-                unsigned_value,
+                "Integer literal '{}' is out of range for i64 (valid range: {} to {})",
+                signed_literal,
                 i64::MIN,
-                i64::MIN.unsigned_abs()
+                i64::MAX
             ),
             span,
         )

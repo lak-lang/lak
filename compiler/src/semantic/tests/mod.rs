@@ -45,11 +45,7 @@ pub fn program_with_main(body: Vec<Stmt>) -> Program {
 
 #[test]
 fn test_semantic_error_display_with_span() {
-    let err = SemanticError::new(
-        SemanticErrorKind::UndefinedVariable,
-        "Undefined variable: 'x'",
-        span_at(5, 10),
-    );
+    let err = SemanticError::undefined_variable("x", span_at(5, 10));
     let display = format!("{}", err);
     assert_eq!(display, "5:10: Undefined variable: 'x'");
 }
@@ -222,6 +218,16 @@ fn test_internal_no_scope_constructor() {
     assert_eq!(
         err.message(),
         "Internal error: attempted to define variable 'x' outside a scope. This is a compiler bug."
+    );
+}
+
+#[test]
+fn test_internal_binary_operand_type_mismatch_constructor() {
+    let err = SemanticError::internal_binary_operand_type_mismatch("i32", "i64", span_at(1, 1));
+    assert_eq!(err.kind(), SemanticErrorKind::InternalError);
+    assert_eq!(
+        err.message(),
+        "Internal error: binary operands have incompatible types 'i32' and 'i64' after integer literal adaptation in semantic analysis. This is a compiler bug."
     );
 }
 

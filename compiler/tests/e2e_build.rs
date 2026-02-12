@@ -296,7 +296,7 @@ fn test_build_negation_overflow_span_includes_minus() {
     );
     // Verify detailed message in label
     assert!(
-        stderr.contains("is too large to negate"),
+        stderr.contains("is out of range for i64"),
         "Expected negation overflow message in stderr: {}",
         stderr
     );

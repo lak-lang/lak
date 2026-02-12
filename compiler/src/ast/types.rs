@@ -18,6 +18,13 @@ pub enum Type {
     Bool,
 }
 
+impl Type {
+    /// Returns true when this type is one of Lak's integer primitives.
+    pub fn is_integer(&self) -> bool {
+        matches!(self, Type::I32 | Type::I64)
+    }
+}
+
 /// Displays the type as it would appear in Lak source code.
 ///
 /// This is used for generating user-facing error messages.
