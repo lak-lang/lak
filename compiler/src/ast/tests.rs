@@ -112,6 +112,34 @@ fn test_stmt_let() {
 }
 
 #[test]
+fn test_stmt_while() {
+    let stmt = Stmt::new(
+        StmtKind::While {
+            condition: Expr::new(ExprKind::BoolLiteral(true), dummy_span()),
+            body: vec![Stmt::new(StmtKind::Break, dummy_span())],
+        },
+        dummy_span(),
+    );
+    match stmt.kind {
+        StmtKind::While { condition, body } => {
+            assert!(matches!(condition.kind, ExprKind::BoolLiteral(true)));
+            assert_eq!(body.len(), 1);
+            assert!(matches!(body[0].kind, StmtKind::Break));
+        }
+        _ => panic!("Expected While statement"),
+    }
+}
+
+#[test]
+fn test_stmt_break_and_continue() {
+    let break_stmt = Stmt::new(StmtKind::Break, dummy_span());
+    assert!(matches!(break_stmt.kind, StmtKind::Break));
+
+    let continue_stmt = Stmt::new(StmtKind::Continue, dummy_span());
+    assert!(matches!(continue_stmt.kind, StmtKind::Continue));
+}
+
+#[test]
 fn test_expr_int_literal() {
     let expr = Expr::new(ExprKind::IntLiteral(100), dummy_span());
     assert!(matches!(expr.kind, ExprKind::IntLiteral(100)));

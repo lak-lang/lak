@@ -49,6 +49,7 @@ Note: `analyze_module()` (used for imported modules) skips phase 2 (main validat
 | `TypeMismatch` | Expected vs actual type mismatch |
 | `IntegerOverflow` | Integer out of range for target type |
 | `InvalidArgument` | Wrong argument count or type |
+| `InvalidControlFlow` | Invalid loop control usage (e.g., break/continue outside loops) |
 | `InvalidExpression` | Expression in invalid context (e.g., literal as statement) |
 | `MissingMainFunction` | No main function found |
 | `InvalidMainSignature` | Main has wrong signature |

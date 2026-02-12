@@ -2,13 +2,14 @@
 //!
 //! This module implements code generation for Lak statements, including
 //! expression statements, `let` bindings, `let _ = ...` discard statements,
-//! `return` statements, and `if` control flow.
+//! `return` statements, and control flow (`if`, `while`, `break`, `continue`).
 
 use super::Codegen;
 use super::binding::VarBinding;
 use super::error::CodegenError;
 use crate::ast::{Expr, Stmt, StmtKind, Type};
 use crate::token::Span;
+use inkwell::values::BasicValueEnum;
 
 impl<'ctx> Codegen<'ctx> {
     /// Generates LLVM IR for a single statement.
@@ -26,6 +27,9 @@ impl<'ctx> Codegen<'ctx> {
                 then_branch,
                 else_branch,
             } => self.generate_if(condition, then_branch, else_branch.as_deref(), stmt.span),
+            StmtKind::While { condition, body } => self.generate_while(condition, body, stmt.span),
+            StmtKind::Break => self.generate_break(stmt.span),
+            StmtKind::Continue => self.generate_continue(stmt.span),
         }
     }
 
@@ -91,9 +95,15 @@ impl<'ctx> Codegen<'ctx> {
         let merge_block = self.context.append_basic_block(parent_fn, "if_end");
         let else_block = else_branch.map(|_| self.context.append_basic_block(parent_fn, "if_else"));
 
-        let condition_value = self
-            .generate_expr_value(condition, &Type::Bool)?
-            .into_int_value();
+        let condition_value = match self.generate_expr_value(condition, &Type::Bool)? {
+            BasicValueEnum::IntValue(value) => value,
+            _ => {
+                return Err(CodegenError::internal_non_integer_value(
+                    "if condition",
+                    span,
+                ));
+            }
+        };
 
         if let Some(else_bb) = else_block {
             self.builder
@@ -128,7 +138,7 @@ impl<'ctx> Codegen<'ctx> {
                 .build_unconditional_branch(merge_block)
                 .map_err(|e| CodegenError::internal_branch_failed(&e.to_string(), span))?;
         }
-        self.exit_variable_scope();
+        self.exit_variable_scope(span)?;
 
         let mut else_has_terminator = false;
         if let (Some(else_bb), Some(else_stmts)) = (else_block, else_branch) {
@@ -155,7 +165,7 @@ impl<'ctx> Codegen<'ctx> {
                     .build_unconditional_branch(merge_block)
                     .map_err(|e| CodegenError::internal_branch_failed(&e.to_string(), span))?;
             }
-            self.exit_variable_scope();
+            self.exit_variable_scope(span)?;
         }
 
         if else_block.is_some() && then_has_terminator && else_has_terminator {
@@ -167,6 +177,106 @@ impl<'ctx> Codegen<'ctx> {
         }
 
         self.builder.position_at_end(merge_block);
+        Ok(())
+    }
+
+    /// Generates LLVM IR for a while statement.
+    pub(super) fn generate_while(
+        &mut self,
+        condition: &Expr,
+        body: &[Stmt],
+        span: Span,
+    ) -> Result<(), CodegenError> {
+        let parent_fn = self
+            .builder
+            .get_insert_block()
+            .and_then(|bb| bb.get_parent())
+            .ok_or_else(|| CodegenError::internal_no_current_function(span))?;
+
+        let cond_block = self.context.append_basic_block(parent_fn, "while_cond");
+        let body_block = self.context.append_basic_block(parent_fn, "while_body");
+        let end_block = self.context.append_basic_block(parent_fn, "while_end");
+
+        self.builder
+            .build_unconditional_branch(cond_block)
+            .map_err(|e| CodegenError::internal_branch_failed(&e.to_string(), span))?;
+
+        self.builder.position_at_end(cond_block);
+        let condition_value = match self.generate_expr_value(condition, &Type::Bool)? {
+            BasicValueEnum::IntValue(value) => value,
+            _ => {
+                return Err(CodegenError::internal_non_integer_value(
+                    "while condition",
+                    span,
+                ));
+            }
+        };
+        self.builder
+            .build_conditional_branch(condition_value, body_block, end_block)
+            .map_err(|e| CodegenError::internal_branch_failed(&e.to_string(), span))?;
+
+        self.builder.position_at_end(body_block);
+        self.enter_variable_scope();
+        self.push_loop_control(cond_block, end_block);
+
+        let body_result = (|| -> Result<(), CodegenError> {
+            for stmt in body {
+                let has_terminator = self
+                    .builder
+                    .get_insert_block()
+                    .and_then(|bb| bb.get_terminator())
+                    .is_some();
+                if has_terminator {
+                    break;
+                }
+                self.generate_stmt(stmt)?;
+            }
+
+            let body_has_terminator = self
+                .builder
+                .get_insert_block()
+                .and_then(|bb| bb.get_terminator())
+                .is_some();
+            if !body_has_terminator {
+                self.builder
+                    .build_unconditional_branch(cond_block)
+                    .map_err(|e| CodegenError::internal_branch_failed(&e.to_string(), span))?;
+            }
+
+            Ok(())
+        })();
+
+        self.pop_loop_control(span)?;
+        self.exit_variable_scope(span)?;
+        body_result?;
+
+        self.builder.position_at_end(end_block);
+        Ok(())
+    }
+
+    /// Generates LLVM IR for a break statement.
+    pub(super) fn generate_break(&mut self, span: Span) -> Result<(), CodegenError> {
+        let break_block = self
+            .current_loop_control()
+            .map(|loop_control| loop_control.break_block)
+            .ok_or_else(|| CodegenError::internal_break_outside_loop(span))?;
+
+        self.builder
+            .build_unconditional_branch(break_block)
+            .map_err(|e| CodegenError::internal_branch_failed(&e.to_string(), span))?;
+        Ok(())
+    }
+
+    /// Generates LLVM IR for a continue statement.
+    pub(super) fn generate_continue(&mut self, span: Span) -> Result<(), CodegenError> {
+        let continue_block = self
+            .current_loop_control()
+            .map(|loop_control| loop_control.continue_block)
+            .ok_or_else(|| CodegenError::internal_continue_outside_loop(span))?;
+
+        self.builder
+            .build_unconditional_branch(continue_block)
+            .map_err(|e| CodegenError::internal_branch_failed(&e.to_string(), span))?;
         Ok(())
     }
 

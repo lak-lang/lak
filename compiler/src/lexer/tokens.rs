@@ -293,8 +293,8 @@ impl<'a> Lexer<'a> {
     /// followed by any number of ASCII alphanumeric characters (a-z, A-Z, 0-9) or underscores.
     /// Non-ASCII characters (e.g., Unicode letters) are not allowed in identifiers.
     /// If the identifier matches a keyword (`fn`, `let`, `if`, `else`, `return`,
-    /// `pub`, `import`, `as`) or boolean literal (`true`, `false`), the corresponding
-    /// token kind is returned instead.
+    /// `while`, `break`, `continue`, `pub`, `import`, `as`) or boolean literal
+    /// (`true`, `false`), the corresponding token kind is returned instead.
     ///
     /// # Arguments
     ///
@@ -339,6 +339,9 @@ impl<'a> Lexer<'a> {
             "if" => TokenKind::If,
             "else" => TokenKind::Else,
             "return" => TokenKind::Return,
+            "while" => TokenKind::While,
+            "break" => TokenKind::Break,
+            "continue" => TokenKind::Continue,
             "pub" => TokenKind::Pub,
             "import" => TokenKind::Import,
             "as" => TokenKind::As,

@@ -39,6 +39,7 @@ use crate::token::Span;
 /// - **Type errors** (have span): [`TypeMismatch`](Self::TypeMismatch),
 ///   [`IntegerOverflow`](Self::IntegerOverflow), [`InvalidArgument`](Self::InvalidArgument),
 ///   [`InvalidExpression`](Self::InvalidExpression)
+/// - **Control-flow errors** (have span): [`InvalidControlFlow`](Self::InvalidControlFlow)
 /// - **Structural errors**: [`MissingMainFunction`](Self::MissingMainFunction) (no span),
 ///   [`InvalidMainSignature`](Self::InvalidMainSignature) (has span pointing to return type)
 /// - **Module errors** (have span): [`ModuleAccessNotImplemented`](Self::ModuleAccessNotImplemented),
@@ -65,6 +66,8 @@ pub enum SemanticErrorKind {
     IntegerOverflow,
     /// Invalid function arguments (wrong count or type).
     InvalidArgument,
+    /// Invalid control-flow usage (e.g., loop control outside loops).
+    InvalidControlFlow,
     /// Expression used in an invalid context (e.g., literal as statement).
     InvalidExpression,
     /// No main function was found in the program.
@@ -224,6 +227,7 @@ impl SemanticError {
             }
             SemanticErrorKind::IntegerOverflow => "Integer overflow",
             SemanticErrorKind::InvalidArgument => "Invalid argument",
+            SemanticErrorKind::InvalidControlFlow => "Invalid control flow",
             SemanticErrorKind::InvalidExpression => "Invalid expression",
             SemanticErrorKind::MissingMainFunction => "Missing main function",
             SemanticErrorKind::InvalidMainSignature => "Invalid main signature",
@@ -547,6 +551,26 @@ impl SemanticError {
             format!("panic requires a string argument, but got '{}'", actual_ty),
             span,
             "panic only accepts string literals or string variables",
+        )
+    }
+
+    /// Creates an error for `break` used outside of a loop.
+    pub fn break_outside_loop(span: Span) -> Self {
+        Self::new_with_help(
+            SemanticErrorKind::InvalidControlFlow,
+            "break statement can only be used inside a loop",
+            span,
+            "use `break` only inside `while` loop bodies",
+        )
+    }
+
+    /// Creates an error for `continue` used outside of a loop.
+    pub fn continue_outside_loop(span: Span) -> Self {
+        Self::new_with_help(
+            SemanticErrorKind::InvalidControlFlow,
+            "continue statement can only be used inside a loop",
+            span,
+            "use `continue` only inside `while` loop bodies",
         )
     }
 

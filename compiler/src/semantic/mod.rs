@@ -63,6 +63,7 @@ pub struct SemanticAnalyzer {
     symbols: SymbolTable,
     mode: AnalysisMode,
     current_function_return_type: Option<String>,
+    loop_depth: usize,
 }
 
 impl SemanticAnalyzer {
@@ -72,6 +73,7 @@ impl SemanticAnalyzer {
             symbols: SymbolTable::new(),
             mode: AnalysisMode::SingleFile,
             current_function_return_type: None,
+            loop_depth: 0,
         }
     }
 
@@ -209,6 +211,7 @@ impl SemanticAnalyzer {
 
     fn analyze_function(&mut self, function: &FnDef) -> Result<(), SemanticError> {
         self.current_function_return_type = Some(function.return_type.clone());
+        self.loop_depth = 0;
         self.symbols.enter_scope();
 
         let result = (|| -> Result<(), SemanticError> {
@@ -247,6 +250,7 @@ impl SemanticAnalyzer {
         })();
         self.symbols.exit_scope();
         self.current_function_return_type = None;
+        self.loop_depth = 0;
         result
     }
 
@@ -270,6 +274,9 @@ impl SemanticAnalyzer {
                 then_branch,
                 else_branch,
             } => self.analyze_if(condition, then_branch, else_branch.as_deref()),
+            StmtKind::While { condition, body } => self.analyze_while(condition, body),
+            StmtKind::Break => self.analyze_break(stmt.span),
+            StmtKind::Continue => self.analyze_continue(stmt.span),
         }
     }
 
@@ -290,6 +297,33 @@ impl SemanticAnalyzer {
         };
 
         Ok(then_returns && else_returns)
+    }
+
+    fn analyze_while(&mut self, condition: &Expr, body: &[Stmt]) -> Result<bool, SemanticError> {
+        self.check_expr_type(condition, &Type::Bool)?;
+
+        self.loop_depth += 1;
+        let body_returns = self.analyze_block_scoped(body);
+        self.loop_depth -= 1;
+
+        let body_returns = body_returns?;
+        let is_infinite_loop = matches!(condition.kind, ExprKind::BoolLiteral(true));
+
+        Ok(is_infinite_loop && body_returns)
+    }
+
+    fn analyze_break(&self, span: Span) -> Result<bool, SemanticError> {
+        if self.loop_depth == 0 {
+            return Err(SemanticError::break_outside_loop(span));
+        }
+        Ok(false)
+    }
+
+    fn analyze_continue(&self, span: Span) -> Result<bool, SemanticError> {
+        if self.loop_depth == 0 {
+            return Err(SemanticError::continue_outside_loop(span));
+        }
+        Ok(false)
     }
 
     fn analyze_block_scoped(&mut self, stmts: &[Stmt]) -> Result<bool, SemanticError> {

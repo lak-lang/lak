@@ -163,12 +163,54 @@ fn test_no_newline_after_let() {
 }
 
 #[test]
+fn test_no_newline_after_while() {
+    // Newline after `while` keyword should NOT emit Newline token
+    let kinds = tokenize_kinds("while\ntrue");
+    assert_eq!(
+        kinds,
+        vec![
+            TokenKind::While,
+            TokenKind::BoolLiteral(true),
+            TokenKind::Eof
+        ]
+    );
+}
+
+#[test]
 fn test_newline_after_return_keyword() {
     let kinds = tokenize_kinds("return\nx");
     assert_eq!(
         kinds,
         vec![
             TokenKind::Return,
+            TokenKind::Newline,
+            TokenKind::Identifier("x".to_string()),
+            TokenKind::Eof
+        ]
+    );
+}
+
+#[test]
+fn test_newline_after_break_keyword() {
+    let kinds = tokenize_kinds("break\nx");
+    assert_eq!(
+        kinds,
+        vec![
+            TokenKind::Break,
+            TokenKind::Newline,
+            TokenKind::Identifier("x".to_string()),
+            TokenKind::Eof
+        ]
+    );
+}
+
+#[test]
+fn test_newline_after_continue_keyword() {
+    let kinds = tokenize_kinds("continue\nx");
+    assert_eq!(
+        kinds,
+        vec![
+            TokenKind::Continue,
             TokenKind::Newline,
             TokenKind::Identifier("x".to_string()),
             TokenKind::Eof

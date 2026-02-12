@@ -18,9 +18,13 @@
 //! import      → "import" STRING ("as" IDENTIFIER)?
 //! fn_def      → ("pub")? "fn" IDENTIFIER "(" param_list? ")" "->" IDENTIFIER "{" stmt* "}"
 //! param_list  → IDENTIFIER ":" type ("," IDENTIFIER ":" type)*
-//! stmt        → let_stmt | if_stmt | expr_stmt
+//! stmt        → let_stmt | return_stmt | if_stmt | while_stmt | break_stmt | continue_stmt | expr_stmt
 //! let_stmt    → "let" IDENTIFIER ":" type "=" expr
+//! return_stmt → "return" expr?
 //! if_stmt     → "if" expr "{" stmt* "}" ("else" (if_stmt | "{" stmt* "}"))?
+//! while_stmt  → "while" expr "{" stmt* "}"
+//! break_stmt  → "break"
+//! continue_stmt → "continue"
 //! type        → "i32" | "i64"
 //! expr_stmt   → expr
 //! expr        → if_expr | call | member_access | IDENTIFIER | STRING | INT

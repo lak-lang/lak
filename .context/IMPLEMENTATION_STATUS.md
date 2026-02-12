@@ -321,10 +321,10 @@ This document tracks the implementation status of Lak language features as defin
 
 ### 10.3 while Loop
 
-- [ ] `while condition { ... }`
-- [ ] Infinite loop `while true { ... }`
-- [ ] `break` in while
-- [ ] `continue` in while
+- [x] `while condition { ... }`
+- [x] Infinite loop `while true { ... }`
+- [x] `break` in while
+- [x] `continue` in while
 
 ### 10.4 match Expression
 

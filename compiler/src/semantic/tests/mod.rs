@@ -156,6 +156,34 @@ fn test_invalid_argument_fn_expects_args_constructor() {
 }
 
 #[test]
+fn test_break_outside_loop_constructor() {
+    let err = SemanticError::break_outside_loop(span_at(4, 9));
+    assert_eq!(err.kind(), SemanticErrorKind::InvalidControlFlow);
+    assert_eq!(
+        err.message(),
+        "break statement can only be used inside a loop"
+    );
+    assert_eq!(
+        err.help(),
+        Some("use `break` only inside `while` loop bodies")
+    );
+}
+
+#[test]
+fn test_continue_outside_loop_constructor() {
+    let err = SemanticError::continue_outside_loop(span_at(5, 9));
+    assert_eq!(err.kind(), SemanticErrorKind::InvalidControlFlow);
+    assert_eq!(
+        err.message(),
+        "continue statement can only be used inside a loop"
+    );
+    assert_eq!(
+        err.help(),
+        Some("use `continue` only inside `while` loop bodies")
+    );
+}
+
+#[test]
 fn test_reserved_prelude_function_name_constructor() {
     let err = SemanticError::reserved_prelude_function_name("println", span_at(2, 1));
     assert_eq!(err.kind(), SemanticErrorKind::InvalidArgument);

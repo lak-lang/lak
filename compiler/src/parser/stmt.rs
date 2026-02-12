@@ -11,13 +11,16 @@ impl Parser {
     /// # Grammar
     ///
     /// ```text
-    /// stmt → let_stmt | return_stmt | if_stmt | expr_stmt
+    /// stmt → let_stmt | return_stmt | if_stmt | while_stmt | break_stmt | continue_stmt | expr_stmt
     /// ```
     pub(super) fn parse_stmt(&mut self) -> Result<Stmt, ParseError> {
         match self.current_kind() {
             TokenKind::Let => self.parse_let_stmt(),
             TokenKind::Return => self.parse_return_stmt(),
             TokenKind::If => self.parse_if_stmt(),
+            TokenKind::While => self.parse_while_stmt(),
+            TokenKind::Break => self.parse_break_stmt(),
+            TokenKind::Continue => self.parse_continue_stmt(),
             _ => {
                 let expr = self.parse_expr()?;
                 let span = expr.span;
@@ -151,6 +154,55 @@ impl Parser {
             },
             span,
         ))
+    }
+
+    /// Parses a while statement.
+    ///
+    /// # Grammar
+    ///
+    /// ```text
+    /// while_stmt → "while" expr "{" stmt* "}"
+    /// ```
+    pub(super) fn parse_while_stmt(&mut self) -> Result<Stmt, ParseError> {
+        let start_span = self.current_span();
+        self.expect(&TokenKind::While)?;
+
+        let condition = self.parse_expr()?;
+        let body = self.parse_block_stmts()?;
+
+        let end = body
+            .last()
+            .map(|stmt| stmt.span.end)
+            .unwrap_or(condition.span.end);
+        let span = Span::new(start_span.start, end, start_span.line, start_span.column);
+
+        Ok(Stmt::new(StmtKind::While { condition, body }, span))
+    }
+
+    /// Parses a break statement.
+    ///
+    /// # Grammar
+    ///
+    /// ```text
+    /// break_stmt → "break"
+    /// ```
+    pub(super) fn parse_break_stmt(&mut self) -> Result<Stmt, ParseError> {
+        let span = self.current_span();
+        self.expect(&TokenKind::Break)?;
+        Ok(Stmt::new(StmtKind::Break, span))
+    }
+
+    /// Parses a continue statement.
+    ///
+    /// # Grammar
+    ///
+    /// ```text
+    /// continue_stmt → "continue"
+    /// ```
+    pub(super) fn parse_continue_stmt(&mut self) -> Result<Stmt, ParseError> {
+        let span = self.current_span();
+        self.expect(&TokenKind::Continue)?;
+        Ok(Stmt::new(StmtKind::Continue, span))
     }
 
     pub(super) fn parse_block_stmts(&mut self) -> Result<Vec<Stmt>, ParseError> {

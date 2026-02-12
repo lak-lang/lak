@@ -51,6 +51,7 @@ impl<'a> Lexer<'a> {
     /// - Identifiers
     /// - Literals (string, integer, boolean)
     /// - `return` keyword
+    /// - `break` / `continue` keywords
     /// - `)` (right parenthesis)
     /// - `}` (right brace)
     pub(super) fn should_emit_newline(&self) -> bool {
@@ -61,6 +62,8 @@ impl<'a> Lexer<'a> {
                 | Some(TokenKind::StringLiteral(_))
                 | Some(TokenKind::BoolLiteral(_))
                 | Some(TokenKind::Return)
+                | Some(TokenKind::Break)
+                | Some(TokenKind::Continue)
                 | Some(TokenKind::RightParen)
                 | Some(TokenKind::RightBrace)
         )

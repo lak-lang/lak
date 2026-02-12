@@ -27,6 +27,7 @@ Comprehensive test suite verifying the compiler's functionality from source code
 | `e2e_strings.rs` | E2E | 21 | String literals and escape sequences |
 | `e2e_variables.rs` | E2E | 14 | Variable declarations (i32, i64) |
 | `e2e_visibility.rs` | E2E | 4 | `pub fn` visibility keyword |
+| `e2e_while.rs` | E2E | 5 | `while` loop, `break`, and `continue` behavior |
 | `errors_lex.rs` | Errors | 8 | Lexical analysis error detection |
 | `errors_modules.rs` | Errors | 18 | Module resolution error detection |
 | `errors_parse.rs` | Errors | 25 | Parser error detection |
@@ -35,7 +36,7 @@ Comprehensive test suite verifying the compiler's functionality from source code
 
 ## Test Categories
 
-### E2E Tests (315 tests)
+### E2E Tests (320 tests)
 
 Compile, link, and execute real Lak programs, validating stdout output.
 

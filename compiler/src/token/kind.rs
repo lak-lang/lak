@@ -38,6 +38,15 @@ pub enum TokenKind {
     /// The `return` keyword for returning from functions.
     Return,
 
+    /// The `while` keyword for loop statements.
+    While,
+
+    /// The `break` keyword for exiting loops.
+    Break,
+
+    /// The `continue` keyword for continuing to the next loop iteration.
+    Continue,
+
     /// The `pub` keyword for public visibility.
     Pub,
 
@@ -124,9 +133,10 @@ pub enum TokenKind {
 
     /// A newline that acts as a statement terminator.
     ///
-    /// Only emitted after certain tokens (identifiers, literals, `)`, `}`)
-    /// following Go-style automatic semicolon insertion rules. Newlines in
-    /// other contexts are skipped and do not produce tokens.
+    /// Only emitted after certain tokens (identifiers, literals, `return`,
+    /// `break`, `continue`, `)`, `}`) following Go-style automatic semicolon
+    /// insertion rules. Newlines in other contexts are skipped and do not
+    /// produce tokens.
     Newline,
 
     /// End of file marker.
@@ -170,6 +180,21 @@ mod tests {
     #[test]
     fn test_token_kind_let() {
         assert!(matches!(TokenKind::Let, TokenKind::Let));
+    }
+
+    #[test]
+    fn test_token_kind_while() {
+        assert!(matches!(TokenKind::While, TokenKind::While));
+    }
+
+    #[test]
+    fn test_token_kind_break() {
+        assert!(matches!(TokenKind::Break, TokenKind::Break));
+    }
+
+    #[test]
+    fn test_token_kind_continue() {
+        assert!(matches!(TokenKind::Continue, TokenKind::Continue));
     }
 
     #[test]

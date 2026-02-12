@@ -76,6 +76,81 @@ fn test_compile_empty_main() {
 }
 
 #[test]
+fn test_compile_while_with_break_and_continue() {
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "test");
+
+    let program = make_program(vec![Stmt::new(
+        StmtKind::While {
+            condition: Expr::new(ExprKind::BoolLiteral(true), dummy_span()),
+            body: vec![
+                Stmt::new(
+                    StmtKind::If {
+                        condition: Expr::new(ExprKind::BoolLiteral(false), dummy_span()),
+                        then_branch: vec![Stmt::new(StmtKind::Continue, dummy_span())],
+                        else_branch: None,
+                    },
+                    dummy_span(),
+                ),
+                Stmt::new(StmtKind::Break, dummy_span()),
+            ],
+        },
+        dummy_span(),
+    )]);
+
+    codegen
+        .compile(&program)
+        .expect("while program should compile");
+}
+
+#[test]
+fn test_compile_if_condition_non_bool_returns_internal_error() {
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "test");
+
+    let program = make_program(vec![Stmt::new(
+        StmtKind::If {
+            condition: Expr::new(ExprKind::StringLiteral("oops".to_string()), dummy_span()),
+            then_branch: vec![],
+            else_branch: None,
+        },
+        dummy_span(),
+    )]);
+
+    let result = codegen.compile(&program);
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert_eq!(err.kind(), CodegenErrorKind::InternalError);
+    assert_eq!(
+        err.message(),
+        "Internal error: string literal used as 'bool' value in codegen. Semantic analysis should have caught this. This is a compiler bug."
+    );
+}
+
+#[test]
+fn test_compile_while_condition_non_bool_returns_internal_error() {
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "test");
+
+    let program = make_program(vec![Stmt::new(
+        StmtKind::While {
+            condition: Expr::new(ExprKind::StringLiteral("oops".to_string()), dummy_span()),
+            body: vec![],
+        },
+        dummy_span(),
+    )]);
+
+    let result = codegen.compile(&program);
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert_eq!(err.kind(), CodegenErrorKind::InternalError);
+    assert_eq!(
+        err.message(),
+        "Internal error: string literal used as 'bool' value in codegen. Semantic analysis should have caught this. This is a compiler bug."
+    );
+}
+
+#[test]
 fn test_compile_println() {
     let context = Context::create();
     let mut codegen = Codegen::new(&context, "test");
@@ -565,6 +640,39 @@ fn test_internal_return_build_failed_constructor() {
     assert_eq!(
         err.message(),
         "Internal error: failed to build return for function 'main'. This is a compiler bug: LLVM error"
+    );
+}
+
+#[test]
+fn test_internal_break_outside_loop_constructor() {
+    let err = CodegenError::internal_break_outside_loop(dummy_span());
+    assert_eq!(err.kind(), CodegenErrorKind::InternalError);
+    assert!(err.span().is_some());
+    assert_eq!(
+        err.message(),
+        "Internal error: break statement used outside loop during codegen. Semantic analysis should have rejected this. This is a compiler bug."
+    );
+}
+
+#[test]
+fn test_internal_continue_outside_loop_constructor() {
+    let err = CodegenError::internal_continue_outside_loop(dummy_span());
+    assert_eq!(err.kind(), CodegenErrorKind::InternalError);
+    assert!(err.span().is_some());
+    assert_eq!(
+        err.message(),
+        "Internal error: continue statement used outside loop during codegen. Semantic analysis should have rejected this. This is a compiler bug."
+    );
+}
+
+#[test]
+fn test_internal_no_loop_control_scope_constructor() {
+    let err = CodegenError::internal_no_loop_control_scope(dummy_span());
+    assert_eq!(err.kind(), CodegenErrorKind::InternalError);
+    assert!(err.span().is_some());
+    assert_eq!(
+        err.message(),
+        "Internal error: attempted to pop loop control scope when no loop is active in codegen. This is a compiler bug."
     );
 }
 

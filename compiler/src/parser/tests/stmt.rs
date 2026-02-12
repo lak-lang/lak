@@ -381,3 +381,76 @@ fn test_if_else_on_next_line() {
         _ => panic!("Expected If statement"),
     }
 }
+
+// ===================
+// While statement parsing
+// ===================
+
+#[test]
+fn test_while_stmt_basic() {
+    let program = parse(
+        r#"fn main() -> void {
+            while true {
+                println("loop")
+            }
+        }"#,
+    )
+    .unwrap();
+
+    assert_eq!(program.functions[0].body.len(), 1);
+    match &program.functions[0].body[0].kind {
+        StmtKind::While { condition, body } => {
+            assert!(matches!(condition.kind, ExprKind::BoolLiteral(true)));
+            assert_eq!(body.len(), 1);
+        }
+        _ => panic!("Expected While statement"),
+    }
+}
+
+#[test]
+fn test_while_stmt_with_break_and_continue() {
+    let program = parse(
+        r#"fn main() -> void {
+            while true {
+                if false {
+                    continue
+                }
+                break
+            }
+        }"#,
+    )
+    .unwrap();
+
+    match &program.functions[0].body[0].kind {
+        StmtKind::While { body, .. } => {
+            assert_eq!(body.len(), 2);
+            assert!(matches!(&body[0].kind, StmtKind::If { .. }));
+            assert!(matches!(&body[1].kind, StmtKind::Break));
+        }
+        _ => panic!("Expected While statement"),
+    }
+}
+
+#[test]
+fn test_break_stmt() {
+    let program = parse("fn main() -> void { break }").unwrap();
+    assert!(matches!(program.functions[0].body[0].kind, StmtKind::Break));
+}
+
+#[test]
+fn test_continue_stmt() {
+    let program = parse("fn main() -> void { continue }").unwrap();
+    assert!(matches!(
+        program.functions[0].body[0].kind,
+        StmtKind::Continue
+    ));
+}
+
+#[test]
+fn test_error_break_continue_same_line() {
+    let err = parse_error("fn main() -> void { break continue }");
+    assert_eq!(
+        err.message(),
+        "Expected newline after statement, found 'continue' keyword"
+    );
+}

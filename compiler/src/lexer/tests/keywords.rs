@@ -52,12 +52,66 @@ fn test_keyword_return() {
 }
 
 #[test]
+fn test_keyword_while() {
+    let kinds = tokenize_kinds("while");
+    assert_eq!(kinds, vec![TokenKind::While, TokenKind::Eof]);
+}
+
+#[test]
+fn test_keyword_break() {
+    let kinds = tokenize_kinds("break");
+    assert_eq!(kinds, vec![TokenKind::Break, TokenKind::Eof]);
+}
+
+#[test]
+fn test_keyword_continue() {
+    let kinds = tokenize_kinds("continue");
+    assert_eq!(kinds, vec![TokenKind::Continue, TokenKind::Eof]);
+}
+
+#[test]
 fn test_return_not_prefix() {
     let kinds = tokenize_kinds("returning");
     assert_eq!(
         kinds,
         vec![
             TokenKind::Identifier("returning".to_string()),
+            TokenKind::Eof
+        ]
+    );
+}
+
+#[test]
+fn test_while_not_prefix() {
+    let kinds = tokenize_kinds("while_loop");
+    assert_eq!(
+        kinds,
+        vec![
+            TokenKind::Identifier("while_loop".to_string()),
+            TokenKind::Eof
+        ]
+    );
+}
+
+#[test]
+fn test_break_not_prefix() {
+    let kinds = tokenize_kinds("breakpoint");
+    assert_eq!(
+        kinds,
+        vec![
+            TokenKind::Identifier("breakpoint".to_string()),
+            TokenKind::Eof
+        ]
+    );
+}
+
+#[test]
+fn test_continue_not_prefix() {
+    let kinds = tokenize_kinds("continuous");
+    assert_eq!(
+        kinds,
+        vec![
+            TokenKind::Identifier("continuous".to_string()),
             TokenKind::Eof
         ]
     );

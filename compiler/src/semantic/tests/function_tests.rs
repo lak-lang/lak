@@ -1033,3 +1033,244 @@ fn test_analyze_module_success() {
     let result = analyzer.analyze_module(&program, None);
     assert!(result.is_ok());
 }
+
+// ============================================================================
+// while / break / continue tests
+// ============================================================================
+
+#[test]
+fn test_break_outside_loop_error() {
+    let program = program_with_main(vec![Stmt::new(StmtKind::Break, span_at(2, 5))]);
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze(&program);
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert_eq!(err.kind(), SemanticErrorKind::InvalidControlFlow);
+    assert_eq!(
+        err.message(),
+        "break statement can only be used inside a loop"
+    );
+}
+
+#[test]
+fn test_continue_outside_loop_error() {
+    let program = program_with_main(vec![Stmt::new(StmtKind::Continue, span_at(2, 5))]);
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze(&program);
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert_eq!(err.kind(), SemanticErrorKind::InvalidControlFlow);
+    assert_eq!(
+        err.message(),
+        "continue statement can only be used inside a loop"
+    );
+}
+
+#[test]
+fn test_break_inside_if_outside_loop_error() {
+    let program = program_with_main(vec![Stmt::new(
+        StmtKind::If {
+            condition: Expr::new(ExprKind::BoolLiteral(true), span_at(2, 8)),
+            then_branch: vec![Stmt::new(StmtKind::Break, span_at(3, 9))],
+            else_branch: None,
+        },
+        span_at(2, 5),
+    )]);
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze(&program);
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert_eq!(err.kind(), SemanticErrorKind::InvalidControlFlow);
+    assert_eq!(
+        err.message(),
+        "break statement can only be used inside a loop"
+    );
+}
+
+#[test]
+fn test_continue_inside_if_outside_loop_error() {
+    let program = program_with_main(vec![Stmt::new(
+        StmtKind::If {
+            condition: Expr::new(ExprKind::BoolLiteral(true), span_at(2, 8)),
+            then_branch: vec![Stmt::new(StmtKind::Continue, span_at(3, 9))],
+            else_branch: None,
+        },
+        span_at(2, 5),
+    )]);
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze(&program);
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert_eq!(err.kind(), SemanticErrorKind::InvalidControlFlow);
+    assert_eq!(
+        err.message(),
+        "continue statement can only be used inside a loop"
+    );
+}
+
+#[test]
+fn test_while_condition_must_be_bool() {
+    let program = program_with_main(vec![Stmt::new(
+        StmtKind::While {
+            condition: Expr::new(ExprKind::IntLiteral(1), span_at(2, 11)),
+            body: vec![],
+        },
+        span_at(2, 5),
+    )]);
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze(&program);
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert_eq!(err.kind(), SemanticErrorKind::TypeMismatch);
+    assert_eq!(
+        err.message(),
+        "Type mismatch: integer literal '1' cannot be assigned to type 'bool'"
+    );
+}
+
+#[test]
+fn test_break_inside_if_within_while_is_valid() {
+    let program = program_with_main(vec![Stmt::new(
+        StmtKind::While {
+            condition: Expr::new(ExprKind::BoolLiteral(true), span_at(2, 11)),
+            body: vec![
+                Stmt::new(
+                    StmtKind::If {
+                        condition: Expr::new(ExprKind::BoolLiteral(true), span_at(3, 12)),
+                        then_branch: vec![Stmt::new(StmtKind::Break, span_at(4, 13))],
+                        else_branch: None,
+                    },
+                    span_at(3, 9),
+                ),
+                Stmt::new(StmtKind::Break, span_at(6, 9)),
+            ],
+        },
+        span_at(2, 5),
+    )]);
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze(&program);
+    assert!(result.is_ok());
+}
+
+#[test]
+fn test_continue_inside_if_within_while_is_valid() {
+    let program = program_with_main(vec![Stmt::new(
+        StmtKind::While {
+            condition: Expr::new(ExprKind::BoolLiteral(true), span_at(2, 11)),
+            body: vec![
+                Stmt::new(
+                    StmtKind::If {
+                        condition: Expr::new(ExprKind::BoolLiteral(true), span_at(3, 12)),
+                        then_branch: vec![Stmt::new(StmtKind::Continue, span_at(4, 13))],
+                        else_branch: None,
+                    },
+                    span_at(3, 9),
+                ),
+                Stmt::new(StmtKind::Break, span_at(6, 9)),
+            ],
+        },
+        span_at(2, 5),
+    )]);
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze(&program);
+    assert!(result.is_ok());
+}
+
+#[test]
+fn test_non_void_function_with_while_true_and_return_is_valid() {
+    let program = Program {
+        imports: vec![],
+        functions: vec![
+            FnDef {
+                visibility: Visibility::Private,
+                name: "helper".to_string(),
+                params: vec![],
+                return_type: "i64".to_string(),
+                return_type_span: span_at(1, 16),
+                body: vec![Stmt::new(
+                    StmtKind::While {
+                        condition: Expr::new(ExprKind::BoolLiteral(true), span_at(2, 11)),
+                        body: vec![Stmt::new(
+                            StmtKind::Return(Some(Expr::new(
+                                ExprKind::IntLiteral(1),
+                                span_at(3, 16),
+                            ))),
+                            span_at(3, 9),
+                        )],
+                    },
+                    span_at(2, 5),
+                )],
+                span: span_at(1, 1),
+            },
+            FnDef {
+                visibility: Visibility::Private,
+                name: "main".to_string(),
+                params: vec![],
+                return_type: "void".to_string(),
+                return_type_span: span_at(6, 14),
+                body: vec![],
+                span: span_at(6, 1),
+            },
+        ],
+    };
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze(&program);
+    assert!(result.is_ok());
+}
+
+#[test]
+fn test_non_void_function_with_while_false_still_requires_return() {
+    let program = Program {
+        imports: vec![],
+        functions: vec![
+            FnDef {
+                visibility: Visibility::Private,
+                name: "helper".to_string(),
+                params: vec![],
+                return_type: "i64".to_string(),
+                return_type_span: span_at(1, 16),
+                body: vec![Stmt::new(
+                    StmtKind::While {
+                        condition: Expr::new(ExprKind::BoolLiteral(false), span_at(2, 11)),
+                        body: vec![Stmt::new(
+                            StmtKind::Return(Some(Expr::new(
+                                ExprKind::IntLiteral(1),
+                                span_at(3, 16),
+                            ))),
+                            span_at(3, 9),
+                        )],
+                    },
+                    span_at(2, 5),
+                )],
+                span: span_at(1, 1),
+            },
+            FnDef {
+                visibility: Visibility::Private,
+                name: "main".to_string(),
+                params: vec![],
+                return_type: "void".to_string(),
+                return_type_span: span_at(6, 14),
+                body: vec![],
+                span: span_at(6, 1),
+            },
+        ],
+    };
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze(&program);
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert_eq!(err.kind(), SemanticErrorKind::TypeMismatch);
+    assert_eq!(
+        err.message(),
+        "Function 'helper' with return type 'i64' must return a value on all code paths"
+    );
+}

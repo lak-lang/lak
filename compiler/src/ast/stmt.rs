@@ -55,6 +55,22 @@ pub enum StmtKind {
         /// Optional statements executed when the condition is false.
         else_branch: Option<Vec<Stmt>>,
     },
+
+    /// A while loop statement.
+    ///
+    /// Repeatedly executes `body` while `condition` evaluates to true.
+    While {
+        /// The loop condition. Must evaluate to `bool`.
+        condition: Expr,
+        /// Statements executed for each iteration.
+        body: Vec<Stmt>,
+    },
+
+    /// Exits the innermost enclosing loop.
+    Break,
+
+    /// Skips to the next iteration of the innermost enclosing loop.
+    Continue,
 }
 
 /// A statement in the Lak language with source location.

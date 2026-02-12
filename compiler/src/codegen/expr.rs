@@ -558,7 +558,7 @@ impl<'ctx> Codegen<'ctx> {
             }
             self.generate_expr_value(&then_block.value, expected_ty)
         })();
-        self.exit_variable_scope();
+        self.exit_variable_scope(span)?;
         let then_value = then_value_result?;
         let then_end_bb = self
             .builder
@@ -576,7 +576,7 @@ impl<'ctx> Codegen<'ctx> {
             }
             self.generate_expr_value(&else_block.value, expected_ty)
         })();
-        self.exit_variable_scope();
+        self.exit_variable_scope(span)?;
         let else_value = else_value_result?;
         let else_end_bb = self
             .builder

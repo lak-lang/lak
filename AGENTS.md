@@ -43,6 +43,7 @@ cargo test --test e2e_run
 cargo test --test e2e_strings
 cargo test --test e2e_variables
 cargo test --test e2e_visibility
+cargo test --test e2e_while
 
 # Run error tests only
 cargo test --test errors_lex

@@ -238,6 +238,26 @@ impl CodegenError {
         )
     }
 
+    /// Creates an internal error for break used outside of loops.
+    pub fn internal_break_outside_loop(span: Span) -> Self {
+        Self::new(
+            CodegenErrorKind::InternalError,
+            "Internal error: break statement used outside loop during codegen. \
+             Semantic analysis should have rejected this. This is a compiler bug.",
+            span,
+        )
+    }
+
+    /// Creates an internal error for continue used outside of loops.
+    pub fn internal_continue_outside_loop(span: Span) -> Self {
+        Self::new(
+            CodegenErrorKind::InternalError,
+            "Internal error: continue statement used outside loop during codegen. \
+             Semantic analysis should have rejected this. This is a compiler bug.",
+            span,
+        )
+    }
+
     /// Creates an internal error for undefined function.
     pub fn internal_function_not_found(name: &str, span: Span) -> Self {
         Self::new(
@@ -697,6 +717,16 @@ impl CodegenError {
         Self::new(
             CodegenErrorKind::InternalError,
             "Internal error: attempted to define variable outside a scope in codegen. \
+             This is a compiler bug.",
+            span,
+        )
+    }
+
+    /// Creates an internal error for missing loop control scope.
+    pub fn internal_no_loop_control_scope(span: Span) -> Self {
+        Self::new(
+            CodegenErrorKind::InternalError,
+            "Internal error: attempted to pop loop control scope when no loop is active in codegen. \
              This is a compiler bug.",
             span,
         )

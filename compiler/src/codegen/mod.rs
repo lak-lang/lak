@@ -93,6 +93,7 @@ use crate::ast::{FnDef, Program, Type};
 use crate::resolver::ResolvedModule;
 use binding::VarBinding;
 use inkwell::AddressSpace;
+use inkwell::basic_block::BasicBlock;
 use inkwell::context::Context;
 use inkwell::types::{BasicMetadataTypeEnum, BasicTypeEnum};
 use std::collections::{HashMap, HashSet};
@@ -100,6 +101,12 @@ use std::path::{Path, PathBuf};
 
 /// Mangle prefix used for single-file compilation.
 const SINGLE_FILE_MANGLE_PREFIX: &str = "entry";
+
+/// Control-flow targets for the current loop context.
+struct LoopControl<'ctx> {
+    continue_block: BasicBlock<'ctx>,
+    break_block: BasicBlock<'ctx>,
+}
 
 /// LLVM code generator for Lak programs.
 ///
@@ -158,6 +165,8 @@ pub struct Codegen<'ctx> {
     ///
     /// `None` represents `void` return type.
     function_return_types: HashMap<String, Option<Type>>,
+    /// Stack of loop control-flow targets (innermost loop at the end).
+    loop_controls: Vec<LoopControl<'ctx>>,
 }
 
 /// Creates a mangled function name using a length-prefix scheme.
@@ -363,6 +372,7 @@ impl<'ctx> Codegen<'ctx> {
             current_module_prefix: None,
             function_param_types: HashMap::new(),
             function_return_types: HashMap::new(),
+            loop_controls: Vec::new(),
         }
     }
 
@@ -640,6 +650,7 @@ impl<'ctx> Codegen<'ctx> {
         fn_def: &FnDef,
     ) -> Result<(), CodegenError> {
         self.variables.clear();
+        self.loop_controls.clear();
         self.enter_variable_scope();
 
         let function = self
@@ -724,6 +735,7 @@ impl<'ctx> Codegen<'ctx> {
     /// * `main_fn_def` - The Lak `main` function definition
     fn generate_main(&mut self, main_fn_def: &FnDef) -> Result<(), CodegenError> {
         self.variables.clear();
+        self.loop_controls.clear();
         self.enter_variable_scope();
 
         let i32_type = self.context.i32_type();
@@ -797,8 +809,11 @@ impl<'ctx> Codegen<'ctx> {
         self.variables.push(HashMap::new());
     }
 
-    fn exit_variable_scope(&mut self) {
-        self.variables.pop();
+    fn exit_variable_scope(&mut self, span: crate::token::Span) -> Result<(), CodegenError> {
+        self.variables
+            .pop()
+            .map(|_| ())
+            .ok_or_else(|| CodegenError::internal_no_variable_scope(span))
     }
 
     fn variable_in_current_scope(&self, name: &str) -> bool {
@@ -826,5 +841,27 @@ impl<'ctx> Codegen<'ctx> {
             .iter()
             .rev()
             .find_map(|scope| scope.get(name))
+    }
+
+    fn push_loop_control(
+        &mut self,
+        continue_block: BasicBlock<'ctx>,
+        break_block: BasicBlock<'ctx>,
+    ) {
+        self.loop_controls.push(LoopControl {
+            continue_block,
+            break_block,
+        });
+    }
+
+    fn pop_loop_control(&mut self, span: crate::token::Span) -> Result<(), CodegenError> {
+        self.loop_controls
+            .pop()
+            .map(|_| ())
+            .ok_or_else(|| CodegenError::internal_no_loop_control_scope(span))
+    }
+
+    fn current_loop_control(&self) -> Option<&LoopControl<'ctx>> {
+        self.loop_controls.last()
     }
 }

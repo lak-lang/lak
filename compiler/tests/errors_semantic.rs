@@ -238,6 +238,34 @@ fn test_compile_error_if_condition_must_be_bool() {
 }
 
 #[test]
+fn test_compile_error_while_condition_must_be_bool() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    while 1 {
+        println("x")
+    }
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Type mismatch: integer literal '1' cannot be assigned to type 'bool'"
+    );
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch),
+        "Expected TypeMismatch error kind"
+    );
+}
+
+#[test]
 fn test_compile_error_if_expression_branch_type_mismatch() {
     let result = compile_error_with_kind(
         r#"fn main() -> void {
@@ -2652,5 +2680,49 @@ fn test_unary_not_non_bool_operand() {
     assert_eq!(
         kind,
         CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch)
+    );
+}
+
+#[test]
+fn test_break_outside_loop_error() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    break
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(msg, "break statement can only be used inside a loop");
+    assert_eq!(short_msg, "Invalid control flow");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::InvalidControlFlow)
+    );
+}
+
+#[test]
+fn test_continue_outside_loop_error() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    continue
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(msg, "continue statement can only be used inside a loop");
+    assert_eq!(short_msg, "Invalid control flow");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::InvalidControlFlow)
     );
 }
