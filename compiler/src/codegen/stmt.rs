@@ -295,9 +295,9 @@ impl<'ctx> Codegen<'ctx> {
             .get_insert_block()
             .and_then(|bb| bb.get_parent())
             .ok_or_else(|| CodegenError::internal_no_current_function(span))?;
-        let fn_name = parent_fn.get_name().to_string_lossy().to_string();
+        let llvm_fn_name = parent_fn.get_name().to_string_lossy().to_string();
 
-        if fn_name == "main" {
+        if llvm_fn_name == "main" {
             if value.is_some() {
                 return Err(CodegenError::internal_main_return_with_value(span));
             }
@@ -307,12 +307,15 @@ impl<'ctx> Codegen<'ctx> {
                 .map_err(|e| CodegenError::internal_main_return_build_failed(&e.to_string()))?;
             return Ok(());
         }
+        let display_fn_name = super::user_facing_function_name(&llvm_fn_name);
 
         let return_ty = self
             .function_return_types
-            .get(&fn_name)
+            .get(&llvm_fn_name)
             .cloned()
-            .ok_or_else(|| CodegenError::internal_function_signature_not_found(&fn_name, span))?;
+            .ok_or_else(|| {
+                CodegenError::internal_function_signature_not_found(display_fn_name, span)
+            })?;
 
         match return_ty {
             None => {
@@ -320,7 +323,7 @@ impl<'ctx> Codegen<'ctx> {
                     return Err(CodegenError::internal_return_value_in_void_function(span));
                 }
                 self.builder.build_return(None).map_err(|e| {
-                    CodegenError::internal_return_build_failed(&fn_name, &e.to_string())
+                    CodegenError::internal_return_build_failed(display_fn_name, &e.to_string())
                 })?;
             }
             Some(expected_ty) => {
@@ -330,7 +333,7 @@ impl<'ctx> Codegen<'ctx> {
                 self.builder
                     .build_return(Some(&return_value))
                     .map_err(|e| {
-                        CodegenError::internal_return_build_failed(&fn_name, &e.to_string())
+                        CodegenError::internal_return_build_failed(display_fn_name, &e.to_string())
                     })?;
             }
         }

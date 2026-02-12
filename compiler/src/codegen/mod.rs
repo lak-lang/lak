@@ -184,6 +184,30 @@ fn mangle_name(prefix: &str, function: &str) -> String {
     format!("_L{}_{}_{}", prefix.len(), prefix, function)
 }
 
+/// Returns the source-level function name for a function symbol used in codegen diagnostics.
+///
+/// If `name` is a mangled user function symbol (`_L{len}_{prefix}_{function}`),
+/// this extracts and returns the original `{function}` part. Otherwise, it
+/// returns the input unchanged.
+fn user_facing_function_name(name: &str) -> &str {
+    demangle_function_name(name).unwrap_or(name)
+}
+
+/// Parses a mangled function symbol and returns the source-level function name.
+fn demangle_function_name(name: &str) -> Option<&str> {
+    let rest = name.strip_prefix("_L")?;
+    let (prefix_len_raw, payload) = rest.split_once('_')?;
+    let prefix_len = prefix_len_raw.parse::<usize>().ok()?;
+    if payload.len() <= prefix_len || !payload.is_char_boundary(prefix_len) {
+        return None;
+    }
+
+    let (_, function_with_sep) = payload.split_at(prefix_len);
+    function_with_sep
+        .strip_prefix('_')
+        .filter(|function| !function.is_empty())
+}
+
 /// Extracts [`Normal`](std::path::Component::Normal) path components as UTF-8 strings, rejecting non-canonical paths.
 ///
 /// Only [`std::path::Component::Normal`] components are included in the result.
@@ -656,14 +680,14 @@ impl<'ctx> Codegen<'ctx> {
         let function = self
             .module
             .get_function(llvm_name)
-            .ok_or_else(|| CodegenError::internal_function_not_found_no_span(llvm_name))?;
+            .ok_or_else(|| CodegenError::internal_function_not_found_no_span(&fn_def.name))?;
 
         let entry = self.context.append_basic_block(function, "entry");
         self.builder.position_at_end(entry);
 
         if function.count_params() as usize != fn_def.params.len() {
             return Err(CodegenError::internal_function_param_count_mismatch(
-                llvm_name,
+                &fn_def.name,
                 fn_def.params.len(),
                 function.count_params() as usize,
             ));
@@ -671,7 +695,7 @@ impl<'ctx> Codegen<'ctx> {
 
         for (idx, param) in fn_def.params.iter().enumerate() {
             let llvm_param = function.get_nth_param(idx as u32).ok_or_else(|| {
-                CodegenError::internal_function_param_missing(llvm_name, idx, param.span)
+                CodegenError::internal_function_param_missing(&fn_def.name, idx, param.span)
             })?;
             let binding = VarBinding::new(
                 &self.builder,
@@ -712,11 +736,11 @@ impl<'ctx> Codegen<'ctx> {
         if !has_terminator {
             if fn_def.return_type == "void" {
                 self.builder.build_return(None).map_err(|e| {
-                    CodegenError::internal_return_build_failed(llvm_name, &e.to_string())
+                    CodegenError::internal_return_build_failed(&fn_def.name, &e.to_string())
                 })?;
             } else {
                 return Err(CodegenError::internal_missing_return_in_non_void_function(
-                    llvm_name,
+                    &fn_def.name,
                     &fn_def.return_type,
                 ));
             }

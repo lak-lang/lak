@@ -46,6 +46,7 @@ cargo test --test e2e_visibility
 cargo test --test e2e_while
 
 # Run error tests only
+cargo test --test errors_codegen
 cargo test --test errors_lex
 cargo test --test errors_modules
 cargo test --test errors_parse

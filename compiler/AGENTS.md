@@ -219,6 +219,7 @@ Distribution packages must keep `lak` and the runtime static library in the same
 | `e2e_modules.rs` | Multi-file module compilation |
 | `e2e_while.rs` | `while` loop with `break`/`continue` behavior |
 | `e2e_build.rs` | `lak build` command behavior |
+| `errors_codegen.rs` | Codegen error cases |
 | `errors_lex.rs` | Lexer error cases |
 | `errors_parse.rs` | Parser error cases |
 | `errors_semantic.rs` | Semantic error cases |

@@ -104,6 +104,62 @@ fn test_compile_while_with_break_and_continue() {
 }
 
 #[test]
+fn test_compile_missing_return_error_uses_source_function_name() {
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "test");
+
+    let program = Program {
+        imports: vec![],
+        functions: vec![
+            FnDef {
+                visibility: Visibility::Private,
+                name: "foo".to_string(),
+                params: vec![],
+                return_type: "i64".to_string(),
+                return_type_span: dummy_span(),
+                body: vec![Stmt::new(
+                    StmtKind::While {
+                        condition: Expr::new(ExprKind::BoolLiteral(true), dummy_span()),
+                        body: vec![Stmt::new(
+                            StmtKind::Return(Some(Expr::new(
+                                ExprKind::IntLiteral(1),
+                                dummy_span(),
+                            ))),
+                            dummy_span(),
+                        )],
+                    },
+                    dummy_span(),
+                )],
+                span: dummy_span(),
+            },
+            FnDef {
+                visibility: Visibility::Private,
+                name: "main".to_string(),
+                params: vec![],
+                return_type: "void".to_string(),
+                return_type_span: dummy_span(),
+                body: vec![],
+                span: dummy_span(),
+            },
+        ],
+    };
+
+    let err = codegen
+        .compile(&program)
+        .expect_err("non-void fallthrough should produce internal error");
+    assert_eq!(err.kind(), CodegenErrorKind::InternalError);
+    assert_eq!(
+        err.message(),
+        "Internal error: function 'foo' with return type 'i64' reached end without return. Semantic analysis should have rejected this. This is a compiler bug."
+    );
+    assert!(
+        !err.message().contains("_L"),
+        "internal diagnostics must not expose mangled names: {}",
+        err.message()
+    );
+}
+
+#[test]
 fn test_compile_if_condition_non_bool_returns_internal_error() {
     let context = Context::create();
     let mut codegen = Codegen::new(&context, "test");

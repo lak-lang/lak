@@ -249,7 +249,7 @@ impl<'ctx> Codegen<'ctx> {
                     .get(&llvm_name)
                     .cloned()
                     .ok_or_else(|| {
-                        CodegenError::internal_function_signature_not_found(&llvm_name, expr.span)
+                        CodegenError::internal_function_signature_not_found(callee, expr.span)
                     })?;
                 return_ty
                     .ok_or_else(|| CodegenError::internal_call_returned_void(callee, expr.span))
@@ -312,13 +312,14 @@ impl<'ctx> Codegen<'ctx> {
             } => {
                 let mangle_prefix = self.resolve_module_alias(module, expr.span)?;
                 let mangled_name = super::mangle_name(&mangle_prefix, function);
+                let source_callee = format!("{}.{}", module, function);
                 let return_ty = self
                     .function_return_types
                     .get(&mangled_name)
                     .cloned()
                     .ok_or_else(|| {
                         CodegenError::internal_function_signature_not_found(
-                            &mangled_name,
+                            &source_callee,
                             expr.span,
                         )
                     })?;
