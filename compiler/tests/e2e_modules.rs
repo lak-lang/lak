@@ -1175,3 +1175,49 @@ fn main() -> void {
         "hello from alias\n"
     );
 }
+
+#[test]
+fn test_module_function_return_value_can_be_received() {
+    let temp = tempdir().unwrap();
+
+    let utils_path = temp.path().join("utils.lak");
+    fs::write(
+        &utils_path,
+        r#"pub fn value() -> i32 {
+    return 7
+}
+"#,
+    )
+    .unwrap();
+
+    let main_path = temp.path().join("main.lak");
+    fs::write(
+        &main_path,
+        r#"import "./utils" as u
+
+fn main() -> void {
+    let x: i32 = u.value()
+    println(x)
+}
+"#,
+    )
+    .unwrap();
+
+    let build_output = Command::new(lak_binary())
+        .current_dir(temp.path())
+        .args(["build", "main.lak"])
+        .output()
+        .unwrap();
+
+    assert!(
+        build_output.status.success(),
+        "Build failed: {}",
+        String::from_utf8_lossy(&build_output.stderr)
+    );
+
+    let exec_path = temp.path().join(executable_name("main"));
+    let run_output = Command::new(&exec_path).output().unwrap();
+
+    assert!(run_output.status.success());
+    assert_eq!(String::from_utf8_lossy(&run_output.stdout), "7\n");
+}

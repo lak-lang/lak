@@ -154,6 +154,10 @@ pub struct Codegen<'ctx> {
     ///
     /// Used to type-check call arguments during code generation.
     function_param_types: HashMap<String, Vec<Type>>,
+    /// Function return types keyed by LLVM function name.
+    ///
+    /// `None` represents `void` return type.
+    function_return_types: HashMap<String, Option<Type>>,
 }
 
 /// Creates a mangled function name using a length-prefix scheme.
@@ -358,6 +362,7 @@ impl<'ctx> Codegen<'ctx> {
             module_aliases: HashMap::new(),
             current_module_prefix: None,
             function_param_types: HashMap::new(),
+            function_return_types: HashMap::new(),
         }
     }
 
@@ -397,6 +402,7 @@ impl<'ctx> Codegen<'ctx> {
         self.declare_builtins();
         self.current_module_prefix = Some(SINGLE_FILE_MANGLE_PREFIX.to_string());
         self.function_param_types.clear();
+        self.function_return_types.clear();
 
         let result = (|| -> Result<(), CodegenError> {
             // Pass 1: Declare all user-defined functions (except main, which has a special signature)
@@ -408,7 +414,12 @@ impl<'ctx> Codegen<'ctx> {
                         .iter()
                         .map(|param| param.ty.clone())
                         .collect::<Vec<_>>();
-                    self.declare_function(&llvm_name, &param_types)?;
+                    self.declare_function(
+                        &llvm_name,
+                        &param_types,
+                        &function.return_type,
+                        function.return_type_span,
+                    )?;
                 }
             }
 
@@ -462,6 +473,7 @@ impl<'ctx> Codegen<'ctx> {
         // Declare built-in functions
         self.declare_builtins();
         self.function_param_types.clear();
+        self.function_return_types.clear();
 
         // Validate that entry module exists in the module list
         if !modules.iter().any(|m| m.path() == entry_path) {
@@ -493,7 +505,12 @@ impl<'ctx> Codegen<'ctx> {
                         .iter()
                         .map(|param| param.ty.clone())
                         .collect::<Vec<_>>();
-                    self.declare_function(&mangled_name, &param_types)?;
+                    self.declare_function(
+                        &mangled_name,
+                        &param_types,
+                        &function.return_type,
+                        function.return_type_span,
+                    )?;
                 }
             }
 
@@ -559,23 +576,59 @@ impl<'ctx> Codegen<'ctx> {
     ///
     /// This method is called in Pass 1 to create function declarations before
     /// any function bodies are generated. This allows forward references.
-    fn declare_function(&mut self, name: &str, param_types: &[Type]) -> Result<(), CodegenError> {
-        let void_type = self.context.void_type();
+    fn declare_function(
+        &mut self,
+        name: &str,
+        param_types: &[Type],
+        return_type: &str,
+        return_type_span: crate::token::Span,
+    ) -> Result<(), CodegenError> {
         let llvm_param_types: Vec<BasicMetadataTypeEnum<'ctx>> = param_types
             .iter()
             .map(|ty| self.get_llvm_type(ty).into())
             .collect();
-        let fn_type = void_type.fn_type(&llvm_param_types, false);
+        let parsed_return_type = self.parse_return_type(return_type, return_type_span)?;
+        let fn_type = match &parsed_return_type {
+            None => self.context.void_type().fn_type(&llvm_param_types, false),
+            Some(Type::I32) => self.context.i32_type().fn_type(&llvm_param_types, false),
+            Some(Type::I64) => self.context.i64_type().fn_type(&llvm_param_types, false),
+            Some(Type::String) => self
+                .context
+                .ptr_type(AddressSpace::default())
+                .fn_type(&llvm_param_types, false),
+            Some(Type::Bool) => self.context.bool_type().fn_type(&llvm_param_types, false),
+        };
         self.module.add_function(name, fn_type, None);
         self.function_param_types
             .insert(name.to_string(), param_types.to_vec());
+        self.function_return_types
+            .insert(name.to_string(), parsed_return_type);
         Ok(())
+    }
+
+    fn parse_return_type(
+        &self,
+        return_type: &str,
+        span: crate::token::Span,
+    ) -> Result<Option<Type>, CodegenError> {
+        match return_type {
+            "void" => Ok(None),
+            "i32" => Ok(Some(Type::I32)),
+            "i64" => Ok(Some(Type::I64)),
+            "string" => Ok(Some(Type::String)),
+            "bool" => Ok(Some(Type::Bool)),
+            _ => Err(CodegenError::internal_unsupported_function_return_type(
+                return_type,
+                span,
+            )),
+        }
     }
 
     /// Generates the body of a user-defined function.
     ///
-    /// Creates the function body with an entry block, generates all statements,
-    /// and adds a void return at the end.
+    /// Creates the function body with an entry block and generates statements
+    /// until a terminator is emitted. A trailing return is synthesized only for
+    /// `void` functions; non-void functions must already terminate explicitly.
     ///
     /// # Arguments
     ///
@@ -629,12 +682,34 @@ impl<'ctx> Codegen<'ctx> {
         }
 
         for stmt in &fn_def.body {
+            let has_terminator = self
+                .builder
+                .get_insert_block()
+                .and_then(|bb| bb.get_terminator())
+                .is_some();
+            if has_terminator {
+                break;
+            }
             self.generate_stmt(stmt)?;
         }
 
-        self.builder
-            .build_return(None)
-            .map_err(|e| CodegenError::internal_return_build_failed(llvm_name, &e.to_string()))?;
+        let has_terminator = self
+            .builder
+            .get_insert_block()
+            .and_then(|bb| bb.get_terminator())
+            .is_some();
+        if !has_terminator {
+            if fn_def.return_type == "void" {
+                self.builder.build_return(None).map_err(|e| {
+                    CodegenError::internal_return_build_failed(llvm_name, &e.to_string())
+                })?;
+            } else {
+                return Err(CodegenError::internal_missing_return_in_non_void_function(
+                    llvm_name,
+                    &fn_def.return_type,
+                ));
+            }
+        }
 
         Ok(())
     }
@@ -659,13 +734,28 @@ impl<'ctx> Codegen<'ctx> {
         self.builder.position_at_end(entry);
 
         for stmt in &main_fn_def.body {
+            let has_terminator = self
+                .builder
+                .get_insert_block()
+                .and_then(|bb| bb.get_terminator())
+                .is_some();
+            if has_terminator {
+                break;
+            }
             self.generate_stmt(stmt)?;
         }
 
-        let zero = i32_type.const_int(0, false);
-        self.builder
-            .build_return(Some(&zero))
-            .map_err(|e| CodegenError::internal_main_return_build_failed(&e.to_string()))?;
+        let has_terminator = self
+            .builder
+            .get_insert_block()
+            .and_then(|bb| bb.get_terminator())
+            .is_some();
+        if !has_terminator {
+            let zero = i32_type.const_int(0, false);
+            self.builder
+                .build_return(Some(&zero))
+                .map_err(|e| CodegenError::internal_main_return_build_failed(&e.to_string()))?;
+        }
 
         Ok(())
     }

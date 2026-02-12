@@ -1139,13 +1139,249 @@ fn main() -> void {
     );
     assert_eq!(
         msg,
-        "Function call 'get_msg' cannot be used as println argument (functions returning values not yet supported)"
+        "Function call 'get_msg' returns 'void' and cannot be used as a value"
     );
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch)
+    );
+}
+
+#[test]
+fn test_compile_error_non_void_function_missing_return_on_some_path() {
+    let result = compile_error_with_kind(
+        r#"fn maybe(flag: bool) -> i32 {
+    if flag {
+        return 1
+    }
+}
+
+fn main() -> void {}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(matches!(stage, CompileStage::Semantic));
+    assert_eq!(
+        msg,
+        "Function 'maybe' with return type 'i32' must return a value on all code paths"
+    );
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch)
+    );
+}
+
+#[test]
+fn test_compile_error_return_without_value_in_non_void_function() {
+    let result = compile_error_with_kind(
+        r#"fn answer() -> i32 {
+    return
+}
+
+fn main() -> void {}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(matches!(stage, CompileStage::Semantic));
+    assert_eq!(msg, "return statement requires a value of type 'i32'");
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch)
+    );
+}
+
+#[test]
+fn test_compile_error_return_value_type_mismatch() {
+    let result = compile_error_with_kind(
+        r#"fn answer() -> i32 {
+    return "hello"
+}
+
+fn main() -> void {}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(matches!(stage, CompileStage::Semantic));
+    assert_eq!(
+        msg,
+        "Type mismatch: return expression has type 'string', expected 'i32'"
+    );
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch)
+    );
+}
+
+#[test]
+fn test_compile_error_return_binary_expression_type_mismatch() {
+    let result = compile_error_with_kind(
+        r#"fn add(a: i32, b: i32) -> string {
+    return a + b
+}
+
+fn main() -> void {}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(matches!(stage, CompileStage::Semantic));
+    assert_eq!(
+        msg,
+        "Type mismatch: return expression has type 'i32', expected 'string'"
+    );
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch)
+    );
+}
+
+#[test]
+fn test_compile_error_return_value_in_void_function() {
+    let result = compile_error_with_kind(
+        r#"fn helper() -> void {
+    return 1
+}
+
+fn main() -> void {}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(matches!(stage, CompileStage::Semantic));
+    assert_eq!(msg, "void function cannot return a value");
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch)
+    );
+}
+
+#[test]
+fn test_compile_error_invalid_non_void_return_type_annotation() {
+    let result = compile_error_with_kind(
+        r#"fn helper() -> int {
+    return 1
+}
+
+fn main() -> void {}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(matches!(stage, CompileStage::Semantic));
+    assert_eq!(
+        msg,
+        "Unsupported function return type 'int'. Expected 'void', 'i32', 'i64', 'string', or 'bool'"
+    );
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch)
+    );
+}
+
+#[test]
+fn test_compile_error_non_void_function_call_as_statement() {
+    let result = compile_error_with_kind(
+        r#"fn answer() -> i32 {
+    return 42
+}
+
+fn main() -> void {
+    answer()
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(matches!(stage, CompileStage::Semantic));
+    assert_eq!(
+        msg,
+        "Function 'answer' returns 'i32', but only void functions can be called as statements"
+    );
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch)
+    );
+}
+
+#[test]
+fn test_compile_error_void_function_call_as_value() {
+    let result = compile_error_with_kind(
+        r#"fn helper() -> void {}
+
+fn main() -> void {
+    let x: i32 = helper()
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(matches!(stage, CompileStage::Semantic));
+    assert_eq!(
+        msg,
+        "Function call 'helper' returns 'void' and cannot be used as a value"
+    );
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch)
+    );
+}
+
+#[test]
+fn test_compile_error_function_call_return_type_mismatch_at_call_site() {
+    let result = compile_error_with_kind(
+        r#"fn add(a: i32, b: i32) -> i32 {
+    return a + b
+}
+
+fn main() -> void {
+    let x: i64 = add(2, 3)
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(matches!(stage, CompileStage::Semantic));
+    assert_eq!(
+        msg,
+        "Type mismatch: function 'add' returns 'i32', expected 'i64'"
+    );
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch)
+    );
+}
+
+#[test]
+fn test_compile_error_discard_void_function_call() {
+    let result = compile_error_with_kind(
+        r#"fn helper() -> void {}
+
+fn main() -> void {
+    let _ = helper()
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(matches!(stage, CompileStage::Semantic));
+    assert_eq!(
+        msg,
+        "Function call 'helper' returns 'void' and cannot be used as a value"
+    );
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch)
+    );
+}
+
+#[test]
+fn test_compile_error_discard_non_call_expression() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let _ = 1
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(matches!(stage, CompileStage::Semantic));
+    assert_eq!(msg, "Discard statement must discard a function call result");
     assert_eq!(short_msg, "Invalid argument");
     assert_eq!(
         kind,
-        CompileErrorKind::Semantic(SemanticErrorKind::InvalidArgument),
-        "Expected InvalidArgument error kind"
+        CompileErrorKind::Semantic(SemanticErrorKind::InvalidArgument)
     );
 }
 

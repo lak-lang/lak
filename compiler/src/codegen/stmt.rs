@@ -1,7 +1,8 @@
 //! Statement code generation.
 //!
 //! This module implements code generation for Lak statements, including
-//! expression statements and let bindings.
+//! expression statements, `let` bindings, `let _ = ...` discard statements,
+//! `return` statements, and `if` control flow.
 
 use super::Codegen;
 use super::binding::VarBinding;
@@ -17,6 +18,8 @@ impl<'ctx> Codegen<'ctx> {
                 self.generate_expr(expr)?;
                 Ok(())
             }
+            StmtKind::Discard(expr) => self.generate_discard(expr, stmt.span),
+            StmtKind::Return(value) => self.generate_return(value.as_ref(), stmt.span),
             StmtKind::Let { name, ty, init } => self.generate_let(name, ty, init, stmt.span),
             StmtKind::If {
                 condition,
@@ -105,6 +108,14 @@ impl<'ctx> Codegen<'ctx> {
         self.enter_variable_scope();
         self.builder.position_at_end(then_block);
         for stmt in then_branch {
+            let has_terminator = self
+                .builder
+                .get_insert_block()
+                .and_then(|bb| bb.get_terminator())
+                .is_some();
+            if has_terminator {
+                break;
+            }
             self.generate_stmt(stmt)?;
         }
         let then_has_terminator = self
@@ -119,13 +130,22 @@ impl<'ctx> Codegen<'ctx> {
         }
         self.exit_variable_scope();
 
+        let mut else_has_terminator = false;
         if let (Some(else_bb), Some(else_stmts)) = (else_block, else_branch) {
             self.enter_variable_scope();
             self.builder.position_at_end(else_bb);
             for stmt in else_stmts {
+                let has_terminator = self
+                    .builder
+                    .get_insert_block()
+                    .and_then(|bb| bb.get_terminator())
+                    .is_some();
+                if has_terminator {
+                    break;
+                }
                 self.generate_stmt(stmt)?;
             }
-            let else_has_terminator = self
+            else_has_terminator = self
                 .builder
                 .get_insert_block()
                 .and_then(|bb| bb.get_terminator())
@@ -138,7 +158,73 @@ impl<'ctx> Codegen<'ctx> {
             self.exit_variable_scope();
         }
 
+        if else_block.is_some() && then_has_terminator && else_has_terminator {
+            self.builder.position_at_end(merge_block);
+            self.builder
+                .build_unreachable()
+                .map_err(|e| CodegenError::internal_unreachable_failed(&e.to_string(), span))?;
+            return Ok(());
+        }
+
         self.builder.position_at_end(merge_block);
+        Ok(())
+    }
+
+    fn generate_discard(&mut self, expr: &Expr, span: Span) -> Result<(), CodegenError> {
+        match expr.kind {
+            crate::ast::ExprKind::Call { .. } | crate::ast::ExprKind::ModuleCall { .. } => {
+                self.generate_expr(expr)
+            }
+            _ => Err(CodegenError::internal_invalid_expr_stmt(span)),
+        }
+    }
+
+    fn generate_return(&mut self, value: Option<&Expr>, span: Span) -> Result<(), CodegenError> {
+        let parent_fn = self
+            .builder
+            .get_insert_block()
+            .and_then(|bb| bb.get_parent())
+            .ok_or_else(|| CodegenError::internal_no_current_function(span))?;
+        let fn_name = parent_fn.get_name().to_string_lossy().to_string();
+
+        if fn_name == "main" {
+            if value.is_some() {
+                return Err(CodegenError::internal_main_return_with_value(span));
+            }
+            let zero = self.context.i32_type().const_int(0, false);
+            self.builder
+                .build_return(Some(&zero))
+                .map_err(|e| CodegenError::internal_main_return_build_failed(&e.to_string()))?;
+            return Ok(());
+        }
+
+        let return_ty = self
+            .function_return_types
+            .get(&fn_name)
+            .cloned()
+            .ok_or_else(|| CodegenError::internal_function_signature_not_found(&fn_name, span))?;
+
+        match return_ty {
+            None => {
+                if value.is_some() {
+                    return Err(CodegenError::internal_return_value_in_void_function(span));
+                }
+                self.builder.build_return(None).map_err(|e| {
+                    CodegenError::internal_return_build_failed(&fn_name, &e.to_string())
+                })?;
+            }
+            Some(expected_ty) => {
+                let value =
+                    value.ok_or_else(|| CodegenError::internal_missing_return_value(span))?;
+                let return_value = self.generate_expr_value(value, &expected_ty)?;
+                self.builder
+                    .build_return(Some(&return_value))
+                    .map_err(|e| {
+                        CodegenError::internal_return_build_failed(&fn_name, &e.to_string())
+                    })?;
+            }
+        }
+
         Ok(())
     }
 }

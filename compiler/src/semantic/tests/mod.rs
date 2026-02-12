@@ -299,23 +299,6 @@ fn test_module_access_not_implemented_constructor() {
 }
 
 #[test]
-fn test_module_call_return_value_not_supported_constructor() {
-    let err =
-        SemanticError::module_call_return_value_not_supported("utils", "get_value", dummy_span());
-    assert_eq!(err.kind(), SemanticErrorKind::TypeMismatch);
-    assert!(err.span().is_some());
-    assert_eq!(
-        err.message(),
-        "Module function call 'utils.get_value()' cannot be used as a value \
-         (return values from module functions are not yet supported)"
-    );
-    assert_eq!(
-        err.help(),
-        Some("call the module function as a statement instead")
-    );
-}
-
-#[test]
 fn test_module_not_imported_constructor() {
     let err = SemanticError::module_not_imported("utils", "greet", dummy_span());
     assert_eq!(err.kind(), SemanticErrorKind::ModuleNotImported);

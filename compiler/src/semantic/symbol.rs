@@ -15,7 +15,7 @@ pub struct FunctionInfo {
     pub name: String,
     /// The parameter types in declaration order.
     pub param_types: Vec<Type>,
-    /// The return type (currently only "void").
+    /// The return type annotation (e.g. "void", "i32", "i64", "string", "bool").
     pub return_type: String,
     /// The span of the return type token (for error reporting).
     pub return_type_span: Span,

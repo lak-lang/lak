@@ -35,6 +35,9 @@ pub enum TokenKind {
     /// The `else` keyword for alternate conditional branch.
     Else,
 
+    /// The `return` keyword for returning from functions.
+    Return,
+
     /// The `pub` keyword for public visibility.
     Pub,
 

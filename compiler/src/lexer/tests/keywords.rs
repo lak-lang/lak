@@ -46,6 +46,24 @@ fn test_keyword_else() {
 }
 
 #[test]
+fn test_keyword_return() {
+    let kinds = tokenize_kinds("return");
+    assert_eq!(kinds, vec![TokenKind::Return, TokenKind::Eof]);
+}
+
+#[test]
+fn test_return_not_prefix() {
+    let kinds = tokenize_kinds("returning");
+    assert_eq!(
+        kinds,
+        vec![
+            TokenKind::Identifier("returning".to_string()),
+            TokenKind::Eof
+        ]
+    );
+}
+
+#[test]
 fn test_else_not_prefix() {
     let kinds = tokenize_kinds("elseif");
     assert_eq!(

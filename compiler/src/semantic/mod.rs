@@ -62,6 +62,7 @@ enum AnalysisMode {
 pub struct SemanticAnalyzer {
     symbols: SymbolTable,
     mode: AnalysisMode,
+    current_function_return_type: Option<String>,
 }
 
 impl SemanticAnalyzer {
@@ -70,6 +71,7 @@ impl SemanticAnalyzer {
         SemanticAnalyzer {
             symbols: SymbolTable::new(),
             mode: AnalysisMode::SingleFile,
+            current_function_return_type: None,
         }
     }
 
@@ -206,29 +208,63 @@ impl SemanticAnalyzer {
     // Phase 3: Function body analysis
 
     fn analyze_function(&mut self, function: &FnDef) -> Result<(), SemanticError> {
+        self.current_function_return_type = Some(function.return_type.clone());
         self.symbols.enter_scope();
 
-        for param in &function.params {
-            let info = VariableInfo {
-                name: param.name.clone(),
-                ty: param.ty.clone(),
-                definition_span: param.span,
-            };
-            self.symbols.define_variable(info)?;
-        }
+        let result = (|| -> Result<(), SemanticError> {
+            if function.return_type != "void" {
+                self.return_type_name_to_type(&function.return_type, function.return_type_span)?;
+            }
 
-        for stmt in &function.body {
-            self.analyze_stmt(stmt)?;
-        }
+            for param in &function.params {
+                let info = VariableInfo {
+                    name: param.name.clone(),
+                    ty: param.ty.clone(),
+                    definition_span: param.span,
+                };
+                self.symbols.define_variable(info)?;
+            }
 
+            let mut always_returns = false;
+            for stmt in &function.body {
+                let stmt_returns = self.analyze_stmt(stmt)?;
+                // Continue analyzing even after guaranteed return so unreachable
+                // statements are still type-checked and resolved.
+                if !always_returns {
+                    always_returns = stmt_returns;
+                }
+            }
+
+            if function.return_type != "void" && !always_returns {
+                return Err(SemanticError::missing_return_in_non_void_function(
+                    &function.name,
+                    &function.return_type,
+                    function.return_type_span,
+                ));
+            }
+
+            Ok(())
+        })();
         self.symbols.exit_scope();
-        Ok(())
+        self.current_function_return_type = None;
+        result
     }
 
-    fn analyze_stmt(&mut self, stmt: &Stmt) -> Result<(), SemanticError> {
+    fn analyze_stmt(&mut self, stmt: &Stmt) -> Result<bool, SemanticError> {
         match &stmt.kind {
-            StmtKind::Expr(expr) => self.analyze_expr_stmt(expr),
-            StmtKind::Let { name, ty, init } => self.analyze_let(name, ty, init, stmt.span),
+            StmtKind::Expr(expr) => {
+                self.analyze_expr_stmt(expr)?;
+                Ok(false)
+            }
+            StmtKind::Let { name, ty, init } => {
+                self.analyze_let(name, ty, init, stmt.span)?;
+                Ok(false)
+            }
+            StmtKind::Discard(expr) => {
+                self.analyze_discard(expr, stmt.span)?;
+                Ok(false)
+            }
+            StmtKind::Return(value) => self.analyze_return(value.as_ref(), stmt.span),
             StmtKind::If {
                 condition,
                 then_branch,
@@ -242,24 +278,357 @@ impl SemanticAnalyzer {
         condition: &Expr,
         then_branch: &[Stmt],
         else_branch: Option<&[Stmt]>,
-    ) -> Result<(), SemanticError> {
+    ) -> Result<bool, SemanticError> {
         self.check_expr_type(condition, &Type::Bool)?;
 
-        self.symbols.enter_scope();
-        for stmt in then_branch {
-            self.analyze_stmt(stmt)?;
-        }
-        self.symbols.exit_scope();
+        let then_returns = self.analyze_block_scoped(then_branch)?;
 
-        if let Some(else_stmts) = else_branch {
-            self.symbols.enter_scope();
-            for stmt in else_stmts {
-                self.analyze_stmt(stmt)?;
+        let else_returns = if let Some(else_stmts) = else_branch {
+            self.analyze_block_scoped(else_stmts)?
+        } else {
+            false
+        };
+
+        Ok(then_returns && else_returns)
+    }
+
+    fn analyze_block_scoped(&mut self, stmts: &[Stmt]) -> Result<bool, SemanticError> {
+        self.symbols.enter_scope();
+        let result = (|| -> Result<bool, SemanticError> {
+            let mut always_returns = false;
+            for stmt in stmts {
+                let stmt_returns = self.analyze_stmt(stmt)?;
+                // Preserve "block always returns" once established while still
+                // validating later (possibly unreachable) statements.
+                if !always_returns {
+                    always_returns = stmt_returns;
+                }
             }
-            self.symbols.exit_scope();
+            Ok(always_returns)
+        })();
+        self.symbols.exit_scope();
+        result
+    }
+
+    fn analyze_discard(&mut self, expr: &Expr, span: Span) -> Result<(), SemanticError> {
+        match &expr.kind {
+            ExprKind::Call { callee, args } => {
+                self.analyze_call_value(callee, args, expr.span)?;
+                Ok(())
+            }
+            ExprKind::ModuleCall {
+                module,
+                function,
+                args,
+            } => {
+                self.analyze_module_call_value(module, function, args, expr.span)?;
+                Ok(())
+            }
+            _ => Err(SemanticError::invalid_discard_target(span)),
+        }
+    }
+
+    fn analyze_return(&mut self, value: Option<&Expr>, span: Span) -> Result<bool, SemanticError> {
+        let return_type_name = self
+            .current_function_return_type
+            .as_deref()
+            .ok_or_else(|| SemanticError::internal_return_outside_function(span))?;
+
+        if return_type_name == "void" {
+            if value.is_some() {
+                return Err(SemanticError::return_value_in_void_function(span));
+            }
+            return Ok(true);
+        }
+
+        let expected_ty = self.return_type_name_to_type(return_type_name, span)?;
+        let value =
+            value.ok_or_else(|| SemanticError::return_value_required(return_type_name, span))?;
+
+        // Infer and validate the return expression in its own type context first.
+        // This avoids misleading diagnostics such as reporting arithmetic operators
+        // against the function return type when the expression itself is valid.
+        let actual_ty = self.infer_expr_type(value)?;
+        self.check_expr_type(value, &actual_ty)?;
+
+        if actual_ty != expected_ty {
+            // Keep contextual integer-literal adaptation (e.g. `return 1` for `-> i32`).
+            match self.check_expr_type(value, &expected_ty) {
+                Ok(()) => return Ok(true),
+                Err(err) if err.kind() != SemanticErrorKind::TypeMismatch => return Err(err),
+                Err(_) => {}
+            }
+
+            return Err(SemanticError::type_mismatch_return_value(
+                &actual_ty.to_string(),
+                &expected_ty.to_string(),
+                value.span,
+            ));
+        }
+
+        Ok(true)
+    }
+
+    fn return_type_name_to_type(&self, name: &str, span: Span) -> Result<Type, SemanticError> {
+        match name {
+            "i32" => Ok(Type::I32),
+            "i64" => Ok(Type::I64),
+            "string" => Ok(Type::String),
+            "bool" => Ok(Type::Bool),
+            _ => Err(SemanticError::invalid_function_return_type(name, span)),
+        }
+    }
+
+    fn resolve_user_call(
+        &mut self,
+        callee: &str,
+        args: &[Expr],
+        span: Span,
+    ) -> Result<String, SemanticError> {
+        let (param_types, return_type) = {
+            let func_info = self
+                .symbols
+                .lookup_function(callee)
+                .ok_or_else(|| SemanticError::undefined_function(callee, span))?;
+            (func_info.param_types.clone(), func_info.return_type.clone())
+        };
+
+        if callee == "main" {
+            return Err(SemanticError::invalid_argument_cannot_call_main(span));
+        }
+
+        let expected_arg_count = param_types.len();
+        if args.len() != expected_arg_count {
+            return Err(if expected_arg_count == 0 {
+                SemanticError::invalid_argument_fn_expects_no_args(callee, args.len(), span)
+            } else {
+                SemanticError::invalid_argument_fn_expects_args(
+                    callee,
+                    expected_arg_count,
+                    args.len(),
+                    span,
+                )
+            });
+        }
+
+        for (arg, expected_ty) in args.iter().zip(param_types.iter()) {
+            self.check_expr_type(arg, expected_ty)?;
+        }
+
+        Ok(return_type)
+    }
+
+    fn resolve_module_call(
+        &mut self,
+        module_name: &str,
+        function_name: &str,
+        args: &[Expr],
+        span: Span,
+    ) -> Result<String, SemanticError> {
+        let (param_types, return_type) = {
+            let module_table = match &self.mode {
+                AnalysisMode::EntryWithModules(table) => table,
+                AnalysisMode::ImportedModule(Some(table)) => table,
+                AnalysisMode::ImportedModule(None) => {
+                    return Err(SemanticError::cross_module_call_in_imported_module(
+                        module_name,
+                        function_name,
+                        span,
+                    ));
+                }
+                AnalysisMode::SingleFile => {
+                    return Err(SemanticError::module_not_imported(
+                        module_name,
+                        function_name,
+                        span,
+                    ));
+                }
+            };
+
+            let module_exports = module_table
+                .get_module(module_name)
+                .ok_or_else(|| SemanticError::undefined_module(module_name, span))?;
+
+            let func_export = module_exports.get_function(function_name).ok_or_else(|| {
+                SemanticError::undefined_module_function(module_name, function_name, span)
+            })?;
+
+            (
+                func_export.param_types().to_vec(),
+                func_export.return_type().to_string(),
+            )
+        };
+
+        let full_function_name = format!("{}.{}", module_name, function_name);
+        let expected_arg_count = param_types.len();
+        if args.len() != expected_arg_count {
+            return Err(if expected_arg_count == 0 {
+                SemanticError::invalid_argument_fn_expects_no_args(
+                    &full_function_name,
+                    args.len(),
+                    span,
+                )
+            } else {
+                SemanticError::invalid_argument_fn_expects_args(
+                    &full_function_name,
+                    expected_arg_count,
+                    args.len(),
+                    span,
+                )
+            });
+        }
+
+        for (arg, expected_ty) in args.iter().zip(param_types.iter()) {
+            self.check_expr_type(arg, expected_ty)?;
+        }
+
+        Ok(return_type)
+    }
+
+    fn analyze_call_stmt(
+        &mut self,
+        callee: &str,
+        args: &[Expr],
+        span: Span,
+    ) -> Result<(), SemanticError> {
+        if callee == "println" {
+            if args.len() != 1 {
+                return Err(SemanticError::invalid_argument_println_count(span));
+            }
+            self.validate_expr_for_println(&args[0])?;
+            return Ok(());
+        }
+
+        if callee == "panic" {
+            if args.len() != 1 {
+                return Err(SemanticError::invalid_argument_panic_count(span));
+            }
+
+            match &args[0].kind {
+                ExprKind::StringLiteral(_) => {}
+                ExprKind::Identifier(name) => {
+                    let var_info = self
+                        .symbols
+                        .lookup_variable(name)
+                        .ok_or_else(|| SemanticError::undefined_variable(name, args[0].span))?;
+
+                    if var_info.ty != Type::String {
+                        return Err(SemanticError::invalid_argument_panic_type(
+                            &var_info.ty.to_string(),
+                            args[0].span,
+                        ));
+                    }
+                }
+                ExprKind::IntLiteral(_) => {
+                    return Err(SemanticError::invalid_argument_panic_type(
+                        "integer literal",
+                        args[0].span,
+                    ));
+                }
+                ExprKind::BoolLiteral(_) => {
+                    return Err(SemanticError::invalid_argument_panic_type(
+                        "boolean literal",
+                        args[0].span,
+                    ));
+                }
+                ExprKind::BinaryOp { .. } | ExprKind::UnaryOp { .. } => {
+                    return Err(SemanticError::invalid_argument_panic_type(
+                        "expression",
+                        args[0].span,
+                    ));
+                }
+                ExprKind::IfExpr { .. } => {
+                    let arg_ty = self.infer_expr_type(&args[0])?;
+                    if arg_ty != Type::String {
+                        return Err(SemanticError::invalid_argument_panic_type(
+                            "if expression",
+                            args[0].span,
+                        ));
+                    }
+                }
+                ExprKind::Call { .. } | ExprKind::ModuleCall { .. } => {
+                    let arg_ty = self.infer_expr_type(&args[0])?;
+                    if arg_ty != Type::String {
+                        return Err(SemanticError::invalid_argument_panic_type(
+                            "function call",
+                            args[0].span,
+                        ));
+                    }
+                }
+                ExprKind::MemberAccess { .. } => {
+                    return Err(SemanticError::module_access_not_implemented(args[0].span));
+                }
+            }
+            return Ok(());
+        }
+
+        let return_type = self.resolve_user_call(callee, args, span)?;
+        if return_type != "void" {
+            return Err(SemanticError::type_mismatch_non_void_fn_as_stmt(
+                callee,
+                &return_type,
+                span,
+            ));
         }
 
         Ok(())
+    }
+
+    fn analyze_call_value(
+        &mut self,
+        callee: &str,
+        args: &[Expr],
+        span: Span,
+    ) -> Result<Type, SemanticError> {
+        if callee == "println" || callee == "panic" {
+            self.analyze_call_stmt(callee, args, span)?;
+            return Err(SemanticError::void_function_call_as_value(callee, span));
+        }
+
+        let return_type = self.resolve_user_call(callee, args, span)?;
+        if return_type == "void" {
+            return Err(SemanticError::void_function_call_as_value(callee, span));
+        }
+
+        self.return_type_name_to_type(&return_type, span)
+    }
+
+    fn analyze_module_call_stmt(
+        &mut self,
+        module_name: &str,
+        function_name: &str,
+        args: &[Expr],
+        span: Span,
+    ) -> Result<(), SemanticError> {
+        let return_type = self.resolve_module_call(module_name, function_name, args, span)?;
+        if return_type != "void" {
+            return Err(SemanticError::type_mismatch_non_void_fn_as_stmt(
+                &format!("{}.{}", module_name, function_name),
+                &return_type,
+                span,
+            ));
+        }
+
+        Ok(())
+    }
+
+    fn analyze_module_call_value(
+        &mut self,
+        module_name: &str,
+        function_name: &str,
+        args: &[Expr],
+        span: Span,
+    ) -> Result<Type, SemanticError> {
+        let return_type = self.resolve_module_call(module_name, function_name, args, span)?;
+        if return_type == "void" {
+            return Err(SemanticError::void_module_call_as_value(
+                module_name,
+                function_name,
+                span,
+            ));
+        }
+
+        self.return_type_name_to_type(&return_type, span)
     }
 
     fn analyze_let(
@@ -296,7 +665,7 @@ impl SemanticAnalyzer {
 
     fn analyze_expr_stmt(&mut self, expr: &Expr) -> Result<(), SemanticError> {
         match &expr.kind {
-            ExprKind::Call { callee, args } => self.analyze_call(callee, args, expr.span),
+            ExprKind::Call { callee, args } => self.analyze_call_stmt(callee, args, expr.span),
             ExprKind::StringLiteral(_) => {
                 Err(SemanticError::invalid_expression_string_literal(expr.span))
             }
@@ -321,267 +690,8 @@ impl SemanticAnalyzer {
                 module,
                 function,
                 args,
-            } => self.analyze_module_call(module, function, args, expr.span),
+            } => self.analyze_module_call_stmt(module, function, args, expr.span),
         }
-    }
-
-    fn analyze_call(
-        &mut self,
-        callee: &str,
-        args: &[Expr],
-        span: Span,
-    ) -> Result<(), SemanticError> {
-        // Built-in function: println
-        // println accepts any type (string, i32, i64, bool)
-        if callee == "println" {
-            if args.len() != 1 {
-                return Err(SemanticError::invalid_argument_println_count(span));
-            }
-
-            match &args[0].kind {
-                ExprKind::Call {
-                    callee: inner_callee,
-                    ..
-                } => {
-                    return Err(SemanticError::invalid_argument_call_not_supported(
-                        inner_callee,
-                        args[0].span,
-                    ));
-                }
-                ExprKind::MemberAccess { .. } => {
-                    return Err(SemanticError::module_access_not_implemented(args[0].span));
-                }
-                ExprKind::ModuleCall {
-                    module, function, ..
-                } => {
-                    return Err(SemanticError::module_call_return_value_not_supported(
-                        module,
-                        function,
-                        args[0].span,
-                    ));
-                }
-                ExprKind::IntLiteral(_)
-                | ExprKind::StringLiteral(_)
-                | ExprKind::BoolLiteral(_)
-                | ExprKind::Identifier(_)
-                | ExprKind::BinaryOp { .. }
-                | ExprKind::UnaryOp { .. }
-                | ExprKind::IfExpr { .. } => self.validate_expr_for_println(&args[0])?,
-            }
-
-            return Ok(());
-        }
-
-        // Built-in function: panic
-        if callee == "panic" {
-            if args.len() != 1 {
-                return Err(SemanticError::invalid_argument_panic_count(span));
-            }
-
-            // panic only accepts string arguments
-            match &args[0].kind {
-                ExprKind::StringLiteral(_) => {}
-                ExprKind::Identifier(name) => {
-                    // Verify the variable exists and is a string
-                    let var_info = self
-                        .symbols
-                        .lookup_variable(name)
-                        .ok_or_else(|| SemanticError::undefined_variable(name, args[0].span))?;
-
-                    if var_info.ty != Type::String {
-                        return Err(SemanticError::invalid_argument_panic_type(
-                            &var_info.ty.to_string(),
-                            args[0].span,
-                        ));
-                    }
-                }
-                ExprKind::IntLiteral(_) => {
-                    return Err(SemanticError::invalid_argument_panic_type(
-                        "integer literal",
-                        args[0].span,
-                    ));
-                }
-                ExprKind::BoolLiteral(_) => {
-                    return Err(SemanticError::invalid_argument_panic_type(
-                        "boolean literal",
-                        args[0].span,
-                    ));
-                }
-                ExprKind::Call {
-                    callee: inner_callee,
-                    ..
-                } => {
-                    return Err(SemanticError::invalid_argument_call_not_supported(
-                        inner_callee,
-                        args[0].span,
-                    ));
-                }
-                ExprKind::BinaryOp { .. } => {
-                    return Err(SemanticError::invalid_argument_panic_type(
-                        "expression",
-                        args[0].span,
-                    ));
-                }
-                ExprKind::UnaryOp { .. } => {
-                    return Err(SemanticError::invalid_argument_panic_type(
-                        "expression",
-                        args[0].span,
-                    ));
-                }
-                ExprKind::IfExpr { .. } => {
-                    let arg_ty = self.infer_expr_type(&args[0])?;
-                    if arg_ty != Type::String {
-                        return Err(SemanticError::invalid_argument_panic_type(
-                            "if expression",
-                            args[0].span,
-                        ));
-                    }
-                }
-                ExprKind::MemberAccess { .. } => {
-                    return Err(SemanticError::module_access_not_implemented(args[0].span));
-                }
-                ExprKind::ModuleCall {
-                    module, function, ..
-                } => {
-                    return Err(SemanticError::module_call_return_value_not_supported(
-                        module,
-                        function,
-                        args[0].span,
-                    ));
-                }
-            }
-
-            return Ok(());
-        }
-
-        // Check if function is defined
-        let (param_types, return_type) = {
-            let func_info = self
-                .symbols
-                .lookup_function(callee)
-                .ok_or_else(|| SemanticError::undefined_function(callee, span))?;
-            (func_info.param_types.clone(), func_info.return_type.clone())
-        };
-
-        // Disallow calling main function directly
-        if callee == "main" {
-            return Err(SemanticError::invalid_argument_cannot_call_main(span));
-        }
-
-        // Check argument count
-        let expected_arg_count = param_types.len();
-        if args.len() != expected_arg_count {
-            return Err(if expected_arg_count == 0 {
-                SemanticError::invalid_argument_fn_expects_no_args(callee, args.len(), span)
-            } else {
-                SemanticError::invalid_argument_fn_expects_args(
-                    callee,
-                    expected_arg_count,
-                    args.len(),
-                    span,
-                )
-            });
-        }
-
-        // Check argument types
-        for (arg, expected_ty) in args.iter().zip(param_types.iter()) {
-            self.check_expr_type(arg, expected_ty)?;
-        }
-
-        // Check that the function returns void (only void functions can be called as statements)
-        if return_type != "void" {
-            return Err(SemanticError::type_mismatch_non_void_fn_as_stmt(
-                callee,
-                &return_type,
-                span,
-            ));
-        }
-
-        Ok(())
-    }
-
-    fn analyze_module_call(
-        &mut self,
-        module_name: &str,
-        function_name: &str,
-        args: &[Expr],
-        span: Span,
-    ) -> Result<(), SemanticError> {
-        let (param_types, return_type) = {
-            // Get the module table based on the current analysis mode
-            let module_table = match &self.mode {
-                AnalysisMode::EntryWithModules(table) => table,
-                AnalysisMode::ImportedModule(Some(table)) => table,
-                AnalysisMode::ImportedModule(None) => {
-                    // Imported module has no module table (no imports of its own).
-                    // This means it has a ModuleCall expression but no way to resolve it.
-                    return Err(SemanticError::cross_module_call_in_imported_module(
-                        module_name,
-                        function_name,
-                        span,
-                    ));
-                }
-                AnalysisMode::SingleFile => {
-                    // No module table means module resolution is not enabled
-                    return Err(SemanticError::module_not_imported(
-                        module_name,
-                        function_name,
-                        span,
-                    ));
-                }
-            };
-
-            // Look up the module
-            let module_exports = module_table
-                .get_module(module_name)
-                .ok_or_else(|| SemanticError::undefined_module(module_name, span))?;
-
-            // Look up the function in the module
-            let func_export = module_exports.get_function(function_name).ok_or_else(|| {
-                SemanticError::undefined_module_function(module_name, function_name, span)
-            })?;
-
-            (
-                func_export.param_types().to_vec(),
-                func_export.return_type().to_string(),
-            )
-        };
-
-        // Check argument count
-        let full_function_name = format!("{}.{}", module_name, function_name);
-        let expected_arg_count = param_types.len();
-        if args.len() != expected_arg_count {
-            return Err(if expected_arg_count == 0 {
-                SemanticError::invalid_argument_fn_expects_no_args(
-                    &full_function_name,
-                    args.len(),
-                    span,
-                )
-            } else {
-                SemanticError::invalid_argument_fn_expects_args(
-                    &full_function_name,
-                    expected_arg_count,
-                    args.len(),
-                    span,
-                )
-            });
-        }
-
-        // Check argument types
-        for (arg, expected_ty) in args.iter().zip(param_types.iter()) {
-            self.check_expr_type(arg, expected_ty)?;
-        }
-
-        // Check that the function returns void (only void functions can be called as statements)
-        if return_type != "void" {
-            return Err(SemanticError::type_mismatch_non_void_fn_as_stmt(
-                &full_function_name,
-                &return_type,
-                span,
-            ));
-        }
-
-        Ok(())
     }
 
     fn check_expr_type(&mut self, expr: &Expr, expected_ty: &Type) -> Result<(), SemanticError> {
@@ -632,9 +742,18 @@ impl SemanticAnalyzer {
                 }
                 Ok(())
             }
-            ExprKind::Call { callee, .. } => Err(SemanticError::type_mismatch_call_as_value(
-                callee, expr.span,
-            )),
+            ExprKind::Call { callee, args } => {
+                let actual_ty = self.analyze_call_value(callee, args, expr.span)?;
+                if actual_ty != *expected_ty {
+                    return Err(SemanticError::type_mismatch_call_return(
+                        callee,
+                        &actual_ty.to_string(),
+                        &expected_ty.to_string(),
+                        expr.span,
+                    ));
+                }
+                Ok(())
+            }
             ExprKind::BinaryOp { left, op, right } => {
                 self.check_binary_op_type(left, *op, right, expected_ty, expr.span)
             }
@@ -699,10 +818,22 @@ impl SemanticAnalyzer {
                 Err(SemanticError::module_access_not_implemented(expr.span))
             }
             ExprKind::ModuleCall {
-                module, function, ..
-            } => Err(SemanticError::module_call_return_value_not_supported(
-                module, function, expr.span,
-            )),
+                module,
+                function,
+                args,
+            } => {
+                let actual_ty =
+                    self.analyze_module_call_value(module, function, args, expr.span)?;
+                if actual_ty != *expected_ty {
+                    return Err(SemanticError::type_mismatch_call_return(
+                        &format!("{}.{}", module, function),
+                        &actual_ty.to_string(),
+                        &expected_ty.to_string(),
+                        expr.span,
+                    ));
+                }
+                Ok(())
+            }
         }
     }
 
@@ -851,17 +982,15 @@ impl SemanticAnalyzer {
                 }
                 Ok(then_ty)
             }
-            ExprKind::Call { callee, .. } => Err(SemanticError::type_mismatch_call_as_value(
-                callee, expr.span,
-            )),
+            ExprKind::Call { callee, args } => self.analyze_call_value(callee, args, expr.span),
             ExprKind::MemberAccess { .. } => {
                 Err(SemanticError::module_access_not_implemented(expr.span))
             }
             ExprKind::ModuleCall {
-                module, function, ..
-            } => Err(SemanticError::module_call_return_value_not_supported(
-                module, function, expr.span,
-            )),
+                module,
+                function,
+                args,
+            } => self.analyze_module_call_value(module, function, args, expr.span),
         }
     }
 
@@ -1006,30 +1135,9 @@ impl SemanticAnalyzer {
     /// 1. `infer_expr_type` for contextual type inference (including literal adaptation)
     /// 2. `check_expr_type` for deep structural type validation and precise diagnostics
     fn validate_expr_for_println(&mut self, expr: &Expr) -> Result<(), SemanticError> {
-        match &expr.kind {
-            ExprKind::IntLiteral(_)
-            | ExprKind::StringLiteral(_)
-            | ExprKind::BoolLiteral(_)
-            | ExprKind::Identifier(_)
-            | ExprKind::BinaryOp { .. }
-            | ExprKind::UnaryOp { .. }
-            | ExprKind::IfExpr { .. } => {
-                let inferred_ty = self.infer_expr_type(expr)?;
-                self.check_expr_type(expr, &inferred_ty)?;
-                Ok(())
-            }
-            ExprKind::Call { callee, .. } => Err(
-                SemanticError::invalid_argument_call_not_supported(callee, expr.span),
-            ),
-            ExprKind::MemberAccess { .. } => {
-                Err(SemanticError::module_access_not_implemented(expr.span))
-            }
-            ExprKind::ModuleCall {
-                module, function, ..
-            } => Err(SemanticError::module_call_return_value_not_supported(
-                module, function, expr.span,
-            )),
-        }
+        let inferred_ty = self.infer_expr_type(expr)?;
+        self.check_expr_type(expr, &inferred_ty)?;
+        Ok(())
     }
 
     fn check_integer_range(&self, value: i64, ty: &Type, span: Span) -> Result<(), SemanticError> {

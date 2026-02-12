@@ -11,11 +11,12 @@ impl Parser {
     /// # Grammar
     ///
     /// ```text
-    /// stmt → let_stmt | if_stmt | expr_stmt
+    /// stmt → let_stmt | return_stmt | if_stmt | expr_stmt
     /// ```
     pub(super) fn parse_stmt(&mut self) -> Result<Stmt, ParseError> {
         match self.current_kind() {
             TokenKind::Let => self.parse_let_stmt(),
+            TokenKind::Return => self.parse_return_stmt(),
             TokenKind::If => self.parse_if_stmt(),
             _ => {
                 let expr = self.parse_expr()?;
@@ -30,8 +31,8 @@ impl Parser {
     /// # Grammar
     ///
     /// ```text
-    /// let_stmt → "let" IDENTIFIER ":" type "=" expr
-    /// type → "i32" | "i64"
+    /// let_stmt → "let" IDENTIFIER ":" type "=" expr | "let" "_" "=" expr
+    /// type → "i32" | "i64" | "string" | "bool"
     /// ```
     pub(super) fn parse_let_stmt(&mut self) -> Result<Stmt, ParseError> {
         let start_span = self.current_span();
@@ -41,6 +42,19 @@ impl Parser {
 
         // Expect variable name
         let name = self.expect_identifier()?;
+
+        // Special discard form: `let _ = expr`
+        if name == "_" && matches!(self.current_kind(), TokenKind::Equals) {
+            self.expect(&TokenKind::Equals)?;
+            let expr = self.parse_expr()?;
+            let span = Span::new(
+                start_span.start,
+                expr.span.end,
+                start_span.line,
+                start_span.column,
+            );
+            return Ok(Stmt::new(StmtKind::Discard(expr), span));
+        }
 
         // Expect `:` type annotation
         self.expect(&TokenKind::Colon)?;
@@ -59,6 +73,35 @@ impl Parser {
         );
 
         Ok(Stmt::new(StmtKind::Let { name, ty, init }, span))
+    }
+
+    /// Parses a return statement.
+    ///
+    /// # Grammar
+    ///
+    /// ```text
+    /// return_stmt → "return" expr?
+    /// ```
+    pub(super) fn parse_return_stmt(&mut self) -> Result<Stmt, ParseError> {
+        let start_span = self.current_span();
+        self.expect(&TokenKind::Return)?;
+
+        // Bare return if statement ends immediately.
+        if matches!(
+            self.current_kind(),
+            TokenKind::Newline | TokenKind::RightBrace | TokenKind::Eof
+        ) {
+            return Ok(Stmt::new(StmtKind::Return(None), start_span));
+        }
+
+        let value = self.parse_expr()?;
+        let span = Span::new(
+            start_span.start,
+            value.span.end,
+            start_span.line,
+            start_span.column,
+        );
+        Ok(Stmt::new(StmtKind::Return(Some(value)), span))
     }
 
     /// Parses an if statement.

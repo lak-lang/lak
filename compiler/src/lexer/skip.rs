@@ -50,6 +50,7 @@ impl<'a> Lexer<'a> {
     /// are significant (act as statement terminators) only after certain tokens:
     /// - Identifiers
     /// - Literals (string, integer, boolean)
+    /// - `return` keyword
     /// - `)` (right parenthesis)
     /// - `}` (right brace)
     pub(super) fn should_emit_newline(&self) -> bool {
@@ -59,6 +60,7 @@ impl<'a> Lexer<'a> {
                 | Some(TokenKind::IntLiteral(_))
                 | Some(TokenKind::StringLiteral(_))
                 | Some(TokenKind::BoolLiteral(_))
+                | Some(TokenKind::Return)
                 | Some(TokenKind::RightParen)
                 | Some(TokenKind::RightBrace)
         )

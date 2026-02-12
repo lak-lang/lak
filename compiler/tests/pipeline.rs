@@ -155,35 +155,46 @@ fn test_error_function_call_as_int_value() {
     // Detected by semantic analysis
     let program = Program {
         imports: vec![],
-        functions: vec![FnDef {
-            name: "main".to_string(),
-            params: vec![],
-            visibility: Visibility::Private,
-            return_type: "void".to_string(),
-            return_type_span: dummy_span(),
-            body: vec![Stmt::new(
-                StmtKind::Let {
-                    name: "x".to_string(),
-                    ty: Type::I32,
-                    init: Expr::new(
-                        ExprKind::Call {
-                            callee: "some_func".to_string(),
-                            args: vec![],
-                        },
-                        dummy_span(),
-                    ),
-                },
-                dummy_span(),
-            )],
-            span: dummy_span(),
-        }],
+        functions: vec![
+            FnDef {
+                name: "some_func".to_string(),
+                params: vec![],
+                visibility: Visibility::Private,
+                return_type: "void".to_string(),
+                return_type_span: dummy_span(),
+                body: vec![],
+                span: dummy_span(),
+            },
+            FnDef {
+                name: "main".to_string(),
+                params: vec![],
+                visibility: Visibility::Private,
+                return_type: "void".to_string(),
+                return_type_span: dummy_span(),
+                body: vec![Stmt::new(
+                    StmtKind::Let {
+                        name: "x".to_string(),
+                        ty: Type::I32,
+                        init: Expr::new(
+                            ExprKind::Call {
+                                callee: "some_func".to_string(),
+                                args: vec![],
+                            },
+                            dummy_span(),
+                        ),
+                    },
+                    dummy_span(),
+                )],
+                span: dummy_span(),
+            },
+        ],
     };
 
     let mut analyzer = SemanticAnalyzer::new();
     let err = analyzer.analyze(&program).expect_err("Should fail");
     assert_eq!(
         err.message(),
-        "Function call 'some_func' cannot be used as a value (functions returning values not yet supported)"
+        "Function call 'some_func' returns 'void' and cannot be used as a value"
     );
 }
 

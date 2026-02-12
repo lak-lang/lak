@@ -11,7 +11,7 @@ use super::mangle_name;
 use crate::ast::{BinaryOperator, Expr, ExprKind, IfExprBlock, Type, UnaryOperator};
 use inkwell::IntPredicate;
 use inkwell::intrinsics::Intrinsic;
-use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum};
+use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue};
 
 impl<'ctx> Codegen<'ctx> {
     /// Generates LLVM IR for an expression used as a statement.
@@ -56,6 +56,37 @@ impl<'ctx> Codegen<'ctx> {
         Ok(())
     }
 
+    pub(super) fn resolve_user_function_target(
+        &self,
+        callee: &str,
+        span: crate::token::Span,
+    ) -> Result<(String, FunctionValue<'ctx>), CodegenError> {
+        if let Some(ref prefix) = self.current_module_prefix {
+            let mangled = mangle_name(prefix, callee);
+            let function = self.module.get_function(&mangled).or_else(|| {
+                if BUILTIN_NAMES.contains(&callee) {
+                    self.module.get_function(callee)
+                } else {
+                    None
+                }
+            });
+            let function =
+                function.ok_or_else(|| CodegenError::internal_function_not_found(callee, span))?;
+            let llvm_name = if self.function_param_types.contains_key(&mangled) {
+                mangled
+            } else {
+                callee.to_string()
+            };
+            Ok((llvm_name, function))
+        } else {
+            let function = self
+                .module
+                .get_function(callee)
+                .ok_or_else(|| CodegenError::internal_function_not_found(callee, span))?;
+            Ok((callee.to_string(), function))
+        }
+    }
+
     /// Generates a call to a user-defined function.
     ///
     /// # Arguments
@@ -73,36 +104,7 @@ impl<'ctx> Codegen<'ctx> {
         args: &[Expr],
         span: crate::token::Span,
     ) -> Result<(), CodegenError> {
-        // When generating code for an imported module, function calls within
-        // that module need to use mangled names (e.g., "_L5_utils_helper" instead
-        // of "helper"), since all imported module functions are declared with
-        // mangled names in the LLVM module.
-        let (llvm_name, function) = if let Some(ref prefix) = self.current_module_prefix {
-            let mangled = mangle_name(prefix, callee);
-            let function = self.module.get_function(&mangled).or_else(|| {
-                // Only allow fallback to unmangled name for known builtins.
-                // Builtins are declared with their original names (not mangled).
-                if BUILTIN_NAMES.contains(&callee) {
-                    self.module.get_function(callee)
-                } else {
-                    None
-                }
-            });
-            let function =
-                function.ok_or_else(|| CodegenError::internal_function_not_found(callee, span))?;
-            let llvm_name = if self.function_param_types.contains_key(&mangled) {
-                mangled
-            } else {
-                callee.to_string()
-            };
-            (llvm_name, function)
-        } else {
-            let function = self
-                .module
-                .get_function(callee)
-                .ok_or_else(|| CodegenError::internal_function_not_found(callee, span))?;
-            (callee.to_string(), function)
-        };
+        let (llvm_name, function) = self.resolve_user_function_target(callee, span)?;
 
         let expected_param_types = self
             .function_param_types
@@ -186,6 +188,114 @@ impl<'ctx> Codegen<'ctx> {
             .map_err(|e| CodegenError::internal_call_failed(&mangled_name, &e.to_string(), span))?;
 
         Ok(())
+    }
+
+    fn generate_user_function_call_value(
+        &mut self,
+        callee: &str,
+        args: &[Expr],
+        span: crate::token::Span,
+    ) -> Result<BasicValueEnum<'ctx>, CodegenError> {
+        let (llvm_name, function) = self.resolve_user_function_target(callee, span)?;
+        let expected_param_types = self
+            .function_param_types
+            .get(&llvm_name)
+            .cloned()
+            .ok_or_else(|| CodegenError::internal_function_signature_not_found(&llvm_name, span))?;
+
+        if args.len() != expected_param_types.len() {
+            return Err(CodegenError::internal_call_arg_count_mismatch(
+                callee,
+                expected_param_types.len(),
+                args.len(),
+                span,
+            ));
+        }
+
+        let llvm_args: Vec<BasicMetadataValueEnum<'ctx>> = args
+            .iter()
+            .zip(expected_param_types.iter())
+            .map(|(arg, expected_ty)| self.generate_expr_value(arg, expected_ty).map(Into::into))
+            .collect::<Result<_, _>>()?;
+
+        let return_ty = self
+            .function_return_types
+            .get(&llvm_name)
+            .cloned()
+            .ok_or_else(|| CodegenError::internal_function_signature_not_found(&llvm_name, span))?;
+        if return_ty.is_none() {
+            return Err(CodegenError::internal_call_as_value(callee, span));
+        }
+
+        let call_site = self
+            .builder
+            .build_call(function, &llvm_args, "")
+            .map_err(|e| CodegenError::internal_call_failed(callee, &e.to_string(), span))?;
+        call_site
+            .try_as_basic_value()
+            .basic()
+            .ok_or_else(|| CodegenError::internal_call_returned_void(callee, span))
+    }
+
+    fn generate_module_call_value(
+        &mut self,
+        module_alias: &str,
+        function: &str,
+        args: &[Expr],
+        span: crate::token::Span,
+    ) -> Result<BasicValueEnum<'ctx>, CodegenError> {
+        let mangle_prefix = self.resolve_module_alias(module_alias, span)?;
+        let mangled_name = mangle_name(&mangle_prefix, function);
+
+        let llvm_function = self
+            .module
+            .get_function(&mangled_name)
+            .ok_or_else(|| CodegenError::internal_function_not_found(&mangled_name, span))?;
+        let expected_param_types = self
+            .function_param_types
+            .get(&mangled_name)
+            .cloned()
+            .ok_or_else(|| {
+                CodegenError::internal_function_signature_not_found(&mangled_name, span)
+            })?;
+
+        if args.len() != expected_param_types.len() {
+            return Err(CodegenError::internal_call_arg_count_mismatch(
+                &format!("{}.{}", module_alias, function),
+                expected_param_types.len(),
+                args.len(),
+                span,
+            ));
+        }
+
+        let llvm_args: Vec<BasicMetadataValueEnum<'ctx>> = args
+            .iter()
+            .zip(expected_param_types.iter())
+            .map(|(arg, expected_ty)| self.generate_expr_value(arg, expected_ty).map(Into::into))
+            .collect::<Result<_, _>>()?;
+
+        let return_ty = self
+            .function_return_types
+            .get(&mangled_name)
+            .cloned()
+            .ok_or_else(|| {
+                CodegenError::internal_function_signature_not_found(&mangled_name, span)
+            })?;
+        if return_ty.is_none() {
+            return Err(CodegenError::internal_module_call_as_value(
+                module_alias,
+                function,
+                span,
+            ));
+        }
+
+        let call_site = self
+            .builder
+            .build_call(llvm_function, &llvm_args, "")
+            .map_err(|e| CodegenError::internal_call_failed(&mangled_name, &e.to_string(), span))?;
+        call_site.try_as_basic_value().basic().ok_or_else(|| {
+            CodegenError::internal_module_call_as_value(module_alias, function, span)
+        })
     }
 
     /// Generates LLVM IR for an expression and returns its value.
@@ -278,8 +388,8 @@ impl<'ctx> Codegen<'ctx> {
                     })?;
                 Ok(str_ptr.as_pointer_value().into())
             }
-            ExprKind::Call { callee, .. } => {
-                Err(CodegenError::internal_call_as_value(callee, expr.span))
+            ExprKind::Call { callee, args } => {
+                self.generate_user_function_call_value(callee, args, expr.span)
             }
             ExprKind::BinaryOp { left, op, right } => {
                 self.generate_binary_op(left, *op, right, expected_ty, expr.span)
@@ -307,10 +417,8 @@ impl<'ctx> Codegen<'ctx> {
             ExprKind::ModuleCall {
                 module,
                 function,
-                args: _,
-            } => Err(CodegenError::internal_module_call_as_value(
-                module, function, expr.span,
-            )),
+                args,
+            } => self.generate_module_call_value(module, function, args, expr.span),
         }
     }
 
@@ -371,16 +479,38 @@ impl<'ctx> Codegen<'ctx> {
             ExprKind::BoolLiteral(_) => Ok(Type::Bool),
             ExprKind::StringLiteral(_) => Ok(Type::String),
             ExprKind::Call { callee, .. } => {
-                Err(CodegenError::internal_call_as_value(callee, expr.span))
+                let (llvm_name, _) = self.resolve_user_function_target(callee, expr.span)?;
+                let return_ty = self
+                    .function_return_types
+                    .get(&llvm_name)
+                    .cloned()
+                    .ok_or_else(|| {
+                        CodegenError::internal_function_signature_not_found(&llvm_name, expr.span)
+                    })?;
+                return_ty.ok_or_else(|| CodegenError::internal_call_as_value(callee, expr.span))
             }
             ExprKind::MemberAccess { .. } => Err(
                 CodegenError::internal_member_access_not_implemented(expr.span),
             ),
             ExprKind::ModuleCall {
                 module, function, ..
-            } => Err(CodegenError::internal_module_call_as_value(
-                module, function, expr.span,
-            )),
+            } => {
+                let mangle_prefix = self.resolve_module_alias(module, expr.span)?;
+                let mangled_name = mangle_name(&mangle_prefix, function);
+                let return_ty = self
+                    .function_return_types
+                    .get(&mangled_name)
+                    .cloned()
+                    .ok_or_else(|| {
+                        CodegenError::internal_function_signature_not_found(
+                            &mangled_name,
+                            expr.span,
+                        )
+                    })?;
+                return_ty.ok_or_else(|| {
+                    CodegenError::internal_module_call_as_value(module, function, expr.span)
+                })
+            }
         }
     }
 

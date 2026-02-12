@@ -356,22 +356,55 @@ impl SemanticError {
 
     /// Creates a type mismatch error for calling non-void function as statement.
     pub fn type_mismatch_non_void_fn_as_stmt(fn_name: &str, return_type: &str, span: Span) -> Self {
-        Self::new(
+        Self::new_with_help(
             SemanticErrorKind::TypeMismatch,
             format!(
                 "Function '{}' returns '{}', but only void functions can be called as statements",
                 fn_name, return_type
             ),
             span,
+            format!(
+                "receive the value in a variable, or discard it explicitly: `let _ = {}(...)`",
+                fn_name
+            ),
         )
     }
 
-    /// Creates a type mismatch error for using function call as a value.
-    pub fn type_mismatch_call_as_value(callee: &str, span: Span) -> Self {
+    /// Creates a type mismatch error for function call return type.
+    pub fn type_mismatch_call_return(
+        callee: &str,
+        actual_ty: &str,
+        expected_ty: &str,
+        span: Span,
+    ) -> Self {
         Self::new(
             SemanticErrorKind::TypeMismatch,
             format!(
-                "Function call '{}' cannot be used as a value (functions returning values not yet supported)",
+                "Type mismatch: function '{}' returns '{}', expected '{}'",
+                callee, actual_ty, expected_ty
+            ),
+            span,
+        )
+    }
+
+    /// Creates a type mismatch error for return expression type.
+    pub fn type_mismatch_return_value(actual_ty: &str, expected_ty: &str, span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::TypeMismatch,
+            format!(
+                "Type mismatch: return expression has type '{}', expected '{}'",
+                actual_ty, expected_ty
+            ),
+            span,
+        )
+    }
+
+    /// Creates a type mismatch error for using a void function call as a value.
+    pub fn void_function_call_as_value(callee: &str, span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::TypeMismatch,
+            format!(
+                "Function call '{}' returns 'void' and cannot be used as a value",
                 callee
             ),
             span,
@@ -407,6 +440,18 @@ impl SemanticError {
         )
     }
 
+    /// Creates a type mismatch error for using a void module call as a value.
+    pub fn void_module_call_as_value(module: &str, function: &str, span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::TypeMismatch,
+            format!(
+                "Module function call '{}.{}()' returns 'void' and cannot be used as a value",
+                module, function
+            ),
+            span,
+        )
+    }
+
     // =========================================================================
     // Argument errors
     // =========================================================================
@@ -416,18 +461,6 @@ impl SemanticError {
         Self::new(
             SemanticErrorKind::InvalidArgument,
             "println expects exactly 1 argument",
-            span,
-        )
-    }
-
-    /// Creates an error for using function call as println argument.
-    pub fn invalid_argument_call_not_supported(callee: &str, span: Span) -> Self {
-        Self::new(
-            SemanticErrorKind::InvalidArgument,
-            format!(
-                "Function call '{}' cannot be used as println argument (functions returning values not yet supported)",
-                callee
-            ),
             span,
         )
     }
@@ -455,6 +488,28 @@ impl SemanticError {
                 fn_name, expected, got
             ),
             span,
+        )
+    }
+
+    /// Creates an error for invalid function return type.
+    pub fn invalid_function_return_type(return_type: &str, span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::TypeMismatch,
+            format!(
+                "Unsupported function return type '{}'. Expected 'void', 'i32', 'i64', 'string', or 'bool'",
+                return_type
+            ),
+            span,
+        )
+    }
+
+    /// Creates an error for discard statements that do not discard a call result.
+    pub fn invalid_discard_target(span: Span) -> Self {
+        Self::new_with_help(
+            SemanticErrorKind::InvalidArgument,
+            "Discard statement must discard a function call result",
+            span,
+            "use `let _ = some_function(...)`",
         )
     }
 
@@ -689,6 +744,43 @@ impl SemanticError {
         )
     }
 
+    /// Creates an error for non-void function missing a guaranteed return.
+    pub fn missing_return_in_non_void_function(
+        fn_name: &str,
+        return_type: &str,
+        span: Span,
+    ) -> Self {
+        Self::new(
+            SemanticErrorKind::TypeMismatch,
+            format!(
+                "Function '{}' with return type '{}' must return a value on all code paths",
+                fn_name, return_type
+            ),
+            span,
+        )
+    }
+
+    /// Creates an error for `return` without a value in non-void function.
+    pub fn return_value_required(return_type: &str, span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::TypeMismatch,
+            format!(
+                "return statement requires a value of type '{}'",
+                return_type
+            ),
+            span,
+        )
+    }
+
+    /// Creates an error for `return expr` in a void function.
+    pub fn return_value_in_void_function(span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::TypeMismatch,
+            "void function cannot return a value",
+            span,
+        )
+    }
+
     // =========================================================================
     // Integer overflow
     // =========================================================================
@@ -777,6 +869,15 @@ impl SemanticError {
         )
     }
 
+    /// Creates an internal error for return analysis outside function context.
+    pub fn internal_return_outside_function(span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::InternalError,
+            "Internal error: return statement analyzed outside of function context. This is a compiler bug.",
+            span,
+        )
+    }
+
     // =========================================================================
     // Module errors
     // =========================================================================
@@ -788,23 +889,6 @@ impl SemanticError {
             "Module-qualified access (e.g., module.function) is not yet implemented",
             span,
             "only module function calls are supported: module.function()",
-        )
-    }
-
-    /// Creates a type mismatch error for module function call used as a value.
-    pub fn module_call_return_value_not_supported(
-        module: &str,
-        function: &str,
-        span: Span,
-    ) -> Self {
-        Self::new_with_help(
-            SemanticErrorKind::TypeMismatch,
-            format!(
-                "Module function call '{}.{}()' cannot be used as a value (return values from module functions are not yet supported)",
-                module, function
-            ),
-            span,
-            "call the module function as a statement instead",
         )
     }
 

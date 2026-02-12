@@ -831,6 +831,12 @@ fn test_module_call_non_void_function_as_stmt() {
         err.message(),
         "Function 'utils.get_value' returns 'i32', but only void functions can be called as statements"
     );
+    assert_eq!(
+        err.help(),
+        Some(
+            "receive the value in a variable, or discard it explicitly: `let _ = utils.get_value(...)`"
+        )
+    );
 }
 
 #[test]

@@ -163,6 +163,20 @@ fn test_no_newline_after_let() {
 }
 
 #[test]
+fn test_newline_after_return_keyword() {
+    let kinds = tokenize_kinds("return\nx");
+    assert_eq!(
+        kinds,
+        vec![
+            TokenKind::Return,
+            TokenKind::Newline,
+            TokenKind::Identifier("x".to_string()),
+            TokenKind::Eof
+        ]
+    );
+}
+
+#[test]
 fn test_newline_in_let_statement() {
     // Newline after variable value in let statement
     let kinds = tokenize_kinds("let x: i32 = 42\nprintln");

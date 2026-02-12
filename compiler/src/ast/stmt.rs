@@ -31,6 +31,18 @@ pub enum StmtKind {
         init: Expr,
     },
 
+    /// A return statement.
+    ///
+    /// `return` without a value is represented as `None`.
+    /// `return expr` is represented as `Some(expr)`.
+    Return(Option<Expr>),
+
+    /// Explicitly discards an expression result.
+    ///
+    /// This corresponds to `let _ = expr` and is used to acknowledge
+    /// intentionally ignored return values.
+    Discard(Expr),
+
     /// A conditional statement with optional `else` branch.
     ///
     /// The `else if` chain is represented as an `else_branch` containing

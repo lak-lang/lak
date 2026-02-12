@@ -15,8 +15,8 @@ This document tracks the implementation status of Lak language features as defin
 - [x] Line comments (`//`)
 - [x] Function return type annotation (`-> type`)
 - [x] `-> void` for no return value
-- [ ] Return statement for functions with return values
-- [ ] Optional trailing return for void functions
+- [x] Return statement for functions with return values
+- [x] Optional trailing return for void functions
 
 ---
 
@@ -176,8 +176,8 @@ This document tracks the implementation status of Lak language features as defin
 
 ### 5.2 Return Statement
 
-- [ ] `return expr` for non-void functions
-- [ ] `return` (bare) for early return in void functions
+- [x] `return expr` for non-void functions
+- [x] `return` (bare) for early return in void functions
 - [ ] Implicit return (last expression as return value)
 
 ### 5.3 Multiple Return Values
@@ -191,8 +191,8 @@ This document tracks the implementation status of Lak language features as defin
 - [x] Basic function call `func()`
 - [x] User-defined function calls
 - [x] Function call with arguments `func(arg1, arg2)`
-- [ ] Discard return value with `_`
-- [ ] Error on ignored return value
+- [x] Discard return value with `_`
+- [x] Error on ignored return value
 
 ### 5.5 Built-in Functions
 

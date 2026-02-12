@@ -425,6 +425,62 @@ impl CodegenError {
         )
     }
 
+    /// Creates an internal error for function call returning void unexpectedly.
+    pub fn internal_call_returned_void(callee: &str, span: Span) -> Self {
+        Self::new(
+            CodegenErrorKind::InternalError,
+            format!(
+                "Internal error: function call '{}' returned void in a value context. \
+                 Semantic analysis should have caught this. This is a compiler bug.",
+                callee
+            ),
+            span,
+        )
+    }
+
+    /// Creates an internal error for unsupported function return type.
+    pub fn internal_unsupported_function_return_type(return_type: &str, span: Span) -> Self {
+        Self::new(
+            CodegenErrorKind::InternalError,
+            format!(
+                "Internal error: unsupported function return type '{}' in codegen. \
+                 Semantic analysis should have rejected this. This is a compiler bug.",
+                return_type
+            ),
+            span,
+        )
+    }
+
+    /// Creates an internal error for returning a value from a void function.
+    pub fn internal_return_value_in_void_function(span: Span) -> Self {
+        Self::new(
+            CodegenErrorKind::InternalError,
+            "Internal error: return value in void function reached codegen. \
+             Semantic analysis should have rejected this. This is a compiler bug.",
+            span,
+        )
+    }
+
+    /// Creates an internal error for missing return value in non-void function.
+    pub fn internal_missing_return_value(span: Span) -> Self {
+        Self::new(
+            CodegenErrorKind::InternalError,
+            "Internal error: missing return value in non-void function reached codegen. \
+             Semantic analysis should have rejected this. This is a compiler bug.",
+            span,
+        )
+    }
+
+    /// Creates an internal error for return with value in main function.
+    pub fn internal_main_return_with_value(span: Span) -> Self {
+        Self::new(
+            CodegenErrorKind::InternalError,
+            "Internal error: main return with value reached codegen. \
+             Semantic analysis should have rejected this. This is a compiler bug.",
+            span,
+        )
+    }
+
     /// Creates an internal error for duplicate variable.
     pub fn internal_duplicate_variable(name: &str, span: Span) -> Self {
         Self::new(
@@ -459,19 +515,6 @@ impl CodegenError {
                 "Internal error: println expects 1 argument, but got {} in codegen. \
                  Semantic analysis should have caught this. This is a compiler bug.",
                 count
-            ),
-            span,
-        )
-    }
-
-    /// Creates an internal error for println with function call argument.
-    pub fn internal_println_call_arg(callee: &str, span: Span) -> Self {
-        Self::new(
-            CodegenErrorKind::InternalError,
-            format!(
-                "Internal error: function call '{}()' cannot be used as println argument. \
-                 Semantic analysis should have caught this. This is a compiler bug.",
-                callee
             ),
             span,
         )
@@ -889,6 +932,17 @@ impl CodegenError {
         )
     }
 
+    /// Creates an internal error for non-void function that falls through.
+    pub fn internal_missing_return_in_non_void_function(fn_name: &str, return_type: &str) -> Self {
+        Self::without_span(
+            CodegenErrorKind::InternalError,
+            format!(
+                "Internal error: function '{}' with return type '{}' reached end without return. Semantic analysis should have rejected this. This is a compiler bug.",
+                fn_name, return_type
+            ),
+        )
+    }
+
     /// Creates an internal error for failed return build in main.
     pub fn internal_main_return_build_failed(error: &str) -> Self {
         Self::without_span(
@@ -916,7 +970,7 @@ impl CodegenError {
             CodegenErrorKind::InternalError,
             format!(
                 "Internal error: module call '{}.{}()' used as value in codegen. \
-                 Return values from module functions are not yet supported. This is a compiler bug.",
+                 Semantic analysis should have caught this. This is a compiler bug.",
                 module, function
             ),
             span,

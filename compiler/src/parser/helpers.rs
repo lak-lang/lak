@@ -31,6 +31,7 @@ impl Parser {
             TokenKind::Let => "'let' keyword".to_string(),
             TokenKind::If => "'if' keyword".to_string(),
             TokenKind::Else => "'else' keyword".to_string(),
+            TokenKind::Return => "'return' keyword".to_string(),
             TokenKind::Colon => "':'".to_string(),
             TokenKind::Equals => "'='".to_string(),
             TokenKind::IntLiteral(n) => format!("integer '{}'", n),

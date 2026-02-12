@@ -363,3 +363,172 @@ fn main() -> void {
     .unwrap();
     assert_eq!(output, "42\n-100\n200\n42\n");
 }
+
+#[test]
+fn test_non_void_function_return_i32() {
+    let output = compile_and_run(
+        r#"
+fn add(a: i32, b: i32) -> i32 {
+    return a + b
+}
+
+fn main() -> void {
+    let result: i32 = add(2, 3)
+    println(result)
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "5\n");
+}
+
+#[test]
+fn test_non_void_function_return_bool() {
+    let output = compile_and_run(
+        r#"
+fn is_positive(x: i32) -> bool {
+    if x > 0 {
+        return true
+    } else {
+        return false
+    }
+}
+
+fn main() -> void {
+    let ok: bool = is_positive(10)
+    println(ok)
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "true\n");
+}
+
+#[test]
+fn test_non_void_function_early_return() {
+    let output = compile_and_run(
+        r#"
+fn abs_or_inc(x: i32) -> i32 {
+    if x < 0 {
+        return -x
+    }
+    return x + 1
+}
+
+fn main() -> void {
+    println(abs_or_inc(-3))
+    println(abs_or_inc(4))
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "3\n5\n");
+}
+
+#[test]
+fn test_non_void_function_return_i64() {
+    let output = compile_and_run(
+        r#"
+fn add_big(a: i64, b: i64) -> i64 {
+    return a + b
+}
+
+fn main() -> void {
+    let result: i64 = add_big(9000000000, 10)
+    println(result)
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "9000000010\n");
+}
+
+#[test]
+fn test_non_void_function_return_string() {
+    let output = compile_and_run(
+        r#"
+fn greet() -> string {
+    return "hello from return"
+}
+
+fn main() -> void {
+    let msg: string = greet()
+    println(msg)
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "hello from return\n");
+}
+
+#[test]
+fn test_println_with_function_call_result() {
+    let output = compile_and_run(
+        r#"
+fn add(a: i32, b: i32) -> i32 {
+    return a + b
+}
+
+fn main() -> void {
+    println(add(2, 3))
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "5\n");
+}
+
+#[test]
+fn test_discard_return_value_with_underscore() {
+    let output = compile_and_run(
+        r#"
+fn side_effect() -> i32 {
+    println("from side effect")
+    return 1
+}
+
+fn main() -> void {
+    let _ = side_effect()
+    println("done")
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "from side effect\ndone\n");
+}
+
+#[test]
+fn test_early_bare_return_in_main() {
+    let output = compile_and_run(
+        r#"
+fn main() -> void {
+    println("before")
+    return
+    println("after")
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "before\n");
+}
+
+#[test]
+fn test_early_bare_return_in_void_function() {
+    let output = compile_and_run(
+        r#"
+fn maybe_print(flag: bool) -> void {
+    if !flag {
+        return
+    }
+    println("hit")
+}
+
+fn main() -> void {
+    maybe_print(false)
+    maybe_print(true)
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "hit\n");
+}

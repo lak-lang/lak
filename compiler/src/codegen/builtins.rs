@@ -243,7 +243,16 @@ impl<'ctx> Codegen<'ctx> {
                     .ok_or_else(|| CodegenError::internal_variable_not_found(name, expr.span))
             }
             ExprKind::Call { callee, .. } => {
-                Err(CodegenError::internal_println_call_arg(callee, expr.span))
+                let (llvm_name, _) = self.resolve_user_function_target(callee, expr.span)?;
+                let return_ty = self
+                    .function_return_types
+                    .get(&llvm_name)
+                    .cloned()
+                    .ok_or_else(|| {
+                        CodegenError::internal_function_signature_not_found(&llvm_name, expr.span)
+                    })?;
+                return_ty
+                    .ok_or_else(|| CodegenError::internal_call_returned_void(callee, expr.span))
             }
             ExprKind::BinaryOp { left, op, right } => {
                 if op.is_comparison() || op.is_logical() {
@@ -300,9 +309,23 @@ impl<'ctx> Codegen<'ctx> {
                 module,
                 function,
                 args: _,
-            } => Err(CodegenError::internal_module_call_as_value(
-                module, function, expr.span,
-            )),
+            } => {
+                let mangle_prefix = self.resolve_module_alias(module, expr.span)?;
+                let mangled_name = super::mangle_name(&mangle_prefix, function);
+                let return_ty = self
+                    .function_return_types
+                    .get(&mangled_name)
+                    .cloned()
+                    .ok_or_else(|| {
+                        CodegenError::internal_function_signature_not_found(
+                            &mangled_name,
+                            expr.span,
+                        )
+                    })?;
+                return_ty.ok_or_else(|| {
+                    CodegenError::internal_module_call_as_value(module, function, expr.span)
+                })
+            }
         }
     }
 
@@ -317,10 +340,10 @@ impl<'ctx> Codegen<'ctx> {
     /// which determines the type from the expression kind or variable declaration.
     ///
     /// Type dispatch:
-    /// - `string` → `lak_println` (string literals or string variables)
-    /// - `i32` → `lak_println_i32` (i32 values, including adapted literal mixes)
-    /// - `i64` → `lak_println_i64` (i64 values and standalone integer literals)
-    /// - `bool` → `lak_println_bool` (boolean literals or bool variables)
+    /// - `string` → `lak_println` (any expression producing `string`)
+    /// - `i32` → `lak_println_i32` (any expression producing `i32`)
+    /// - `i64` → `lak_println_i64` (any expression producing `i64`)
+    /// - `bool` → `lak_println_bool` (any expression producing `bool`)
     ///
     /// # Validation responsibilities
     ///
@@ -338,7 +361,7 @@ impl<'ctx> Codegen<'ctx> {
     ///
     /// Returns an internal error if:
     /// - Argument count is not 1 (semantic analysis should have caught this)
-    /// - Expression type cannot be determined (e.g., function calls, undefined variables)
+    /// - Expression type cannot be determined (e.g., unsupported expression, undefined variable)
     pub(super) fn generate_println(
         &mut self,
         args: &[Expr],
@@ -382,12 +405,14 @@ impl<'ctx> Codegen<'ctx> {
                     arg.span,
                 )?
             }
-            ExprKind::IfExpr { .. } => match self.generate_expr_value(arg, &Type::String)? {
-                BasicValueEnum::PointerValue(v) => v,
-                _ => {
-                    return Err(CodegenError::internal_println_invalid_string_arg(arg.span));
+            ExprKind::IfExpr { .. } | ExprKind::Call { .. } | ExprKind::ModuleCall { .. } => {
+                match self.generate_expr_value(arg, &Type::String)? {
+                    BasicValueEnum::PointerValue(v) => v,
+                    _ => {
+                        return Err(CodegenError::internal_println_invalid_string_arg(arg.span));
+                    }
                 }
-            },
+            }
             _ => {
                 return Err(CodegenError::internal_println_invalid_string_arg(arg.span));
             }
@@ -437,8 +462,12 @@ impl<'ctx> Codegen<'ctx> {
                     arg.span,
                 )?
             }
-            ExprKind::BinaryOp { .. } | ExprKind::UnaryOp { .. } | ExprKind::IfExpr { .. } => {
-                // For binary/unary operations, generate the expression value
+            ExprKind::BinaryOp { .. }
+            | ExprKind::UnaryOp { .. }
+            | ExprKind::IfExpr { .. }
+            | ExprKind::Call { .. }
+            | ExprKind::ModuleCall { .. } => {
+                // For expression values, delegate to generate_expr_value.
                 match self.generate_expr_value(arg, &Type::I32)? {
                     BasicValueEnum::IntValue(v) => v,
                     _ => {
@@ -502,8 +531,12 @@ impl<'ctx> Codegen<'ctx> {
                     arg.span,
                 )?
             }
-            ExprKind::BinaryOp { .. } | ExprKind::UnaryOp { .. } | ExprKind::IfExpr { .. } => {
-                // For binary/unary operations, generate the expression value
+            ExprKind::BinaryOp { .. }
+            | ExprKind::UnaryOp { .. }
+            | ExprKind::IfExpr { .. }
+            | ExprKind::Call { .. }
+            | ExprKind::ModuleCall { .. } => {
+                // For expression values, delegate to generate_expr_value.
                 match self.generate_expr_value(arg, &Type::Bool)? {
                     BasicValueEnum::IntValue(v) => v,
                     _ => {
@@ -564,8 +597,12 @@ impl<'ctx> Codegen<'ctx> {
                     arg.span,
                 )?
             }
-            ExprKind::BinaryOp { .. } | ExprKind::UnaryOp { .. } | ExprKind::IfExpr { .. } => {
-                // For binary/unary operations, generate the expression value
+            ExprKind::BinaryOp { .. }
+            | ExprKind::UnaryOp { .. }
+            | ExprKind::IfExpr { .. }
+            | ExprKind::Call { .. }
+            | ExprKind::ModuleCall { .. } => {
+                // For expression values, delegate to generate_expr_value.
                 match self.generate_expr_value(arg, &Type::I64)? {
                     BasicValueEnum::IntValue(v) => v,
                     _ => {

@@ -631,7 +631,7 @@ fn test_get_expr_type_function_call() {
     assert_eq!(err.kind(), CodegenErrorKind::InternalError);
     assert_eq!(
         err.message(),
-        "Internal error: function call 'some_function()' cannot be used as println argument. Semantic analysis should have caught this. This is a compiler bug."
+        "Internal error: undefined function 'some_function' in codegen. Semantic analysis should have caught this. This is a compiler bug."
     );
 }
 

@@ -219,6 +219,55 @@ fn test_error_let_missing_initializer() {
     assert_eq!(err.message(), "Unexpected token: '}'");
 }
 
+#[test]
+fn test_discard_stmt_call() {
+    let program = parse("fn main() -> void { let _ = f() }").unwrap();
+    match &program.functions[0].body[0].kind {
+        StmtKind::Discard(expr) => match &expr.kind {
+            ExprKind::Call { callee, .. } => assert_eq!(callee, "f"),
+            _ => panic!("Expected function call"),
+        },
+        _ => panic!("Expected Discard statement"),
+    }
+}
+
+#[test]
+fn test_let_underscore_with_type_still_parses_as_let() {
+    let program = parse("fn main() -> void { let _: i32 = 1 }").unwrap();
+    match &program.functions[0].body[0].kind {
+        StmtKind::Let { name, ty, init } => {
+            assert_eq!(name, "_");
+            assert_eq!(*ty, Type::I32);
+            assert!(matches!(init.kind, ExprKind::IntLiteral(1)));
+        }
+        _ => panic!("Expected Let statement"),
+    }
+}
+
+// ===================
+// Return statement parsing
+// ===================
+
+#[test]
+fn test_return_stmt_with_value() {
+    let program = parse("fn main() -> void { return 42 }").unwrap();
+    match &program.functions[0].body[0].kind {
+        StmtKind::Return(Some(expr)) => {
+            assert!(matches!(expr.kind, ExprKind::IntLiteral(42)));
+        }
+        _ => panic!("Expected return with value"),
+    }
+}
+
+#[test]
+fn test_return_stmt_bare() {
+    let program = parse("fn main() -> void { return }").unwrap();
+    assert!(matches!(
+        program.functions[0].body[0].kind,
+        StmtKind::Return(None)
+    ));
+}
+
 // ===================
 // If statement parsing
 // ===================
