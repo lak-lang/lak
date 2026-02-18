@@ -10,6 +10,7 @@ fn test_codegen_internal_error_uses_source_function_name() {
     let result = compile_error_with_kind(
         r#"fn foo() -> i64 {
     while true {
+        break
         return 1
     }
 }

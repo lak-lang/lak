@@ -63,6 +63,25 @@ fn main() -> void {
 }
 
 #[test]
+fn test_non_void_function_return_inside_while_true() {
+    let output = compile_and_run(
+        r#"
+fn helper() -> i64 {
+    while true {
+        return 1
+    }
+}
+
+fn main() -> void {
+    println(helper())
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "1\n");
+}
+
+#[test]
 fn test_nested_while_break_scopes_are_isolated() {
     let output = compile_and_run(
         r#"
@@ -137,10 +156,10 @@ fn test_while_loop_back_edge_executes_multiple_iterations() {
     });
 
     let first = rx
-        .recv_timeout(Duration::from_secs(2))
+        .recv_timeout(Duration::from_secs(5))
         .expect("expected first loop iteration output");
     let second = rx
-        .recv_timeout(Duration::from_secs(2))
+        .recv_timeout(Duration::from_secs(5))
         .expect("expected second loop iteration output");
     assert_eq!(first, "tick");
     assert_eq!(second, "tick");

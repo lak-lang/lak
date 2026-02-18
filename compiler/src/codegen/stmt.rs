@@ -7,7 +7,7 @@
 use super::Codegen;
 use super::binding::VarBinding;
 use super::error::CodegenError;
-use crate::ast::{Expr, Stmt, StmtKind, Type};
+use crate::ast::{Expr, ExprKind, Stmt, StmtKind, Type};
 use crate::token::Span;
 use inkwell::values::BasicValueEnum;
 
@@ -187,6 +187,9 @@ impl<'ctx> Codegen<'ctx> {
         body: &[Stmt],
         span: Span,
     ) -> Result<(), CodegenError> {
+        let is_infinite_loop = matches!(condition.kind, ExprKind::BoolLiteral(true));
+        let loop_may_break = Self::block_may_break_current_loop(body, 0);
+
         let parent_fn = self
             .builder
             .get_insert_block()
@@ -250,6 +253,14 @@ impl<'ctx> Codegen<'ctx> {
         self.exit_variable_scope(span)?;
         body_result?;
 
+        if is_infinite_loop && !loop_may_break {
+            self.builder.position_at_end(end_block);
+            self.builder
+                .build_unreachable()
+                .map_err(|e| CodegenError::internal_unreachable_failed(&e.to_string(), span))?;
+            return Ok(());
+        }
+
         self.builder.position_at_end(end_block);
         Ok(())
     }
@@ -278,6 +289,40 @@ impl<'ctx> Codegen<'ctx> {
             .build_unconditional_branch(continue_block)
             .map_err(|e| CodegenError::internal_branch_failed(&e.to_string(), span))?;
         Ok(())
+    }
+
+    fn block_may_break_current_loop(stmts: &[Stmt], loop_depth: usize) -> bool {
+        stmts
+            .iter()
+            .any(|stmt| Self::stmt_may_break_current_loop(stmt, loop_depth))
+    }
+
+    fn stmt_may_break_current_loop(stmt: &Stmt, loop_depth: usize) -> bool {
+        match &stmt.kind {
+            StmtKind::Break => loop_depth == 0,
+            StmtKind::If {
+                condition,
+                then_branch,
+                else_branch,
+            } => match &condition.kind {
+                ExprKind::BoolLiteral(true) => {
+                    Self::block_may_break_current_loop(then_branch, loop_depth)
+                }
+                ExprKind::BoolLiteral(false) => else_branch.as_deref().is_some_and(|else_stmts| {
+                    Self::block_may_break_current_loop(else_stmts, loop_depth)
+                }),
+                _ => {
+                    Self::block_may_break_current_loop(then_branch, loop_depth)
+                        || else_branch.as_deref().is_some_and(|else_stmts| {
+                            Self::block_may_break_current_loop(else_stmts, loop_depth)
+                        })
+                }
+            },
+            StmtKind::While { body, .. } => {
+                Self::block_may_break_current_loop(body, loop_depth + 1)
+            }
+            _ => false,
+        }
     }
 
     fn generate_discard(&mut self, expr: &Expr, span: Span) -> Result<(), CodegenError> {

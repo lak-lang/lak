@@ -104,7 +104,7 @@ fn test_compile_while_with_break_and_continue() {
 }
 
 #[test]
-fn test_compile_missing_return_error_uses_source_function_name() {
+fn test_compile_non_void_function_with_while_true_return_compiles() {
     let context = Context::create();
     let mut codegen = Codegen::new(&context, "test");
 
@@ -144,9 +144,43 @@ fn test_compile_missing_return_error_uses_source_function_name() {
         ],
     };
 
+    codegen
+        .compile(&program)
+        .expect("`while true` with return should compile for non-void functions");
+}
+
+#[test]
+fn test_compile_missing_return_error_uses_source_function_name() {
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "test");
+
+    let program = Program {
+        imports: vec![],
+        functions: vec![
+            FnDef {
+                visibility: Visibility::Private,
+                name: "foo".to_string(),
+                params: vec![],
+                return_type: "i64".to_string(),
+                return_type_span: dummy_span(),
+                body: vec![],
+                span: dummy_span(),
+            },
+            FnDef {
+                visibility: Visibility::Private,
+                name: "main".to_string(),
+                params: vec![],
+                return_type: "void".to_string(),
+                return_type_span: dummy_span(),
+                body: vec![],
+                span: dummy_span(),
+            },
+        ],
+    };
+
     let err = codegen
         .compile(&program)
-        .expect_err("non-void fallthrough should produce internal error");
+        .expect_err("non-void function without return should produce internal error");
     assert_eq!(err.kind(), CodegenErrorKind::InternalError);
     assert_eq!(
         err.message(),
