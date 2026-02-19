@@ -1274,3 +1274,251 @@ fn test_non_void_function_with_while_false_still_requires_return() {
         "Function 'helper' with return type 'i64' must return a value on all code paths"
     );
 }
+
+#[test]
+fn test_non_void_function_with_if_true_and_return_is_valid() {
+    let program = Program {
+        imports: vec![],
+        functions: vec![
+            FnDef {
+                visibility: Visibility::Private,
+                name: "helper".to_string(),
+                params: vec![],
+                return_type: "i64".to_string(),
+                return_type_span: span_at(1, 16),
+                body: vec![Stmt::new(
+                    StmtKind::If {
+                        condition: Expr::new(ExprKind::BoolLiteral(true), span_at(2, 8)),
+                        then_branch: vec![Stmt::new(
+                            StmtKind::Return(Some(Expr::new(
+                                ExprKind::IntLiteral(1),
+                                span_at(3, 16),
+                            ))),
+                            span_at(3, 9),
+                        )],
+                        else_branch: None,
+                    },
+                    span_at(2, 5),
+                )],
+                span: span_at(1, 1),
+            },
+            FnDef {
+                visibility: Visibility::Private,
+                name: "main".to_string(),
+                params: vec![],
+                return_type: "void".to_string(),
+                return_type_span: span_at(6, 14),
+                body: vec![],
+                span: span_at(6, 1),
+            },
+        ],
+    };
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze(&program);
+    assert!(result.is_ok());
+}
+
+#[test]
+fn test_non_void_function_with_if_not_false_and_return_is_valid() {
+    let program = Program {
+        imports: vec![],
+        functions: vec![
+            FnDef {
+                visibility: Visibility::Private,
+                name: "helper".to_string(),
+                params: vec![],
+                return_type: "i64".to_string(),
+                return_type_span: span_at(1, 16),
+                body: vec![Stmt::new(
+                    StmtKind::If {
+                        condition: Expr::new(
+                            ExprKind::UnaryOp {
+                                op: UnaryOperator::Not,
+                                operand: Box::new(Expr::new(
+                                    ExprKind::BoolLiteral(false),
+                                    span_at(2, 9),
+                                )),
+                            },
+                            span_at(2, 8),
+                        ),
+                        then_branch: vec![Stmt::new(
+                            StmtKind::Return(Some(Expr::new(
+                                ExprKind::IntLiteral(1),
+                                span_at(3, 16),
+                            ))),
+                            span_at(3, 9),
+                        )],
+                        else_branch: None,
+                    },
+                    span_at(2, 5),
+                )],
+                span: span_at(1, 1),
+            },
+            FnDef {
+                visibility: Visibility::Private,
+                name: "main".to_string(),
+                params: vec![],
+                return_type: "void".to_string(),
+                return_type_span: span_at(6, 14),
+                body: vec![],
+                span: span_at(6, 1),
+            },
+        ],
+    };
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze(&program);
+    assert!(result.is_ok());
+}
+
+#[test]
+fn test_non_void_function_with_if_true_and_true_and_return_is_valid() {
+    let program = Program {
+        imports: vec![],
+        functions: vec![
+            FnDef {
+                visibility: Visibility::Private,
+                name: "helper".to_string(),
+                params: vec![],
+                return_type: "i64".to_string(),
+                return_type_span: span_at(1, 16),
+                body: vec![Stmt::new(
+                    StmtKind::If {
+                        condition: Expr::new(
+                            ExprKind::BinaryOp {
+                                left: Box::new(Expr::new(
+                                    ExprKind::BoolLiteral(true),
+                                    span_at(2, 8),
+                                )),
+                                op: BinaryOperator::LogicalAnd,
+                                right: Box::new(Expr::new(
+                                    ExprKind::BoolLiteral(true),
+                                    span_at(2, 16),
+                                )),
+                            },
+                            span_at(2, 8),
+                        ),
+                        then_branch: vec![Stmt::new(
+                            StmtKind::Return(Some(Expr::new(
+                                ExprKind::IntLiteral(1),
+                                span_at(3, 16),
+                            ))),
+                            span_at(3, 9),
+                        )],
+                        else_branch: None,
+                    },
+                    span_at(2, 5),
+                )],
+                span: span_at(1, 1),
+            },
+            FnDef {
+                visibility: Visibility::Private,
+                name: "main".to_string(),
+                params: vec![],
+                return_type: "void".to_string(),
+                return_type_span: span_at(6, 14),
+                body: vec![],
+                span: span_at(6, 1),
+            },
+        ],
+    };
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze(&program);
+    assert!(result.is_ok());
+}
+
+#[test]
+fn test_non_void_function_with_if_false_and_no_else_still_requires_return() {
+    let program = Program {
+        imports: vec![],
+        functions: vec![
+            FnDef {
+                visibility: Visibility::Private,
+                name: "helper".to_string(),
+                params: vec![],
+                return_type: "i64".to_string(),
+                return_type_span: span_at(1, 16),
+                body: vec![Stmt::new(
+                    StmtKind::If {
+                        condition: Expr::new(ExprKind::BoolLiteral(false), span_at(2, 8)),
+                        then_branch: vec![Stmt::new(
+                            StmtKind::Return(Some(Expr::new(
+                                ExprKind::IntLiteral(1),
+                                span_at(3, 16),
+                            ))),
+                            span_at(3, 9),
+                        )],
+                        else_branch: None,
+                    },
+                    span_at(2, 5),
+                )],
+                span: span_at(1, 1),
+            },
+            FnDef {
+                visibility: Visibility::Private,
+                name: "main".to_string(),
+                params: vec![],
+                return_type: "void".to_string(),
+                return_type_span: span_at(6, 14),
+                body: vec![],
+                span: span_at(6, 1),
+            },
+        ],
+    };
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze(&program);
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert_eq!(err.kind(), SemanticErrorKind::TypeMismatch);
+    assert_eq!(
+        err.message(),
+        "Function 'helper' with return type 'i64' must return a value on all code paths"
+    );
+}
+
+#[test]
+fn test_non_void_function_with_if_false_and_else_return_is_valid() {
+    let program = Program {
+        imports: vec![],
+        functions: vec![
+            FnDef {
+                visibility: Visibility::Private,
+                name: "helper".to_string(),
+                params: vec![],
+                return_type: "i64".to_string(),
+                return_type_span: span_at(1, 16),
+                body: vec![Stmt::new(
+                    StmtKind::If {
+                        condition: Expr::new(ExprKind::BoolLiteral(false), span_at(2, 8)),
+                        then_branch: vec![],
+                        else_branch: Some(vec![Stmt::new(
+                            StmtKind::Return(Some(Expr::new(
+                                ExprKind::IntLiteral(1),
+                                span_at(5, 16),
+                            ))),
+                            span_at(5, 9),
+                        )]),
+                    },
+                    span_at(2, 5),
+                )],
+                span: span_at(1, 1),
+            },
+            FnDef {
+                visibility: Visibility::Private,
+                name: "main".to_string(),
+                params: vec![],
+                return_type: "void".to_string(),
+                return_type_span: span_at(8, 14),
+                body: vec![],
+                span: span_at(8, 1),
+            },
+        ],
+    };
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze(&program);
+    assert!(result.is_ok());
+}

@@ -296,7 +296,37 @@ impl SemanticAnalyzer {
             false
         };
 
-        Ok(then_returns && else_returns)
+        let always_returns = match Self::const_bool_expr_value(condition) {
+            Some(true) => then_returns,
+            Some(false) => else_returns,
+            _ => then_returns && else_returns,
+        };
+
+        Ok(always_returns)
+    }
+
+    fn const_bool_expr_value(expr: &Expr) -> Option<bool> {
+        match &expr.kind {
+            ExprKind::BoolLiteral(value) => Some(*value),
+            ExprKind::UnaryOp { op, operand } => match op {
+                UnaryOperator::Not => Self::const_bool_expr_value(operand).map(|value| !value),
+                UnaryOperator::Neg => None,
+            },
+            ExprKind::BinaryOp { left, op, right } => match op {
+                BinaryOperator::LogicalAnd => {
+                    let left = Self::const_bool_expr_value(left)?;
+                    let right = Self::const_bool_expr_value(right)?;
+                    Some(left && right)
+                }
+                BinaryOperator::LogicalOr => {
+                    let left = Self::const_bool_expr_value(left)?;
+                    let right = Self::const_bool_expr_value(right)?;
+                    Some(left || right)
+                }
+                _ => None,
+            },
+            _ => None,
+        }
     }
 
     fn analyze_while(&mut self, condition: &Expr, body: &[Stmt]) -> Result<bool, SemanticError> {

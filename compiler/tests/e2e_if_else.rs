@@ -109,3 +109,62 @@ fn main() -> void {
     .unwrap();
     assert_eq!(output, "2\n1\n");
 }
+
+#[test]
+fn test_non_void_function_return_inside_if_true() {
+    let output = compile_and_run(
+        r#"
+fn helper() -> i64 {
+    if true {
+        return 1
+    }
+}
+
+fn main() -> void {
+    println(helper())
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "1\n");
+}
+
+#[test]
+fn test_non_void_function_return_inside_if_not_false() {
+    let output = compile_and_run(
+        r#"
+fn helper() -> i64 {
+    if !false {
+        return 1
+    }
+}
+
+fn main() -> void {
+    println(helper())
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "1\n");
+}
+
+#[test]
+fn test_non_void_function_return_inside_if_false_else() {
+    let output = compile_and_run(
+        r#"
+fn helper() -> i64 {
+    if false {
+        return 0
+    } else {
+        return 1
+    }
+}
+
+fn main() -> void {
+    println(helper())
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "1\n");
+}

@@ -7,7 +7,7 @@
 use super::Codegen;
 use super::binding::VarBinding;
 use super::error::CodegenError;
-use crate::ast::{Expr, ExprKind, Stmt, StmtKind, Type};
+use crate::ast::{BinaryOperator, Expr, ExprKind, Stmt, StmtKind, Type, UnaryOperator};
 use crate::token::Span;
 use inkwell::values::BasicValueEnum;
 
@@ -85,6 +85,30 @@ impl<'ctx> Codegen<'ctx> {
         else_branch: Option<&[Stmt]>,
         span: Span,
     ) -> Result<(), CodegenError> {
+        if let Some(condition_is_true) = Self::const_bool_expr_value(condition) {
+            let selected_branch = if condition_is_true {
+                Some(then_branch)
+            } else {
+                else_branch
+            };
+            if let Some(stmts) = selected_branch {
+                self.enter_variable_scope();
+                for stmt in stmts {
+                    let has_terminator = self
+                        .builder
+                        .get_insert_block()
+                        .and_then(|bb| bb.get_terminator())
+                        .is_some();
+                    if has_terminator {
+                        break;
+                    }
+                    self.generate_stmt(stmt)?;
+                }
+                self.exit_variable_scope(span)?;
+            }
+            return Ok(());
+        }
+
         let parent_fn = self
             .builder
             .get_insert_block()
@@ -304,11 +328,9 @@ impl<'ctx> Codegen<'ctx> {
                 condition,
                 then_branch,
                 else_branch,
-            } => match &condition.kind {
-                ExprKind::BoolLiteral(true) => {
-                    Self::block_may_break_current_loop(then_branch, loop_depth)
-                }
-                ExprKind::BoolLiteral(false) => else_branch.as_deref().is_some_and(|else_stmts| {
+            } => match Self::const_bool_expr_value(condition) {
+                Some(true) => Self::block_may_break_current_loop(then_branch, loop_depth),
+                Some(false) => else_branch.as_deref().is_some_and(|else_stmts| {
                     Self::block_may_break_current_loop(else_stmts, loop_depth)
                 }),
                 _ => {
@@ -322,6 +344,30 @@ impl<'ctx> Codegen<'ctx> {
                 Self::block_may_break_current_loop(body, loop_depth + 1)
             }
             _ => false,
+        }
+    }
+
+    fn const_bool_expr_value(expr: &Expr) -> Option<bool> {
+        match &expr.kind {
+            ExprKind::BoolLiteral(value) => Some(*value),
+            ExprKind::UnaryOp { op, operand } => match op {
+                UnaryOperator::Not => Self::const_bool_expr_value(operand).map(|value| !value),
+                UnaryOperator::Neg => None,
+            },
+            ExprKind::BinaryOp { left, op, right } => match op {
+                BinaryOperator::LogicalAnd => {
+                    let left = Self::const_bool_expr_value(left)?;
+                    let right = Self::const_bool_expr_value(right)?;
+                    Some(left && right)
+                }
+                BinaryOperator::LogicalOr => {
+                    let left = Self::const_bool_expr_value(left)?;
+                    let right = Self::const_bool_expr_value(right)?;
+                    Some(left || right)
+                }
+                _ => None,
+            },
+            _ => None,
         }
     }
 

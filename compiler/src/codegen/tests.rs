@@ -2,7 +2,8 @@
 
 use super::*;
 use crate::ast::{
-    Expr, ExprKind, FnDef, FnParam, Program, Stmt, StmtKind, Type, UnaryOperator, Visibility,
+    BinaryOperator, Expr, ExprKind, FnDef, FnParam, Program, Stmt, StmtKind, Type, UnaryOperator,
+    Visibility,
 };
 use crate::resolver::ResolvedModule;
 use crate::token::Span;
@@ -147,6 +148,216 @@ fn test_compile_non_void_function_with_while_true_return_compiles() {
     codegen
         .compile(&program)
         .expect("`while true` with return should compile for non-void functions");
+}
+
+#[test]
+fn test_compile_non_void_function_with_if_true_return_compiles() {
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "test");
+
+    let program = Program {
+        imports: vec![],
+        functions: vec![
+            FnDef {
+                visibility: Visibility::Private,
+                name: "foo".to_string(),
+                params: vec![],
+                return_type: "i64".to_string(),
+                return_type_span: dummy_span(),
+                body: vec![Stmt::new(
+                    StmtKind::If {
+                        condition: Expr::new(ExprKind::BoolLiteral(true), dummy_span()),
+                        then_branch: vec![Stmt::new(
+                            StmtKind::Return(Some(Expr::new(
+                                ExprKind::IntLiteral(1),
+                                dummy_span(),
+                            ))),
+                            dummy_span(),
+                        )],
+                        else_branch: None,
+                    },
+                    dummy_span(),
+                )],
+                span: dummy_span(),
+            },
+            FnDef {
+                visibility: Visibility::Private,
+                name: "main".to_string(),
+                params: vec![],
+                return_type: "void".to_string(),
+                return_type_span: dummy_span(),
+                body: vec![],
+                span: dummy_span(),
+            },
+        ],
+    };
+
+    codegen
+        .compile(&program)
+        .expect("`if true` with return should compile for non-void functions");
+}
+
+#[test]
+fn test_compile_non_void_function_with_if_not_false_return_compiles() {
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "test");
+
+    let program = Program {
+        imports: vec![],
+        functions: vec![
+            FnDef {
+                visibility: Visibility::Private,
+                name: "foo".to_string(),
+                params: vec![],
+                return_type: "i64".to_string(),
+                return_type_span: dummy_span(),
+                body: vec![Stmt::new(
+                    StmtKind::If {
+                        condition: Expr::new(
+                            ExprKind::UnaryOp {
+                                op: UnaryOperator::Not,
+                                operand: Box::new(Expr::new(
+                                    ExprKind::BoolLiteral(false),
+                                    dummy_span(),
+                                )),
+                            },
+                            dummy_span(),
+                        ),
+                        then_branch: vec![Stmt::new(
+                            StmtKind::Return(Some(Expr::new(
+                                ExprKind::IntLiteral(1),
+                                dummy_span(),
+                            ))),
+                            dummy_span(),
+                        )],
+                        else_branch: None,
+                    },
+                    dummy_span(),
+                )],
+                span: dummy_span(),
+            },
+            FnDef {
+                visibility: Visibility::Private,
+                name: "main".to_string(),
+                params: vec![],
+                return_type: "void".to_string(),
+                return_type_span: dummy_span(),
+                body: vec![],
+                span: dummy_span(),
+            },
+        ],
+    };
+
+    codegen
+        .compile(&program)
+        .expect("`if !false` with return should compile for non-void functions");
+}
+
+#[test]
+fn test_compile_non_void_function_with_if_true_and_true_return_compiles() {
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "test");
+
+    let program = Program {
+        imports: vec![],
+        functions: vec![
+            FnDef {
+                visibility: Visibility::Private,
+                name: "foo".to_string(),
+                params: vec![],
+                return_type: "i64".to_string(),
+                return_type_span: dummy_span(),
+                body: vec![Stmt::new(
+                    StmtKind::If {
+                        condition: Expr::new(
+                            ExprKind::BinaryOp {
+                                left: Box::new(Expr::new(
+                                    ExprKind::BoolLiteral(true),
+                                    dummy_span(),
+                                )),
+                                op: BinaryOperator::LogicalAnd,
+                                right: Box::new(Expr::new(
+                                    ExprKind::BoolLiteral(true),
+                                    dummy_span(),
+                                )),
+                            },
+                            dummy_span(),
+                        ),
+                        then_branch: vec![Stmt::new(
+                            StmtKind::Return(Some(Expr::new(
+                                ExprKind::IntLiteral(1),
+                                dummy_span(),
+                            ))),
+                            dummy_span(),
+                        )],
+                        else_branch: None,
+                    },
+                    dummy_span(),
+                )],
+                span: dummy_span(),
+            },
+            FnDef {
+                visibility: Visibility::Private,
+                name: "main".to_string(),
+                params: vec![],
+                return_type: "void".to_string(),
+                return_type_span: dummy_span(),
+                body: vec![],
+                span: dummy_span(),
+            },
+        ],
+    };
+
+    codegen
+        .compile(&program)
+        .expect("`if true && true` with return should compile for non-void functions");
+}
+
+#[test]
+fn test_compile_non_void_function_with_if_false_else_return_compiles() {
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "test");
+
+    let program = Program {
+        imports: vec![],
+        functions: vec![
+            FnDef {
+                visibility: Visibility::Private,
+                name: "foo".to_string(),
+                params: vec![],
+                return_type: "i64".to_string(),
+                return_type_span: dummy_span(),
+                body: vec![Stmt::new(
+                    StmtKind::If {
+                        condition: Expr::new(ExprKind::BoolLiteral(false), dummy_span()),
+                        then_branch: vec![],
+                        else_branch: Some(vec![Stmt::new(
+                            StmtKind::Return(Some(Expr::new(
+                                ExprKind::IntLiteral(1),
+                                dummy_span(),
+                            ))),
+                            dummy_span(),
+                        )]),
+                    },
+                    dummy_span(),
+                )],
+                span: dummy_span(),
+            },
+            FnDef {
+                visibility: Visibility::Private,
+                name: "main".to_string(),
+                params: vec![],
+                return_type: "void".to_string(),
+                return_type_span: dummy_span(),
+                body: vec![],
+                span: dummy_span(),
+            },
+        ],
+    };
+
+    codegen
+        .compile(&program)
+        .expect("`if false` with else return should compile for non-void functions");
 }
 
 #[test]
