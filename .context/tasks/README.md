@@ -13,7 +13,8 @@ Execution order and dependencies are documented only in this `README.md`, and sh
 Status:
 - `[Done]`: Task specification is implemented.
 - `[Partial]`: Implemented in part, but the specification is not fully complete.
-- No mark: Not implemented yet.
+- `[Todo]`: Not implemented yet.
+- No mark: Not implemented yet (used in `Task List`).
 
 ### Basic Expressions
 - `logical-operators.md` - Logical Operators [Done]
@@ -65,37 +66,37 @@ Status:
 - `string-interpolation.md` - String Interpolation
 
 ## Recommended Implementation Order
-1. `logical-operators.md`
-2. `string-comparison-operators.md`
-3. `modules-imports.md`
-4. `if-else.md`
-5. `if-expression.md`
-6. `return-statement.md`
-7. `while-loop.md`
-8. `function-parameters.md`
-9. `non-void-return.md`
-10. `print-function.md`
-11. `mut-modifier.md`
-12. `reassignment.md`
-13. `type-inference.md`
-14. `integer-types.md`
-15. `float-types.md`
-16. `tuple-type.md`
-17. `simple-enums.md`
-18. `match-expression.md`
-19. `enums-with-values.md`
-20. `struct-definition.md`
-21. `struct-instantiation.md`
-22. `field-access.md`
-23. `methods.md`
-24. `interfaces.md`
-25. `generics.md`
-26. `option-type.md`
-27. `result-type.md`
-28. `list-type.md`
-29. `map-type.md`
-30. `for-loop.md`
-31. `string-interpolation.md`
+1. `logical-operators.md` [Done]
+2. `string-comparison-operators.md` [Todo]
+3. `modules-imports.md` [Partial]
+4. `if-else.md` [Done]
+5. `if-expression.md` [Done]
+6. `return-statement.md` [Done]
+7. `while-loop.md` [Done]
+8. `function-parameters.md` [Done]
+9. `non-void-return.md` [Done]
+10. `print-function.md` [Todo]
+11. `mut-modifier.md` [Todo]
+12. `reassignment.md` [Todo]
+13. `type-inference.md` [Todo]
+14. `integer-types.md` [Todo]
+15. `float-types.md` [Todo]
+16. `tuple-type.md` [Todo]
+17. `simple-enums.md` [Todo]
+18. `match-expression.md` [Todo]
+19. `enums-with-values.md` [Todo]
+20. `struct-definition.md` [Todo]
+21. `struct-instantiation.md` [Todo]
+22. `field-access.md` [Todo]
+23. `methods.md` [Todo]
+24. `interfaces.md` [Todo]
+25. `generics.md` [Todo]
+26. `option-type.md` [Todo]
+27. `result-type.md` [Todo]
+28. `list-type.md` [Todo]
+29. `map-type.md` [Todo]
+30. `for-loop.md` [Todo]
+31. `string-interpolation.md` [Todo]
 
 ## Inter-Task Dependencies
 - `if-else.md` depends on `logical-operators.md`.
