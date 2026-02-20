@@ -1040,6 +1040,217 @@ fn main() -> void {
     assert_eq!(output, "true\n");
 }
 
+#[test]
+fn test_string_less_than_true() {
+    let output = compile_and_run(
+        r#"
+fn main() -> void {
+    let result: bool = "apple" < "banana"
+    println(result)
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "true\n");
+}
+
+#[test]
+fn test_string_greater_than_true() {
+    let output = compile_and_run(
+        r#"
+fn main() -> void {
+    let result: bool = "banana" > "apple"
+    println(result)
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "true\n");
+}
+
+#[test]
+fn test_string_less_than_false() {
+    let output = compile_and_run(
+        r#"
+fn main() -> void {
+    let result: bool = "banana" < "apple"
+    println(result)
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "false\n");
+}
+
+#[test]
+fn test_string_greater_than_false() {
+    let output = compile_and_run(
+        r#"
+fn main() -> void {
+    let result: bool = "apple" > "banana"
+    println(result)
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "false\n");
+}
+
+#[test]
+fn test_string_less_equal_true_equal() {
+    let output = compile_and_run(
+        r#"
+fn main() -> void {
+    let result: bool = "lak" <= "lak"
+    println(result)
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "true\n");
+}
+
+#[test]
+fn test_string_less_equal_true_less() {
+    let output = compile_and_run(
+        r#"
+fn main() -> void {
+    let result: bool = "apple" <= "banana"
+    println(result)
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "true\n");
+}
+
+#[test]
+fn test_string_less_equal_false() {
+    let output = compile_and_run(
+        r#"
+fn main() -> void {
+    let result: bool = "banana" <= "apple"
+    println(result)
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "false\n");
+}
+
+#[test]
+fn test_string_greater_equal_true_equal() {
+    let output = compile_and_run(
+        r#"
+fn main() -> void {
+    let result: bool = "lak" >= "lak"
+    println(result)
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "true\n");
+}
+
+#[test]
+fn test_string_greater_equal_true_greater() {
+    let output = compile_and_run(
+        r#"
+fn main() -> void {
+    let result: bool = "banana" >= "apple"
+    println(result)
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "true\n");
+}
+
+#[test]
+fn test_string_greater_equal_false() {
+    let output = compile_and_run(
+        r#"
+fn main() -> void {
+    let result: bool = "apple" >= "banana"
+    println(result)
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "false\n");
+}
+
+#[test]
+fn test_string_less_than_equal_values() {
+    let output = compile_and_run(
+        r#"
+fn main() -> void {
+    let result: bool = "lak" < "lak"
+    println(result)
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "false\n");
+}
+
+#[test]
+fn test_string_greater_than_equal_values() {
+    let output = compile_and_run(
+        r#"
+fn main() -> void {
+    let result: bool = "lak" > "lak"
+    println(result)
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "false\n");
+}
+
+#[test]
+fn test_string_ordering_with_variables() {
+    let output = compile_and_run(
+        r#"
+fn main() -> void {
+    let a: string = "alpha"
+    let b: string = "beta"
+    println(a < b)
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "true\n");
+}
+
+#[test]
+fn test_println_string_ordering_directly() {
+    let output = compile_and_run(
+        r#"
+fn main() -> void {
+    println("apple" < "banana")
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "true\n");
+}
+
+#[test]
+fn test_string_ordering_lexicographical_numeric_text() {
+    let output = compile_and_run(
+        r#"
+fn main() -> void {
+    let x: string = "z"
+    let y: string = "10"
+    println(x > y)
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "true\n");
+}
+
 // ============================================================================
 // Comparison of Comparisons
 // ============================================================================

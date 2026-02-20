@@ -1,7 +1,7 @@
 //! Built-in function code generation.
 //!
 //! This module implements code generation for Lak's built-in functions:
-//! println (string, i32, i64, bool variants), panic, and streq (string equality).
+//! println (string, i32, i64, bool variants), panic, and string comparison helpers.
 
 use super::Codegen;
 use super::error::{CodegenError, CodegenErrorKind};
@@ -27,6 +27,7 @@ pub(super) const BUILTIN_NAMES: &[&str] = &[
     "lak_println_bool",
     "lak_panic",
     "lak_streq",
+    "lak_strcmp",
 ];
 
 impl<'ctx> Codegen<'ctx> {
@@ -171,6 +172,19 @@ impl<'ctx> Codegen<'ctx> {
         let streq_type = bool_type.fn_type(&[i8_ptr_type.into(), i8_ptr_type.into()], false);
         self.module
             .add_function("lak_streq", streq_type, Some(Linkage::External));
+    }
+
+    /// Declares the Lak runtime `lak_strcmp` function for use in generated code.
+    ///
+    /// This creates an external function declaration with the signature:
+    /// `i32 lak_strcmp(ptr a, ptr b)`, returning -1/0/1 by lexical order.
+    pub(super) fn declare_lak_strcmp(&self) {
+        let i32_type = self.context.i32_type();
+        let i8_ptr_type = self.context.ptr_type(AddressSpace::default());
+
+        let strcmp_type = i32_type.fn_type(&[i8_ptr_type.into(), i8_ptr_type.into()], false);
+        self.module
+            .add_function("lak_strcmp", strcmp_type, Some(Linkage::External));
     }
 
     /// Infers a common binary operand type with integer-literal adaptation.

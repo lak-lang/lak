@@ -9,6 +9,7 @@
 //! All exported functions use the C calling convention (`extern "C"`)
 //! to ensure compatibility with LLVM-generated code.
 
+use std::cmp::Ordering;
 use std::ffi::CStr;
 use std::os::raw::c_char;
 
@@ -82,6 +83,47 @@ pub unsafe extern "C" fn lak_streq(a: *const c_char, b: *const c_char) -> bool {
     let a_str = unsafe { CStr::from_ptr(a) };
     let b_str = unsafe { CStr::from_ptr(b) };
     a_str == b_str
+}
+
+/// Compares two C strings lexicographically.
+///
+/// Returns:
+/// - `-1` if `a < b`
+/// - `0` if `a == b`
+/// - `1` if `a > b`
+///
+/// Ordering is based on raw byte lexicographical order.
+/// For valid UTF-8 strings, this matches Unicode scalar value order.
+/// Null pointers are ordered as: null < non-null, and null == null.
+///
+/// # Safety
+///
+/// The caller must ensure that both `a` and `b` are valid null-terminated C strings
+/// (or null pointers).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn lak_strcmp(a: *const c_char, b: *const c_char) -> i32 {
+    if a == b {
+        return 0;
+    }
+    if a.is_null() {
+        return -1;
+    }
+    if b.is_null() {
+        return 1;
+    }
+
+    // SAFETY: We verified both pointers are non-null above, and the caller
+    // guarantees they point to valid null-terminated C strings.
+    let a_cstr = unsafe { CStr::from_ptr(a) };
+    let b_cstr = unsafe { CStr::from_ptr(b) };
+
+    let ordering = a_cstr.cmp(b_cstr);
+
+    match ordering {
+        Ordering::Less => -1,
+        Ordering::Equal => 0,
+        Ordering::Greater => 1,
+    }
 }
 
 /// Prints an error message to stderr and terminates the program with exit code 1.
@@ -223,5 +265,57 @@ mod tests {
         let a = CString::new("hel").unwrap();
         let b = CString::new("hello").unwrap();
         assert!(!unsafe { lak_streq(a.as_ptr(), b.as_ptr()) });
+    }
+
+    // lak_strcmp tests
+
+    #[test]
+    fn test_strcmp_equal_strings() {
+        let a = CString::new("hello").unwrap();
+        let b = CString::new("hello").unwrap();
+        assert_eq!(unsafe { lak_strcmp(a.as_ptr(), b.as_ptr()) }, 0);
+    }
+
+    #[test]
+    fn test_strcmp_less_than() {
+        let a = CString::new("apple").unwrap();
+        let b = CString::new("banana").unwrap();
+        assert_eq!(unsafe { lak_strcmp(a.as_ptr(), b.as_ptr()) }, -1);
+    }
+
+    #[test]
+    fn test_strcmp_greater_than() {
+        let a = CString::new("banana").unwrap();
+        let b = CString::new("apple").unwrap();
+        assert_eq!(unsafe { lak_strcmp(a.as_ptr(), b.as_ptr()) }, 1);
+    }
+
+    #[test]
+    fn test_strcmp_lexicographical_numeric_text() {
+        let a = CString::new("z").unwrap();
+        let b = CString::new("10").unwrap();
+        assert_eq!(unsafe { lak_strcmp(a.as_ptr(), b.as_ptr()) }, 1);
+    }
+
+    #[test]
+    fn test_strcmp_empty_and_non_empty() {
+        let a = CString::new("").unwrap();
+        let b = CString::new("a").unwrap();
+        assert_eq!(unsafe { lak_strcmp(a.as_ptr(), b.as_ptr()) }, -1);
+    }
+
+    #[test]
+    fn test_strcmp_prefix_string() {
+        let a = CString::new("hel").unwrap();
+        let b = CString::new("hello").unwrap();
+        assert_eq!(unsafe { lak_strcmp(a.as_ptr(), b.as_ptr()) }, -1);
+    }
+
+    #[test]
+    fn test_strcmp_null_handling() {
+        let a = CString::new("hello").unwrap();
+        assert_eq!(unsafe { lak_strcmp(std::ptr::null(), std::ptr::null()) }, 0);
+        assert_eq!(unsafe { lak_strcmp(std::ptr::null(), a.as_ptr()) }, -1);
+        assert_eq!(unsafe { lak_strcmp(a.as_ptr(), std::ptr::null()) }, 1);
     }
 }

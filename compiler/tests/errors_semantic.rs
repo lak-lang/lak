@@ -1976,11 +1976,11 @@ fn main() -> void {
 // ============================================================================
 
 #[test]
-fn test_comparison_string_operands() {
+fn test_comparison_string_and_i32_operands() {
     let result = compile_error_with_kind(
         r#"fn main() -> void {
     let x: string = "hello"
-    let y: string = "world"
+    let y: i32 = 10
     let result: bool = x < y
 }"#,
     );
@@ -1993,7 +1993,7 @@ fn test_comparison_string_operands() {
     );
     assert_eq!(
         msg,
-        "Ordering operator '<' cannot be used with 'string' type"
+        "Type mismatch: variable 'y' has type 'i32', expected 'string'"
     );
     assert_eq!(short_msg, "Type mismatch");
     assert_eq!(
@@ -2209,11 +2209,11 @@ fn test_greater_equal_assigned_to_non_bool() {
 }
 
 #[test]
-fn test_ordering_string_operands_greater() {
+fn test_ordering_string_and_i32_operands_greater() {
     let result = compile_error_with_kind(
         r#"fn main() -> void {
     let x: string = "hello"
-    let y: string = "world"
+    let y: i32 = 10
     let result: bool = x > y
 }"#,
     );
@@ -2226,7 +2226,7 @@ fn test_ordering_string_operands_greater() {
     );
     assert_eq!(
         msg,
-        "Ordering operator '>' cannot be used with 'string' type"
+        "Type mismatch: variable 'y' has type 'i32', expected 'string'"
     );
     assert_eq!(short_msg, "Type mismatch");
     assert_eq!(
@@ -2288,11 +2288,11 @@ fn test_println_comparison_type_mismatch() {
 }
 
 #[test]
-fn test_println_ordering_string_operands() {
+fn test_println_ordering_string_and_i32_operands() {
     let result = compile_error_with_kind(
         r#"fn main() -> void {
     let x: string = "hello"
-    let y: string = "world"
+    let y: i32 = 10
     println(x < y)
 }"#,
     );
@@ -2305,7 +2305,7 @@ fn test_println_ordering_string_operands() {
     );
     assert_eq!(
         msg,
-        "Ordering operator '<' cannot be used with 'string' type"
+        "Type mismatch: variable 'y' has type 'i32', expected 'string'"
     );
     assert_eq!(short_msg, "Type mismatch");
     assert_eq!(
@@ -2316,11 +2316,11 @@ fn test_println_ordering_string_operands() {
 }
 
 #[test]
-fn test_ordering_string_operands_less_equal() {
+fn test_ordering_string_and_i32_operands_less_equal() {
     let result = compile_error_with_kind(
         r#"fn main() -> void {
     let x: string = "hello"
-    let y: string = "world"
+    let y: i32 = 10
     let result: bool = x <= y
 }"#,
     );
@@ -2333,7 +2333,7 @@ fn test_ordering_string_operands_less_equal() {
     );
     assert_eq!(
         msg,
-        "Ordering operator '<=' cannot be used with 'string' type"
+        "Type mismatch: variable 'y' has type 'i32', expected 'string'"
     );
     assert_eq!(short_msg, "Type mismatch");
     assert_eq!(
@@ -2344,11 +2344,11 @@ fn test_ordering_string_operands_less_equal() {
 }
 
 #[test]
-fn test_ordering_string_operands_greater_equal() {
+fn test_ordering_string_and_i32_operands_greater_equal() {
     let result = compile_error_with_kind(
         r#"fn main() -> void {
     let x: string = "hello"
-    let y: string = "world"
+    let y: i32 = 10
     let result: bool = x >= y
 }"#,
     );
@@ -2361,7 +2361,7 @@ fn test_ordering_string_operands_greater_equal() {
     );
     assert_eq!(
         msg,
-        "Ordering operator '>=' cannot be used with 'string' type"
+        "Type mismatch: variable 'y' has type 'i32', expected 'string'"
     );
     assert_eq!(short_msg, "Type mismatch");
     assert_eq!(

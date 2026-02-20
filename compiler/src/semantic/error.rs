@@ -654,7 +654,7 @@ impl SemanticError {
                 op, actual_ty
             ),
             span,
-            "ordering operators (<, >, <=, >=) only work with numeric types (i32, i64)",
+            "ordering operators (<, >, <=, >=) only work with comparable types (i32, i64, string)",
         )
     }
 

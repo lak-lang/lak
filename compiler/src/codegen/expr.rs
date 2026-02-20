@@ -605,7 +605,10 @@ impl<'ctx> Codegen<'ctx> {
 
     /// Generates LLVM IR for a comparison operation.
     ///
-    /// Supports integer (i32, i64), bool (== and != only), and string (== and != only) comparisons.
+    /// Supports integer (i32, i64), bool (== and != only), and string comparisons.
+    ///
+    /// String `==` and `!=` use `lak_streq`, while string ordering operators
+    /// (`<`, `>`, `<=`, `>=`) use `lak_strcmp`.
     fn generate_comparison_op(
         &mut self,
         left: &Expr,
@@ -692,49 +695,128 @@ impl<'ctx> Codegen<'ctx> {
                     }
                 };
 
-                let lak_streq = self.module.get_function("lak_streq").ok_or_else(|| {
-                    CodegenError::internal_builtin_not_found_with_span("lak_streq", span)
-                })?;
-
-                let call_result = self
-                    .builder
-                    .build_call(
-                        lak_streq,
-                        &[
-                            BasicMetadataValueEnum::PointerValue(left_ptr),
-                            BasicMetadataValueEnum::PointerValue(right_ptr),
-                        ],
-                        "streq_tmp",
-                    )
-                    .map_err(|e| CodegenError::internal_streq_call_failed(&e.to_string(), span))?;
-
-                let eq_result = match call_result.try_as_basic_value() {
-                    inkwell::values::ValueKind::Basic(BasicValueEnum::IntValue(v)) => v,
-                    inkwell::values::ValueKind::Basic(_) => {
-                        return Err(CodegenError::internal_streq_unexpected_basic_type(span));
-                    }
-                    inkwell::values::ValueKind::Instruction(_) => {
-                        return Err(CodegenError::internal_streq_returned_void(span));
-                    }
-                };
-
                 match op {
-                    BinaryOperator::Equal => Ok(eq_result.into()),
-                    BinaryOperator::NotEqual => {
-                        // build_not is bitwise NOT, which is equivalent to logical NOT
-                        // only for i1 (1-bit) values. This relies on declare_lak_streq
-                        // declaring the return type as bool_type() (i1).
-                        let negated =
-                            self.builder
-                                .build_not(eq_result, "strneq_tmp")
-                                .map_err(|e| {
-                                    CodegenError::internal_compare_failed(&e.to_string(), span)
-                                })?;
-                        Ok(negated.into())
+                    BinaryOperator::Equal | BinaryOperator::NotEqual => {
+                        let lak_streq = self.module.get_function("lak_streq").ok_or_else(|| {
+                            CodegenError::internal_builtin_not_found_with_span("lak_streq", span)
+                        })?;
+
+                        let call_result = self
+                            .builder
+                            .build_call(
+                                lak_streq,
+                                &[
+                                    BasicMetadataValueEnum::PointerValue(left_ptr),
+                                    BasicMetadataValueEnum::PointerValue(right_ptr),
+                                ],
+                                "streq_tmp",
+                            )
+                            .map_err(|e| {
+                                CodegenError::internal_streq_call_failed(&e.to_string(), span)
+                            })?;
+
+                        let eq_result = match call_result.try_as_basic_value() {
+                            inkwell::values::ValueKind::Basic(BasicValueEnum::IntValue(v)) => v,
+                            inkwell::values::ValueKind::Basic(_) => {
+                                return Err(CodegenError::internal_streq_unexpected_basic_type(
+                                    span,
+                                ));
+                            }
+                            inkwell::values::ValueKind::Instruction(_) => {
+                                return Err(CodegenError::internal_streq_returned_void(span));
+                            }
+                        };
+
+                        if op == BinaryOperator::Equal {
+                            Ok(eq_result.into())
+                        } else {
+                            // build_not is bitwise NOT, which is equivalent to logical NOT
+                            // only for i1 (1-bit) values. This relies on declare_lak_streq
+                            // declaring the return type as bool_type() (i1).
+                            let negated =
+                                self.builder
+                                    .build_not(eq_result, "strneq_tmp")
+                                    .map_err(|e| {
+                                        CodegenError::internal_compare_failed(&e.to_string(), span)
+                                    })?;
+                            Ok(negated.into())
+                        }
                     }
-                    _ => Err(CodegenError::internal_binary_op_failed(
+                    BinaryOperator::LessThan
+                    | BinaryOperator::GreaterThan
+                    | BinaryOperator::LessEqual
+                    | BinaryOperator::GreaterEqual => {
+                        let lak_strcmp =
+                            self.module.get_function("lak_strcmp").ok_or_else(|| {
+                                CodegenError::internal_builtin_not_found_with_span(
+                                    "lak_strcmp",
+                                    span,
+                                )
+                            })?;
+
+                        let call_result = self
+                            .builder
+                            .build_call(
+                                lak_strcmp,
+                                &[
+                                    BasicMetadataValueEnum::PointerValue(left_ptr),
+                                    BasicMetadataValueEnum::PointerValue(right_ptr),
+                                ],
+                                "strcmp_tmp",
+                            )
+                            .map_err(|e| {
+                                CodegenError::internal_compare_failed(&e.to_string(), span)
+                            })?;
+
+                        let cmp_result = match call_result.try_as_basic_value() {
+                            inkwell::values::ValueKind::Basic(BasicValueEnum::IntValue(v)) => v,
+                            inkwell::values::ValueKind::Basic(_) => {
+                                return Err(CodegenError::internal_non_integer_value(
+                                    "string comparison",
+                                    span,
+                                ));
+                            }
+                            inkwell::values::ValueKind::Instruction(_) => {
+                                return Err(CodegenError::internal_binary_op_failed(
+                                    op,
+                                    "lak_strcmp returned void",
+                                    span,
+                                ));
+                            }
+                        };
+
+                        let zero = self.context.i32_type().const_zero();
+                        let predicate = match op {
+                            BinaryOperator::LessThan => IntPredicate::SLT,
+                            BinaryOperator::GreaterThan => IntPredicate::SGT,
+                            BinaryOperator::LessEqual => IntPredicate::SLE,
+                            BinaryOperator::GreaterEqual => IntPredicate::SGE,
+                            _ => {
+                                return Err(CodegenError::internal_binary_op_failed(
+                                    op,
+                                    "unexpected non-ordering operator for lak_strcmp",
+                                    span,
+                                ));
+                            }
+                        };
+
+                        let result = self
+                            .builder
+                            .build_int_compare(predicate, cmp_result, zero, "strcmp_cmp_tmp")
+                            .map_err(|e| {
+                                CodegenError::internal_compare_failed(&e.to_string(), span)
+                            })?;
+                        Ok(result.into())
+                    }
+                    BinaryOperator::Add
+                    | BinaryOperator::Sub
+                    | BinaryOperator::Mul
+                    | BinaryOperator::Div
+                    | BinaryOperator::Mod
+                    | BinaryOperator::LogicalAnd
+                    | BinaryOperator::LogicalOr => Err(CodegenError::internal_binary_op_failed(
                         op,
-                        "ordering operators not supported for string",
+                        "not a comparison operator",
                         span,
                     )),
                 }

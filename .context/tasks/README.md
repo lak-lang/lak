@@ -18,7 +18,7 @@ Status:
 
 ### Basic Expressions
 - `logical-operators.md` - Logical Operators [Done]
-- `string-comparison-operators.md` - Ordered Comparison for string
+- `string-comparison-operators.md` - Ordered Comparison for string [Done]
 - `modules-imports.md` - Modules and Imports [Partial]
 
 ### Control Flow
@@ -67,7 +67,7 @@ Status:
 
 ## Recommended Implementation Order
 1. `logical-operators.md` [Done]
-2. `string-comparison-operators.md` [Todo]
+2. `string-comparison-operators.md` [Done]
 3. `modules-imports.md` [Partial]
 4. `if-else.md` [Done]
 5. `if-expression.md` [Done]

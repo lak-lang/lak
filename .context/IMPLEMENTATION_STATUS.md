@@ -137,10 +137,10 @@ This document tracks the implementation status of Lak language features as defin
 
 - [x] `==` equal (i32, i64, bool, string)
 - [x] `!=` not equal (i32, i64, bool, string)
-- [x] `<` less than (i32, i64)
-- [x] `>` greater than (i32, i64)
-- [x] `<=` less than or equal (i32, i64)
-- [x] `>=` greater than or equal (i32, i64)
+- [x] `<` less than (i32, i64, string)
+- [x] `>` greater than (i32, i64, string)
+- [x] `<=` less than or equal (i32, i64, string)
+- [x] `>=` greater than or equal (i32, i64, string)
 - [x] Integer literal adaptation in numeric comparisons
 - [ ] Non-literal mixed integer comparison (`i32` vs `i64`) with widening to `i64`
 - [ ] Mixed float comparison (`f32` vs `f64`) with widening to `f64`

@@ -980,7 +980,7 @@ impl SemanticAnalyzer {
             ));
         };
 
-        if !op.is_equality() && !operand_ty.is_integer() {
+        if !(op.is_equality() || operand_ty.is_integer() || operand_ty == Type::String) {
             return Err(SemanticError::invalid_ordering_op_type(
                 op,
                 &operand_ty.to_string(),
