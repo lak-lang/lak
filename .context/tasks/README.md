@@ -10,20 +10,25 @@ Execution order and dependencies are documented only in this `README.md`, and sh
 
 ## Task List
 
+Status:
+- `[Done]`: Task specification is implemented.
+- `[Partial]`: Implemented in part, but the specification is not fully complete.
+- No mark: Not implemented yet.
+
 ### Basic Expressions
-- `logical-operators.md` - Logical Operators
+- `logical-operators.md` - Logical Operators [Done]
 - `string-comparison-operators.md` - Ordered Comparison for string
-- `modules-imports.md` - Modules and Imports
+- `modules-imports.md` - Modules and Imports [Partial]
 
 ### Control Flow
-- `if-else.md` - if/else Statement
-- `if-expression.md` - if as Expression
-- `return-statement.md` - Return Statement
-- `while-loop.md` - while Loop with break/continue
+- `if-else.md` - if/else Statement [Done]
+- `if-expression.md` - if as Expression [Done]
+- `return-statement.md` - Return Statement [Done]
+- `while-loop.md` - while Loop with break/continue [Done]
 
 ### Functions
-- `function-parameters.md` - Function Parameters
-- `non-void-return.md` - Non-void Return Types
+- `function-parameters.md` - Function Parameters [Done]
+- `non-void-return.md` - Non-void Return Types [Done]
 - `print-function.md` - print Built-in Function
 
 ### Variables
