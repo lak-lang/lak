@@ -15,6 +15,7 @@ fn test_duplicate_variable() {
     let program = program_with_main(vec![
         Stmt::new(
             StmtKind::Let {
+                is_mutable: false,
                 name: "x".to_string(),
                 ty: Type::I32,
                 init: Expr::new(ExprKind::IntLiteral(1), dummy_span()),
@@ -23,6 +24,69 @@ fn test_duplicate_variable() {
         ),
         Stmt::new(
             StmtKind::Let {
+                is_mutable: false,
+                name: "x".to_string(),
+                ty: Type::I32,
+                init: Expr::new(ExprKind::IntLiteral(2), dummy_span()),
+            },
+            span_at(3, 5),
+        ),
+    ]);
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze(&program);
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert_eq!(err.kind(), SemanticErrorKind::DuplicateVariable);
+    assert_eq!(err.message(), "Variable 'x' is already defined at 2:5");
+}
+
+#[test]
+fn test_duplicate_variable_mutable_then_immutable() {
+    let program = program_with_main(vec![
+        Stmt::new(
+            StmtKind::Let {
+                is_mutable: true,
+                name: "x".to_string(),
+                ty: Type::I32,
+                init: Expr::new(ExprKind::IntLiteral(1), dummy_span()),
+            },
+            span_at(2, 5),
+        ),
+        Stmt::new(
+            StmtKind::Let {
+                is_mutable: false,
+                name: "x".to_string(),
+                ty: Type::I32,
+                init: Expr::new(ExprKind::IntLiteral(2), dummy_span()),
+            },
+            span_at(3, 5),
+        ),
+    ]);
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze(&program);
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert_eq!(err.kind(), SemanticErrorKind::DuplicateVariable);
+    assert_eq!(err.message(), "Variable 'x' is already defined at 2:5");
+}
+
+#[test]
+fn test_duplicate_variable_immutable_then_mutable() {
+    let program = program_with_main(vec![
+        Stmt::new(
+            StmtKind::Let {
+                is_mutable: false,
+                name: "x".to_string(),
+                ty: Type::I32,
+                init: Expr::new(ExprKind::IntLiteral(1), dummy_span()),
+            },
+            span_at(2, 5),
+        ),
+        Stmt::new(
+            StmtKind::Let {
+                is_mutable: true,
                 name: "x".to_string(),
                 ty: Type::I32,
                 init: Expr::new(ExprKind::IntLiteral(2), dummy_span()),
@@ -47,6 +111,7 @@ fn test_duplicate_variable() {
 fn test_undefined_variable() {
     let program = program_with_main(vec![Stmt::new(
         StmtKind::Let {
+            is_mutable: false,
             name: "x".to_string(),
             ty: Type::I32,
             init: Expr::new(ExprKind::Identifier("y".to_string()), span_at(2, 18)),
@@ -66,6 +131,7 @@ fn test_undefined_variable() {
 fn test_self_referential_let_initializer_is_undefined_variable() {
     let program = program_with_main(vec![Stmt::new(
         StmtKind::Let {
+            is_mutable: false,
             name: "x".to_string(),
             ty: Type::I32,
             init: Expr::new(ExprKind::Identifier("x".to_string()), span_at(2, 18)),
@@ -79,4 +145,21 @@ fn test_self_referential_let_initializer_is_undefined_variable() {
     let err = result.unwrap_err();
     assert_eq!(err.kind(), SemanticErrorKind::UndefinedVariable);
     assert_eq!(err.message(), "Undefined variable: 'x'");
+}
+
+#[test]
+fn test_mutable_variable_declaration_is_valid() {
+    let program = program_with_main(vec![Stmt::new(
+        StmtKind::Let {
+            is_mutable: true,
+            name: "x".to_string(),
+            ty: Type::I32,
+            init: Expr::new(ExprKind::IntLiteral(1), span_at(2, 24)),
+        },
+        span_at(2, 5),
+    )]);
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze(&program);
+    assert!(result.is_ok());
 }

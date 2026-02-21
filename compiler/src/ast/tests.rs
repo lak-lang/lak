@@ -95,6 +95,7 @@ fn test_stmt_expr() {
 fn test_stmt_let() {
     let stmt = Stmt::new(
         StmtKind::Let {
+            is_mutable: false,
             name: "x".to_string(),
             ty: Type::I32,
             init: Expr::new(ExprKind::IntLiteral(42), dummy_span()),
@@ -102,7 +103,13 @@ fn test_stmt_let() {
         dummy_span(),
     );
     match stmt.kind {
-        StmtKind::Let { name, ty, init } => {
+        StmtKind::Let {
+            is_mutable,
+            name,
+            ty,
+            init,
+        } => {
+            assert!(!is_mutable);
             assert_eq!(name, "x");
             assert_eq!(ty, Type::I32);
             assert!(matches!(init.kind, ExprKind::IntLiteral(42)));

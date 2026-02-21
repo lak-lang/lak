@@ -22,9 +22,9 @@ Validates an AST for semantic correctness before code generation. Performs name 
 |------|----------|
 | `tests/mod.rs` | Test helpers, SemanticError Display tests |
 | `tests/function_tests.rs` | Function definition, main validation, undefined function, scope isolation |
-| `tests/variable_tests.rs` | Duplicate/undefined variable detection |
+| `tests/variable_tests.rs` | Duplicate/undefined variable detection, mutable declaration path |
 | `tests/type_tests.rs` | Type mismatch, overflow, invalid expressions, println arguments, valid programs |
-| `tests/symbol_table_tests.rs` | SymbolTable data structure unit tests |
+| `tests/symbol_table_tests.rs` | SymbolTable data structure unit tests, mutable flag preservation |
 
 ## Analysis Phases
 
@@ -67,6 +67,12 @@ Note: `analyze_module()` (used for imported modules) skips phase 2 (main validat
 - Global function namespace (flat)
 - Scoped variable lookup (stack-based)
 
+`VariableInfo` carries:
+- `name`
+- `is_mutable` (`let mut` declarations)
+- `ty`
+- `definition_span`
+
 ### Scope Management
 
 ```rust
@@ -86,7 +92,7 @@ Currently supports:
 - `bool`: boolean literals
 
 Type checking occurs in:
-- `let` statements: initializer must match declared type
+- `let` statements (`let` / `let mut`): initializer must match declared type
 - Variable references: variable type must match expected type
 
 ## Built-in Functions

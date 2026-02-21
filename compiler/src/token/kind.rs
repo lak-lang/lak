@@ -29,6 +29,9 @@ pub enum TokenKind {
     /// The `let` keyword for variable declarations.
     Let,
 
+    /// The `mut` keyword for mutable variable declarations.
+    Mut,
+
     /// The `if` keyword for conditional branching.
     If,
 
@@ -180,6 +183,11 @@ mod tests {
     #[test]
     fn test_token_kind_let() {
         assert!(matches!(TokenKind::Let, TokenKind::Let));
+    }
+
+    #[test]
+    fn test_token_kind_mut() {
+        assert!(matches!(TokenKind::Mut, TokenKind::Mut));
     }
 
     #[test]

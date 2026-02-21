@@ -127,7 +127,13 @@ fn test_let_stmt_i32() {
     let program = parse("fn main() -> void { let x: i32 = 42 }").unwrap();
     assert_eq!(program.functions[0].body.len(), 1);
     match &program.functions[0].body[0].kind {
-        StmtKind::Let { name, ty, init } => {
+        StmtKind::Let {
+            is_mutable,
+            name,
+            ty,
+            init,
+        } => {
+            assert!(!is_mutable);
             assert_eq!(name, "x");
             assert_eq!(*ty, Type::I32);
             assert!(matches!(init.kind, ExprKind::IntLiteral(42)));
@@ -153,9 +159,35 @@ fn test_let_with_variable_reference() {
     let program = parse("fn main() -> void { let x: i32 = 1\nlet y: i32 = x }").unwrap();
     assert_eq!(program.functions[0].body.len(), 2);
     match &program.functions[0].body[1].kind {
-        StmtKind::Let { name, init, .. } => {
+        StmtKind::Let {
+            is_mutable,
+            name,
+            init,
+            ..
+        } => {
+            assert!(!is_mutable);
             assert_eq!(name, "y");
             assert!(matches!(&init.kind, ExprKind::Identifier(s) if s == "x"));
+        }
+        _ => panic!("Expected Let statement"),
+    }
+}
+
+#[test]
+fn test_let_mut_stmt_i32() {
+    let program = parse("fn main() -> void { let mut x: i32 = 42 }").unwrap();
+    assert_eq!(program.functions[0].body.len(), 1);
+    match &program.functions[0].body[0].kind {
+        StmtKind::Let {
+            is_mutable,
+            name,
+            ty,
+            init,
+        } => {
+            assert!(*is_mutable);
+            assert_eq!(name, "x");
+            assert_eq!(*ty, Type::I32);
+            assert!(matches!(init.kind, ExprKind::IntLiteral(42)));
         }
         _ => panic!("Expected Let statement"),
     }
@@ -193,6 +225,21 @@ fn test_error_let_missing_colon() {
 }
 
 #[test]
+fn test_error_let_mut_missing_variable_name() {
+    let err = parse_error("fn main() -> void { let mut : i32 = 42 }");
+    assert_eq!(err.message(), "Expected identifier, found ':'");
+}
+
+#[test]
+fn test_error_let_mut_discard_binding() {
+    let err = parse_error("fn main() -> void { let mut _ = f() }");
+    assert_eq!(
+        err.message(),
+        "Discard binding '_' cannot be declared mutable"
+    );
+}
+
+#[test]
 fn test_error_let_missing_type() {
     let err = parse_error("fn main() -> void { let x: = 42 }");
     assert_eq!(err.message(), "Expected identifier, found '='");
@@ -203,7 +250,7 @@ fn test_error_let_unknown_type() {
     let err = parse_error("fn main() -> void { let x: unknown = 42 }");
     assert_eq!(
         err.message(),
-        "Unknown type: 'unknown'. Expected 'i32', 'i64', or 'string'"
+        "Unknown type: 'unknown'. Expected 'i32', 'i64', 'string', or 'bool'"
     );
 }
 
@@ -235,7 +282,13 @@ fn test_discard_stmt_call() {
 fn test_let_underscore_with_type_still_parses_as_let() {
     let program = parse("fn main() -> void { let _: i32 = 1 }").unwrap();
     match &program.functions[0].body[0].kind {
-        StmtKind::Let { name, ty, init } => {
+        StmtKind::Let {
+            is_mutable,
+            name,
+            ty,
+            init,
+        } => {
+            assert!(!is_mutable);
             assert_eq!(name, "_");
             assert_eq!(*ty, Type::I32);
             assert!(matches!(init.kind, ExprKind::IntLiteral(1)));

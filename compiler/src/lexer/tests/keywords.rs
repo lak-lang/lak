@@ -25,6 +25,12 @@ fn test_keyword_let() {
 }
 
 #[test]
+fn test_keyword_mut() {
+    let kinds = tokenize_kinds("mut");
+    assert_eq!(kinds, vec![TokenKind::Mut, TokenKind::Eof]);
+}
+
+#[test]
 fn test_keyword_if() {
     let kinds = tokenize_kinds("if");
     assert_eq!(kinds, vec![TokenKind::If, TokenKind::Eof]);
@@ -133,6 +139,16 @@ fn test_let_not_prefix() {
     assert_eq!(
         kinds,
         vec![TokenKind::Identifier("letter".to_string()), TokenKind::Eof]
+    );
+}
+
+#[test]
+fn test_mut_not_prefix() {
+    // "mutable" should be an identifier, not mut + identifier
+    let kinds = tokenize_kinds("mutable");
+    assert_eq!(
+        kinds,
+        vec![TokenKind::Identifier("mutable".to_string()), TokenKind::Eof]
     );
 }
 

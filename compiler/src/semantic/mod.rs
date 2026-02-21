@@ -222,6 +222,7 @@ impl SemanticAnalyzer {
             for param in &function.params {
                 let info = VariableInfo {
                     name: param.name.clone(),
+                    is_mutable: false,
                     ty: param.ty.clone(),
                     definition_span: param.span,
                 };
@@ -260,8 +261,13 @@ impl SemanticAnalyzer {
                 self.analyze_expr_stmt(expr)?;
                 Ok(false)
             }
-            StmtKind::Let { name, ty, init } => {
-                self.analyze_let(name, ty, init, stmt.span)?;
+            StmtKind::Let {
+                is_mutable,
+                name,
+                ty,
+                init,
+            } => {
+                self.analyze_let(*is_mutable, name, ty, init, stmt.span)?;
                 Ok(false)
             }
             StmtKind::Discard(expr) => {
@@ -697,6 +703,7 @@ impl SemanticAnalyzer {
 
     fn analyze_let(
         &mut self,
+        is_mutable: bool,
         name: &str,
         ty: &Type,
         init: &Expr,
@@ -719,6 +726,7 @@ impl SemanticAnalyzer {
 
         let info = VariableInfo {
             name: name.to_string(),
+            is_mutable,
             ty: ty.clone(),
             definition_span: span,
         };

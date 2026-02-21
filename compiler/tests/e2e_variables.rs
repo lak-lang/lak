@@ -21,6 +21,83 @@ fn test_let_statement_basic() {
 }
 
 #[test]
+fn test_let_mut_statement_with_type_annotation() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let mut x: i32 = 42
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "42\n");
+}
+
+#[test]
+fn test_let_mut_i64_with_type_annotation() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let mut x: i64 = 9223372036854775807
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "9223372036854775807\n");
+}
+
+#[test]
+fn test_let_mut_string_with_type_annotation() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let mut s: string = "hello"
+    println(s)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "hello\n");
+}
+
+#[test]
+fn test_let_mut_bool_with_type_annotation() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let mut ok: bool = true
+    println(ok)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "true\n");
+}
+
+#[test]
+fn test_let_mut_inside_if_scope() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    if true {
+        let mut x: i32 = 7
+        println(x)
+    }
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "7\n");
+}
+
+#[test]
+fn test_let_mut_inside_while_scope() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    while true {
+        let mut x: i32 = 9
+        println(x)
+        break
+    }
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "9\n");
+}
+
+#[test]
 fn test_multiple_let_statements() {
     // Multiple variables with value verification
     let output = compile_and_run(

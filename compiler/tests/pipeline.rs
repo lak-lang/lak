@@ -85,6 +85,7 @@ fn test_ast_let_to_codegen() {
             body: vec![
                 Stmt::new(
                     StmtKind::Let {
+                        is_mutable: false,
                         name: "x".to_string(),
                         ty: Type::I32,
                         init: Expr::new(ExprKind::IntLiteral(42), dummy_span()),
@@ -93,6 +94,7 @@ fn test_ast_let_to_codegen() {
                 ),
                 Stmt::new(
                     StmtKind::Let {
+                        is_mutable: false,
                         name: "y".to_string(),
                         ty: Type::I32,
                         init: Expr::new(ExprKind::Identifier("x".to_string()), dummy_span()),
@@ -131,6 +133,7 @@ fn test_error_string_literal_as_int_value() {
             return_type_span: dummy_span(),
             body: vec![Stmt::new(
                 StmtKind::Let {
+                    is_mutable: false,
                     name: "x".to_string(),
                     ty: Type::I32,
                     init: Expr::new(ExprKind::StringLiteral("hello".to_string()), dummy_span()),
@@ -173,6 +176,7 @@ fn test_error_function_call_as_int_value() {
                 return_type_span: dummy_span(),
                 body: vec![Stmt::new(
                     StmtKind::Let {
+                        is_mutable: false,
                         name: "x".to_string(),
                         ty: Type::I32,
                         init: Expr::new(
@@ -241,6 +245,7 @@ fn test_error_identifier_as_statement() {
             body: vec![
                 Stmt::new(
                     StmtKind::Let {
+                        is_mutable: false,
                         name: "x".to_string(),
                         ty: Type::I32,
                         init: Expr::new(ExprKind::IntLiteral(42), dummy_span()),
@@ -314,6 +319,7 @@ fn test_error_i32_underflow_via_ast() {
             return_type_span: dummy_span(),
             body: vec![Stmt::new(
                 StmtKind::Let {
+                    is_mutable: false,
                     name: "x".to_string(),
                     ty: Type::I32,
                     init: Expr::new(ExprKind::IntLiteral(-2147483649), dummy_span()), // i32::MIN - 1

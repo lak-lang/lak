@@ -42,7 +42,7 @@ fn test_compile_error_unknown_type() {
     );
     assert_eq!(
         msg,
-        "Unknown type: 'unknown'. Expected 'i32', 'i64', or 'string'"
+        "Unknown type: 'unknown'. Expected 'i32', 'i64', 'string', or 'bool'"
     );
     assert_eq!(short_msg, "Unknown type");
     assert_eq!(
@@ -74,6 +74,29 @@ fn test_compile_error_let_missing_variable_name() {
         kind,
         CompileErrorKind::Parse(ParseErrorKind::ExpectedIdentifier),
         "Expected ExpectedIdentifier error kind"
+    );
+}
+
+#[test]
+fn test_compile_error_let_mut_discard_binding() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let mut _ = panic("boom")
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Parse),
+        "Expected Parse error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(msg, "Discard binding '_' cannot be declared mutable");
+    assert_eq!(short_msg, "Unexpected token");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Parse(ParseErrorKind::UnexpectedToken),
+        "Expected UnexpectedToken error kind"
     );
 }
 

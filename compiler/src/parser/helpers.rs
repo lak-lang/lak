@@ -29,6 +29,7 @@ impl Parser {
             }
             TokenKind::Eof => "end of file".to_string(),
             TokenKind::Let => "'let' keyword".to_string(),
+            TokenKind::Mut => "'mut' keyword".to_string(),
             TokenKind::If => "'if' keyword".to_string(),
             TokenKind::Else => "'else' keyword".to_string(),
             TokenKind::Return => "'return' keyword".to_string(),

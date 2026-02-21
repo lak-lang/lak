@@ -18,6 +18,7 @@
 //!   [`missing_fn_call_parens_int()`](ParseError::missing_fn_call_parens_int),
 //!   [`missing_fn_call_parens_ident()`](ParseError::missing_fn_call_parens_ident)
 //! - **Expression errors**: [`unexpected_expression_start()`](ParseError::unexpected_expression_start)
+//! - **Unsupported syntax**: [`invalid_mutable_discard()`](ParseError::invalid_mutable_discard)
 
 use crate::token::Span;
 
@@ -178,7 +179,7 @@ impl ParseError {
         Self::new(
             ParseErrorKind::ExpectedType,
             format!(
-                "Unknown type: '{}'. Expected 'i32', 'i64', or 'string'",
+                "Unknown type: '{}'. Expected 'i32', 'i64', 'string', or 'bool'",
                 name
             ),
             span,
@@ -271,6 +272,18 @@ impl ParseError {
         Self::new(
             ParseErrorKind::NestedMemberAccessNotSupported,
             "Nested member access (e.g., a.b.c) is not yet supported. Only simple module.function access is allowed.",
+            span,
+        )
+    }
+
+    /// Creates an error for invalid mutable discard binding.
+    ///
+    /// `let mut _ = expr` is rejected because `_` discards values and has no
+    /// storage to mutate.
+    pub fn invalid_mutable_discard(span: Span) -> Self {
+        Self::new(
+            ParseErrorKind::UnexpectedToken,
+            "Discard binding '_' cannot be declared mutable",
             span,
         )
     }

@@ -40,6 +40,7 @@ fn let_stmt(name: &str, ty: Type, init_kind: ExprKind) -> Stmt {
     let init = Expr::new(init_kind, dummy_span());
     Stmt::new(
         StmtKind::Let {
+            is_mutable: false,
             name: name.to_string(),
             ty,
             init,

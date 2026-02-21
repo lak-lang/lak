@@ -14,38 +14,52 @@ Transforms a token stream from the lexer into an Abstract Syntax Tree (AST). Imp
 | `error.rs` | `ParseError` type |
 | `helpers.rs` | Token navigation (`current`, `advance`, `expect`, `skip_newlines`) |
 | `fn_def.rs` | Function definition parsing |
-| `stmt.rs` | Statement parsing (`let`, expression statements) |
+| `stmt.rs` | Statement parsing (`let`, `return`, `if`, `while`, `break`, `continue`, expression statements) |
 | `types.rs` | Type annotation parsing |
-| `expr.rs` | Expression parsing (calls, identifiers, literals) |
+| `expr.rs` | Expression parsing (if-expression, calls, operators, identifiers, literals) |
 | `tests/` | Unit tests (see below) |
 
 ## Test Structure
 
 Tests are organized by parser component:
 
-| File | Coverage | Tests |
-|------|----------|-------|
-| `tests/mod.rs` | Shared test helpers | 3 helpers |
-| `tests/fn_def.rs` | Function definitions, spans | 18 |
-| `tests/stmt.rs` | Statements, newlines | 19 |
-| `tests/expr.rs` | Expressions, calls, literals | 12 |
-| `tests/errors.rs` | Error detection, messages | 18 |
-| `tests/helpers.rs` | Edge cases, utilities | 13 |
+| File | Coverage |
+|------|----------|
+| `tests/mod.rs` | Shared test helpers |
+| `tests/fn_def.rs` | Function definitions, parameters, visibility, spans |
+| `tests/stmt.rs` | Statements, newlines, `let mut`, discard |
+| `tests/expr.rs` | Expressions, precedence, calls, literals, `if` expression |
+| `tests/errors.rs` | Error detection and message quality |
+| `tests/helpers.rs` | Edge cases, utilities |
 
 ## Grammar
 
 ```text
-program     → fn_def* EOF
-fn_def      → "fn" IDENTIFIER "(" ")" "->" return_type "{" stmt* "}"
-stmt        → let_stmt | expr_stmt
-let_stmt    → "let" IDENTIFIER ":" type "=" expr
-type        → "i32" | "i64"
+program     → import* fn_def* EOF
+import      → "import" STRING ("as" IDENTIFIER)?
+fn_def      → ("pub")? "fn" IDENTIFIER "(" param_list? ")" "->" return_type "{" stmt* "}"
+param_list  → IDENTIFIER ":" type ("," IDENTIFIER ":" type)*
+stmt        → let_stmt | return_stmt | if_stmt | while_stmt | break_stmt | continue_stmt | expr_stmt
+let_stmt    → "let" "mut"? IDENTIFIER ":" type "=" expr | "let" "_" "=" expr
+return_stmt → "return" expr?
+if_stmt     → "if" expr "{" stmt* "}" ("else" (if_stmt | "{" stmt* "}"))?
+while_stmt  → "while" expr "{" stmt* "}"
+break_stmt  → "break"
+continue_stmt → "continue"
+type        → "i32" | "i64" | "string" | "bool"
 return_type → type | "void"
 expr_stmt   → expr
-expr        → call | IDENTIFIER | STRING | INT
+expr        → if_expr | unary | binary | call | module_call | IDENTIFIER | STRING | INT | BOOL
 call        → IDENTIFIER "(" arguments? ")"
+module_call → IDENTIFIER "." IDENTIFIER "(" arguments? ")"
 arguments   → expr ("," expr)*
 ```
+
+Grammar notes:
+- Mutable discard bindings are rejected with parse errors because `_` is discard-only:
+  - `let mut _ = expr`
+  - `let mut _: type = expr`
+- `if`/`while`/`return`/`break`/`continue` are parsed as statements.
 
 ## Statement Termination
 
@@ -71,6 +85,7 @@ Use `skip_newlines()` in these contexts.
 `ParseError` contains:
 - `message: String` - Human-readable description with helpful suggestions
 - `span: Span` - Source location
+- `kind: ParseErrorKind` - Structured error classification
 
 Error messages include context-aware suggestions (e.g., "If this is a function call, add parentheses").
 

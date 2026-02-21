@@ -244,5 +244,5 @@ Distribution packages must keep `lak` and the runtime static library in the same
 
 1. New CLI commands: add variant to `Commands` enum in `main.rs`
 2. New AST nodes: add to appropriate file in `ast/`, update parser and codegen
-3. New token types: add to `token.rs`, update lexer
+3. New token types: add to `token/kind.rs`, update lexer (`lexer/tokens.rs`) and parser token display (`parser/helpers.rs`)
 4. Error handling: use appropriate error type with `Span`

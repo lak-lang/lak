@@ -26,7 +26,7 @@ Tests are organized by category in `tests/` directory:
 | `mod.rs` | Helper functions (`tokenize_kinds`, `tokenize_error`) |
 | `basic_tokens.rs` | Punctuation, braces, arrow |
 | `identifiers.rs` | Identifier parsing (ASCII only, rejects Unicode) |
-| `keywords.rs` | Keyword recognition (`fn`, `let`) |
+| `keywords.rs` | Keyword recognition and identifier disambiguation |
 | `strings.rs` | String literals and escape sequences |
 | `integers.rs` | Integer literal parsing |
 | `comments.rs` | Comment handling |
@@ -40,18 +40,20 @@ Tests are organized by category in `tests/` directory:
 
 | Category | Tokens |
 |----------|--------|
-| Keywords | `fn`, `let` |
+| Keywords | `fn`, `let`, `mut`, `if`, `else`, `return`, `while`, `break`, `continue`, `pub`, `import`, `as` |
 | Identifiers | ASCII alphabetic (a-z, A-Z)/underscore start, ASCII alphanumeric/underscore continue (non-ASCII rejected) |
 | Integer literals | ASCII digit sequences, stored as `u64` (overflow → error) |
+| Boolean literals | `true`, `false` |
 | String literals | Double-quoted, supports `\n`, `\t`, `\r`, `\\`, `\"` |
-| Punctuation | `(`, `)`, `{`, `}`, `,`, `:`, `=`, `->` |
+| Punctuation / Operators | `(`, `)`, `{`, `}`, `,`, `:`, `.`, `=`, `->`, `+`, `-`, `*`, `/`, `%`, `!`, `&&`, `||`, `==`, `!=`, `<`, `>`, `<=`, `>=` |
 | Special | `Newline` (auto-inserted), `Eof` |
 
 ## Automatic Newline Insertion
 
 Inspired by Go's semicolon insertion. `Newline` tokens are emitted after:
 - Identifiers
-- Literals (string, integer)
+- Literals (string, integer, boolean)
+- `return`, `break`, `continue`
 - `)` (right parenthesis)
 - `}` (right brace)
 

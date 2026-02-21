@@ -18,6 +18,7 @@ fn test_type_mismatch() {
     let program = program_with_main(vec![
         Stmt::new(
             StmtKind::Let {
+                is_mutable: false,
                 name: "x".to_string(),
                 ty: Type::I32,
                 init: Expr::new(ExprKind::IntLiteral(1), dummy_span()),
@@ -26,6 +27,7 @@ fn test_type_mismatch() {
         ),
         Stmt::new(
             StmtKind::Let {
+                is_mutable: false,
                 name: "y".to_string(),
                 ty: Type::I64,
                 init: Expr::new(ExprKind::Identifier("x".to_string()), span_at(3, 18)),
@@ -49,6 +51,7 @@ fn test_type_mismatch() {
 fn test_string_literal_as_integer() {
     let program = program_with_main(vec![Stmt::new(
         StmtKind::Let {
+            is_mutable: false,
             name: "x".to_string(),
             ty: Type::I32,
             init: Expr::new(ExprKind::StringLiteral("hello".to_string()), span_at(2, 18)),
@@ -75,6 +78,7 @@ fn test_string_literal_as_integer() {
 fn test_integer_overflow_i32() {
     let program = program_with_main(vec![Stmt::new(
         StmtKind::Let {
+            is_mutable: false,
             name: "x".to_string(),
             ty: Type::I32,
             init: Expr::new(ExprKind::IntLiteral(2147483648), span_at(2, 18)), // i32::MAX + 1
@@ -97,6 +101,7 @@ fn test_integer_overflow_i32() {
 fn test_integer_negative_overflow_i32() {
     let program = program_with_main(vec![Stmt::new(
         StmtKind::Let {
+            is_mutable: false,
             name: "x".to_string(),
             ty: Type::I32,
             init: Expr::new(ExprKind::IntLiteral(-2147483649), span_at(2, 18)), // i32::MIN - 1
@@ -120,6 +125,7 @@ fn test_i64_no_overflow() {
     // Large value that fits in i64 but not i32
     let program = program_with_main(vec![Stmt::new(
         StmtKind::Let {
+            is_mutable: false,
             name: "x".to_string(),
             ty: Type::I64,
             init: Expr::new(ExprKind::IntLiteral(9223372036854775807), dummy_span()), // i64::MAX
@@ -176,6 +182,7 @@ fn test_identifier_as_statement() {
     let program = program_with_main(vec![
         Stmt::new(
             StmtKind::Let {
+                is_mutable: false,
                 name: "x".to_string(),
                 ty: Type::I32,
                 init: Expr::new(ExprKind::IntLiteral(1), dummy_span()),
@@ -271,6 +278,7 @@ fn test_println_with_i32_variable_argument() {
     let program = program_with_main(vec![
         Stmt::new(
             StmtKind::Let {
+                is_mutable: false,
                 name: "x".to_string(),
                 ty: Type::I32,
                 init: Expr::new(ExprKind::IntLiteral(42), dummy_span()),
@@ -303,6 +311,7 @@ fn test_println_with_i64_variable_argument() {
     let program = program_with_main(vec![
         Stmt::new(
             StmtKind::Let {
+                is_mutable: false,
                 name: "y".to_string(),
                 ty: Type::I64,
                 init: Expr::new(ExprKind::IntLiteral(9223372036854775807), dummy_span()),
@@ -392,6 +401,7 @@ fn test_valid_program_with_variables() {
     let program = program_with_main(vec![
         Stmt::new(
             StmtKind::Let {
+                is_mutable: false,
                 name: "x".to_string(),
                 ty: Type::I32,
                 init: Expr::new(ExprKind::IntLiteral(42), dummy_span()),
@@ -400,6 +410,7 @@ fn test_valid_program_with_variables() {
         ),
         Stmt::new(
             StmtKind::Let {
+                is_mutable: false,
                 name: "y".to_string(),
                 ty: Type::I32,
                 init: Expr::new(ExprKind::Identifier("x".to_string()), dummy_span()),
@@ -431,6 +442,7 @@ fn test_valid_program_i32_boundary_values() {
     let program = program_with_main(vec![
         Stmt::new(
             StmtKind::Let {
+                is_mutable: false,
                 name: "min".to_string(),
                 ty: Type::I32,
                 init: Expr::new(ExprKind::IntLiteral(i32::MIN as i64), dummy_span()),
@@ -439,6 +451,7 @@ fn test_valid_program_i32_boundary_values() {
         ),
         Stmt::new(
             StmtKind::Let {
+                is_mutable: false,
                 name: "max".to_string(),
                 ty: Type::I32,
                 init: Expr::new(ExprKind::IntLiteral(i32::MAX as i64), dummy_span()),
@@ -461,6 +474,7 @@ fn test_unary_minus_on_string_error() {
     // Unary minus should not work on string type
     let program = program_with_main(vec![Stmt::new(
         StmtKind::Let {
+            is_mutable: false,
             name: "x".to_string(),
             ty: Type::String,
             init: Expr::new(
@@ -492,6 +506,7 @@ fn test_unary_minus_on_string_error() {
 fn test_unary_minus_on_i32_valid() {
     let program = program_with_main(vec![Stmt::new(
         StmtKind::Let {
+            is_mutable: false,
             name: "x".to_string(),
             ty: Type::I32,
             init: Expr::new(
@@ -516,6 +531,7 @@ fn test_unary_minus_as_statement_error() {
     let program = program_with_main(vec![
         Stmt::new(
             StmtKind::Let {
+                is_mutable: false,
                 name: "x".to_string(),
                 ty: Type::I32,
                 init: Expr::new(ExprKind::IntLiteral(5), dummy_span()),
@@ -550,6 +566,7 @@ fn test_unary_minus_type_mismatch_i32_to_i64() {
     let program = program_with_main(vec![
         Stmt::new(
             StmtKind::Let {
+                is_mutable: false,
                 name: "x".to_string(),
                 ty: Type::I32,
                 init: Expr::new(ExprKind::IntLiteral(5), dummy_span()),
@@ -558,6 +575,7 @@ fn test_unary_minus_type_mismatch_i32_to_i64() {
         ),
         Stmt::new(
             StmtKind::Let {
+                is_mutable: false,
                 name: "y".to_string(),
                 ty: Type::I64,
                 init: Expr::new(
@@ -592,6 +610,7 @@ fn test_unary_minus_on_string_variable_in_println() {
     let program = program_with_main(vec![
         Stmt::new(
             StmtKind::Let {
+                is_mutable: false,
                 name: "s".to_string(),
                 ty: Type::String,
                 init: Expr::new(ExprKind::StringLiteral("hello".to_string()), dummy_span()),
@@ -668,6 +687,7 @@ fn test_unary_minus_on_string_literal_in_println() {
 fn test_logical_and_on_bool_valid() {
     let program = program_with_main(vec![Stmt::new(
         StmtKind::Let {
+            is_mutable: false,
             name: "x".to_string(),
             ty: Type::Bool,
             init: Expr::new(
@@ -691,6 +711,7 @@ fn test_logical_and_on_bool_valid() {
 fn test_logical_and_on_integer_error() {
     let program = program_with_main(vec![Stmt::new(
         StmtKind::Let {
+            is_mutable: false,
             name: "x".to_string(),
             ty: Type::Bool,
             init: Expr::new(
@@ -720,6 +741,7 @@ fn test_logical_and_on_integer_error() {
 fn test_unary_not_on_bool_valid() {
     let program = program_with_main(vec![Stmt::new(
         StmtKind::Let {
+            is_mutable: false,
             name: "x".to_string(),
             ty: Type::Bool,
             init: Expr::new(
@@ -742,6 +764,7 @@ fn test_unary_not_on_bool_valid() {
 fn test_unary_not_on_integer_error() {
     let program = program_with_main(vec![Stmt::new(
         StmtKind::Let {
+            is_mutable: false,
             name: "x".to_string(),
             ty: Type::Bool,
             init: Expr::new(

@@ -24,11 +24,13 @@ Program
   └─ FnDef (function definition)
       └─ Stmt (statement)
           ├─ StmtKind::Expr(Expr)
-          └─ StmtKind::Let { name, ty: Type, init: Expr }
-              ├─ Type (i32, i64)
-              └─ Expr (expression)
-                  └─ ExprKind::Call { callee, args: Vec<Expr> }
-                      └─ [recursive]
+          ├─ StmtKind::Let { is_mutable, name, ty: Type, init: Expr }
+          ├─ StmtKind::Discard(Expr)
+          ├─ StmtKind::Return(Option<Expr>)
+          ├─ StmtKind::If { condition, then_branch, else_branch }
+          ├─ StmtKind::While { condition, body }
+          ├─ StmtKind::Break
+          └─ StmtKind::Continue
 ```
 
 ## Type System
@@ -57,7 +59,13 @@ Expression nodes are recursive: function calls contain argument expressions.
 
 `StmtKind` variants:
 - `Expr(Expr)` - Expression statement (side effects only)
-- `Let { name, ty, init }` - Variable declaration
+- `Let { is_mutable, name, ty, init }` - Variable declaration (`let` / `let mut`)
+- `Discard(Expr)` - Explicit discard (`let _ = expr`)
+- `Return(Option<Expr>)` - Return statement
+- `If { condition, then_branch, else_branch }` - Conditional branching
+- `While { condition, body }` - Loop
+- `Break` - Exit the innermost loop
+- `Continue` - Continue the innermost loop
 
 ## Program Structure
 

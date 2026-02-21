@@ -23,6 +23,8 @@ pub enum StmtKind {
     /// Declares a new variable with an explicit type annotation and
     /// initializer expression.
     Let {
+        /// Whether this binding is declared as mutable (`let mut`).
+        is_mutable: bool,
         /// The name of the variable being declared.
         name: String,
         /// The type annotation for the variable.

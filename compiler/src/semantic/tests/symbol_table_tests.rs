@@ -75,6 +75,7 @@ fn test_enter_and_exit_scope() {
     table.enter_scope();
     let info = VariableInfo {
         name: "x".to_string(),
+        is_mutable: false,
         ty: Type::I32,
         definition_span: dummy_span(),
     };
@@ -90,6 +91,7 @@ fn test_define_variable_outside_scope_error() {
     let mut table = SymbolTable::new();
     let info = VariableInfo {
         name: "orphan".to_string(),
+        is_mutable: false,
         ty: Type::I32,
         definition_span: dummy_span(),
     };
@@ -111,11 +113,13 @@ fn test_duplicate_variable_in_same_scope() {
 
     let info1 = VariableInfo {
         name: "x".to_string(),
+        is_mutable: false,
         ty: Type::I32,
         definition_span: span_at(1, 1),
     };
     let info2 = VariableInfo {
         name: "x".to_string(),
+        is_mutable: false,
         ty: Type::I64,
         definition_span: span_at(2, 1),
     };
@@ -136,6 +140,7 @@ fn test_lookup_variable_searches_outer_scopes() {
     table.enter_scope();
     let outer_var = VariableInfo {
         name: "outer".to_string(),
+        is_mutable: false,
         ty: Type::I32,
         definition_span: dummy_span(),
     };
@@ -145,6 +150,7 @@ fn test_lookup_variable_searches_outer_scopes() {
     table.enter_scope();
     let inner_var = VariableInfo {
         name: "inner".to_string(),
+        is_mutable: false,
         ty: Type::I64,
         definition_span: dummy_span(),
     };
@@ -170,6 +176,7 @@ fn test_inner_scope_shadows_outer() {
     table.enter_scope();
     let outer_x = VariableInfo {
         name: "x".to_string(),
+        is_mutable: false,
         ty: Type::I32,
         definition_span: span_at(1, 1),
     };
@@ -179,6 +186,7 @@ fn test_inner_scope_shadows_outer() {
     table.enter_scope();
     let inner_x = VariableInfo {
         name: "x".to_string(),
+        is_mutable: false,
         ty: Type::I64,
         definition_span: span_at(3, 1),
     };
@@ -193,5 +201,23 @@ fn test_inner_scope_shadows_outer() {
 
     // Now x should be the outer (i32) version
     let found = table.lookup_variable("x").unwrap();
+    assert_eq!(found.ty, Type::I32);
+}
+
+#[test]
+fn test_lookup_variable_preserves_mutable_flag() {
+    let mut table = SymbolTable::new();
+    table.enter_scope();
+
+    let info = VariableInfo {
+        name: "counter".to_string(),
+        is_mutable: true,
+        ty: Type::I32,
+        definition_span: span_at(1, 1),
+    };
+    assert!(table.define_variable(info).is_ok());
+
+    let found = table.lookup_variable("counter").unwrap();
+    assert!(found.is_mutable);
     assert_eq!(found.ty, Type::I32);
 }

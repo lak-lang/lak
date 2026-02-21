@@ -32,6 +32,9 @@ pub struct FunctionInfo {
 pub struct VariableInfo {
     /// The variable name.
     pub name: String,
+    /// Whether the variable is mutable (`let mut`).
+    #[allow(dead_code)]
+    pub is_mutable: bool,
     /// The declared type.
     pub ty: Type,
     /// The span of the variable definition (for "previously defined here" messages).

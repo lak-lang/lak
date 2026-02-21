@@ -25,13 +25,13 @@ Comprehensive test suite verifying the compiler's functionality from source code
 | `e2e_panic.rs` | E2E | 7 | `panic()` function behavior |
 | `e2e_run.rs` | E2E | 17 | `lak run` command execution |
 | `e2e_strings.rs` | E2E | 21 | String literals and escape sequences |
-| `e2e_variables.rs` | E2E | 14 | Variable declarations (i32, i64) |
+| `e2e_variables.rs` | E2E | 15 | Variable declarations (`let`, `let mut`, i32, i64) |
 | `e2e_visibility.rs` | E2E | 4 | `pub fn` visibility keyword |
 | `e2e_while.rs` | E2E | 6 | `while` loop, `break`, `continue`, and return behavior |
 | `errors_codegen.rs` | Errors | 1 | Codegen internal/user-facing error diagnostics |
 | `errors_lex.rs` | Errors | 8 | Lexical analysis error detection |
 | `errors_modules.rs` | Errors | 18 | Module resolution error detection |
-| `errors_parse.rs` | Errors | 26 | Parser error detection |
+| `errors_parse.rs` | Errors | 27 | Parser error detection |
 | `errors_semantic.rs` | Errors | 108 | Semantic analysis error detection |
 | `pipeline.rs` | Integration | 9 | Phase integration and direct AST construction |
 

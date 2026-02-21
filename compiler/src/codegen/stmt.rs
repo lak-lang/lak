@@ -21,7 +21,12 @@ impl<'ctx> Codegen<'ctx> {
             }
             StmtKind::Discard(expr) => self.generate_discard(expr, stmt.span),
             StmtKind::Return(value) => self.generate_return(value.as_ref(), stmt.span),
-            StmtKind::Let { name, ty, init } => self.generate_let(name, ty, init, stmt.span),
+            StmtKind::Let {
+                is_mutable,
+                name,
+                ty,
+                init,
+            } => self.generate_let(*is_mutable, name, ty, init, stmt.span),
             StmtKind::If {
                 condition,
                 then_branch,
@@ -41,6 +46,8 @@ impl<'ctx> Codegen<'ctx> {
     ///
     /// # Arguments
     ///
+    /// * `_is_mutable` - Whether the binding was declared with `let mut`.
+    ///   Currently unused in codegen and preserved for future reassignment support.
     /// * `name` - The variable name
     /// * `ty` - The declared type
     /// * `init` - The initializer expression
@@ -52,6 +59,7 @@ impl<'ctx> Codegen<'ctx> {
     /// never happen because semantic analysis guarantees no duplicate variables.
     pub(super) fn generate_let(
         &mut self,
+        _is_mutable: bool,
         name: &str,
         ty: &Type,
         init: &Expr,

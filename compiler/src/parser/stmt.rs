@@ -34,7 +34,7 @@ impl Parser {
     /// # Grammar
     ///
     /// ```text
-    /// let_stmt → "let" IDENTIFIER ":" type "=" expr | "let" "_" "=" expr
+    /// let_stmt → "let" "mut"? IDENTIFIER ":" type "=" expr | "let" "_" "=" expr
     /// type → "i32" | "i64" | "string" | "bool"
     /// ```
     pub(super) fn parse_let_stmt(&mut self) -> Result<Stmt, ParseError> {
@@ -43,20 +43,33 @@ impl Parser {
         // Expect `let`
         self.expect(&TokenKind::Let)?;
 
+        // Optional `mut`
+        let is_mutable = matches!(self.current_kind(), TokenKind::Mut);
+        if is_mutable {
+            self.advance();
+        }
+
         // Expect variable name
+        let name_span = self.current_span();
         let name = self.expect_identifier()?;
 
-        // Special discard form: `let _ = expr`
-        if name == "_" && matches!(self.current_kind(), TokenKind::Equals) {
-            self.expect(&TokenKind::Equals)?;
-            let expr = self.parse_expr()?;
-            let span = Span::new(
-                start_span.start,
-                expr.span.end,
-                start_span.line,
-                start_span.column,
-            );
-            return Ok(Stmt::new(StmtKind::Discard(expr), span));
+        // Special discard form: `let _ = expr` (`let mut _ = expr` is invalid)
+        if name == "_" {
+            if is_mutable {
+                return Err(ParseError::invalid_mutable_discard(name_span));
+            }
+
+            if matches!(self.current_kind(), TokenKind::Equals) {
+                self.expect(&TokenKind::Equals)?;
+                let expr = self.parse_expr()?;
+                let span = Span::new(
+                    start_span.start,
+                    expr.span.end,
+                    start_span.line,
+                    start_span.column,
+                );
+                return Ok(Stmt::new(StmtKind::Discard(expr), span));
+            }
         }
 
         // Expect `:` type annotation
@@ -75,7 +88,15 @@ impl Parser {
             start_span.column,
         );
 
-        Ok(Stmt::new(StmtKind::Let { name, ty, init }, span))
+        Ok(Stmt::new(
+            StmtKind::Let {
+                is_mutable,
+                name,
+                ty,
+                init,
+            },
+            span,
+        ))
     }
 
     /// Parses a return statement.

@@ -557,6 +557,7 @@ fn test_function_variable_scope_isolation() {
                 return_type_span: dummy_span(),
                 body: vec![Stmt::new(
                     StmtKind::Let {
+                        is_mutable: false,
                         name: "x".to_string(),
                         ty: Type::I32,
                         init: Expr::new(ExprKind::IntLiteral(1), dummy_span()),
@@ -573,6 +574,7 @@ fn test_function_variable_scope_isolation() {
                 return_type_span: dummy_span(),
                 body: vec![Stmt::new(
                     StmtKind::Let {
+                        is_mutable: false,
                         name: "x".to_string(), // Same name as in helper, should be OK
                         ty: Type::I32,
                         init: Expr::new(ExprKind::IntLiteral(2), dummy_span()),
@@ -603,6 +605,7 @@ fn test_function_scope_isolation_different_types() {
                 return_type_span: dummy_span(),
                 body: vec![Stmt::new(
                     StmtKind::Let {
+                        is_mutable: false,
                         name: "value".to_string(),
                         ty: Type::I32,
                         init: Expr::new(ExprKind::IntLiteral(100), dummy_span()),
@@ -619,6 +622,7 @@ fn test_function_scope_isolation_different_types() {
                 return_type_span: dummy_span(),
                 body: vec![Stmt::new(
                     StmtKind::Let {
+                        is_mutable: false,
                         name: "value".to_string(), // Same name, different type
                         ty: Type::I64,
                         init: Expr::new(ExprKind::IntLiteral(200), dummy_span()),
