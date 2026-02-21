@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.1.0](https://github.com/lak-lang/lak/compare/v0.0.2...v0.1.0) (2026-02-21)
+
+
+### Features
+
+* add ordered comparison operators for string ([27845d4](https://github.com/lak-lang/lak/commit/27845d419cf35c8c1789dcab0e00d39f1e2a7f60))
+* add return statements and non-void returns ([8463122](https://github.com/lak-lang/lak/commit/84631222bdad1e9f8e1bc8dff90dbcbb23594541))
+* implement function parameters across parser, semantic, and codegen ([09c3e1e](https://github.com/lak-lang/lak/commit/09c3e1e885a84754cbeb283e03ed9ed65f866645))
+* implement while loop with break and continue ([a70b113](https://github.com/lak-lang/lak/commit/a70b113a9d4d73fd13263489ed73ac64b75ded7e))
+* support let mut declarations and diagnostics ([8995e64](https://github.com/lak-lang/lak/commit/8995e640e4921533d2d309393097774817b2d8de))
+
+
+### Patches
+
+* adapt integer literals in binary operations ([79cc03c](https://github.com/lak-lang/lak/commit/79cc03c3d388cd6c5b8a8756fb50432f8a6c7c0d))
+* avoid exposing mangled names in codegen internal errors ([0f920d1](https://github.com/lak-lang/lak/commit/0f920d1576ccdd00a5010f946aed43eb7d25c3a6))
+* avoid false missing return for while true ([fb4a742](https://github.com/lak-lang/lak/commit/fb4a742bda752803123ca91c00d3adf7f77d616b))
+* handle const-bool if return reachability ([69e6732](https://github.com/lak-lang/lak/commit/69e67326af1cf039040ccfb5783f2b24e2c9a62a))
+* resolve runtime and msvc linker paths at runtime ([d1e0ed7](https://github.com/lak-lang/lak/commit/d1e0ed7e970662280722706a308e95781d95283b))
+
 ## [0.0.2](https://github.com/lak-lang/lak/compare/v0.0.1...v0.0.2) (2026-02-11)
 
 
