@@ -70,6 +70,16 @@ impl Parser {
                 );
                 return Ok(Stmt::new(StmtKind::Discard(expr), span));
             }
+
+            if matches!(self.current_kind(), TokenKind::Colon) {
+                return Err(ParseError::invalid_typed_discard(name_span));
+            }
+
+            return Err(ParseError::unexpected_token(
+                &Self::token_kind_display(&TokenKind::Equals),
+                &Self::token_kind_display(self.current_kind()),
+                self.current_span(),
+            ));
         }
 
         // Expect `:` type annotation

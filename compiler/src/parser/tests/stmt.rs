@@ -279,22 +279,18 @@ fn test_discard_stmt_call() {
 }
 
 #[test]
-fn test_let_underscore_with_type_still_parses_as_let() {
-    let program = parse("fn main() -> void { let _: i32 = 1 }").unwrap();
-    match &program.functions[0].body[0].kind {
-        StmtKind::Let {
-            is_mutable,
-            name,
-            ty,
-            init,
-        } => {
-            assert!(!is_mutable);
-            assert_eq!(name, "_");
-            assert_eq!(*ty, Type::I32);
-            assert!(matches!(init.kind, ExprKind::IntLiteral(1)));
-        }
-        _ => panic!("Expected Let statement"),
-    }
+fn test_error_let_typed_discard_binding() {
+    let err = parse_error("fn main() -> void { let _: i32 = 1 }");
+    assert_eq!(
+        err.message(),
+        "Discard binding '_' cannot have a type annotation; use `let _ = expr`"
+    );
+}
+
+#[test]
+fn test_error_discard_missing_equals() {
+    let err = parse_error("fn main() -> void { let _ let _ = 1 }");
+    assert_eq!(err.message(), "Expected '=', found 'let' keyword");
 }
 
 // ===================

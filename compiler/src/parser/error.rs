@@ -18,7 +18,8 @@
 //!   [`missing_fn_call_parens_int()`](ParseError::missing_fn_call_parens_int),
 //!   [`missing_fn_call_parens_ident()`](ParseError::missing_fn_call_parens_ident)
 //! - **Expression errors**: [`unexpected_expression_start()`](ParseError::unexpected_expression_start)
-//! - **Unsupported syntax**: [`invalid_mutable_discard()`](ParseError::invalid_mutable_discard)
+//! - **Unsupported syntax**: [`invalid_mutable_discard()`](ParseError::invalid_mutable_discard),
+//!   [`invalid_typed_discard()`](ParseError::invalid_typed_discard)
 
 use crate::token::Span;
 
@@ -284,6 +285,18 @@ impl ParseError {
         Self::new(
             ParseErrorKind::UnexpectedToken,
             "Discard binding '_' cannot be declared mutable",
+            span,
+        )
+    }
+
+    /// Creates an error for invalid typed discard binding.
+    ///
+    /// `let _: type = expr` is rejected because `_` is discard-only and must
+    /// be used as `let _ = expr`.
+    pub fn invalid_typed_discard(span: Span) -> Self {
+        Self::new(
+            ParseErrorKind::UnexpectedToken,
+            "Discard binding '_' cannot have a type annotation; use `let _ = expr`",
             span,
         )
     }

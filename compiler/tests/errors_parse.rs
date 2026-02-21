@@ -101,6 +101,55 @@ fn test_compile_error_let_mut_discard_binding() {
 }
 
 #[test]
+fn test_compile_error_let_typed_discard_binding() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let _: i32 = panic("boom")
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Parse),
+        "Expected Parse error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Discard binding '_' cannot have a type annotation; use `let _ = expr`"
+    );
+    assert_eq!(short_msg, "Unexpected token");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Parse(ParseErrorKind::UnexpectedToken),
+        "Expected UnexpectedToken error kind"
+    );
+}
+
+#[test]
+fn test_compile_error_discard_missing_equals() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let _ let _ = 1
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Parse),
+        "Expected Parse error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(msg, "Expected '=', found 'let' keyword");
+    assert_eq!(short_msg, "Unexpected token");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Parse(ParseErrorKind::UnexpectedToken),
+        "Expected UnexpectedToken error kind"
+    );
+}
+
+#[test]
 fn test_compile_error_missing_statement_terminator() {
     // Two statements on same line without separator should error
     let result = compile_error_with_kind(
