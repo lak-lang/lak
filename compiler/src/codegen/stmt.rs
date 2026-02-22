@@ -1,8 +1,9 @@
 //! Statement code generation.
 //!
 //! This module implements code generation for Lak statements, including
-//! expression statements, `let` bindings, `let _ = ...` discard statements,
-//! `return` statements, and control flow (`if`, `while`, `break`, `continue`).
+//! expression statements, `let` bindings, reassignment statements,
+//! `let _ = ...` discard statements, `return` statements, and control flow
+//! (`if`, `while`, `break`, `continue`).
 
 use super::Codegen;
 use super::binding::VarBinding;
@@ -27,6 +28,7 @@ impl<'ctx> Codegen<'ctx> {
                 ty,
                 init,
             } => self.generate_let(*is_mutable, name, ty, init, stmt.span),
+            StmtKind::Assign { name, value } => self.generate_assign(name, value, stmt.span),
             StmtKind::If {
                 condition,
                 then_branch,
@@ -47,7 +49,8 @@ impl<'ctx> Codegen<'ctx> {
     /// # Arguments
     ///
     /// * `_is_mutable` - Whether the binding was declared with `let mut`.
-    ///   Currently unused in codegen and preserved for future reassignment support.
+    ///   Mutability rules are enforced during semantic analysis, so codegen
+    ///   does not need to branch on this flag.
     /// * `name` - The variable name
     /// * `ty` - The declared type
     /// * `init` - The initializer expression
@@ -81,6 +84,28 @@ impl<'ctx> Codegen<'ctx> {
             })?;
 
         self.define_variable_in_current_scope(name, binding, span)?;
+
+        Ok(())
+    }
+
+    /// Generates LLVM IR for a reassignment statement.
+    pub(super) fn generate_assign(
+        &mut self,
+        name: &str,
+        value: &Expr,
+        span: Span,
+    ) -> Result<(), CodegenError> {
+        let (alloca, variable_ty) = {
+            let binding = self
+                .lookup_variable(name)
+                .ok_or_else(|| CodegenError::internal_variable_not_found(name, span))?;
+            (binding.alloca(), binding.ty().clone())
+        };
+
+        let rhs_value = self.generate_expr_value(value, &variable_ty)?;
+        self.builder.build_store(alloca, rhs_value).map_err(|e| {
+            CodegenError::internal_variable_store_failed(name, &e.to_string(), span)
+        })?;
 
         Ok(())
     }

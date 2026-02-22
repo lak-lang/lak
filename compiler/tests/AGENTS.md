@@ -16,28 +16,28 @@ Comprehensive test suite verifying the compiler's functionality from source code
 | `e2e_basic.rs` | E2E | 7 | Basic functionality (println, comments, functions) |
 | `e2e_bool.rs` | E2E | 12 | Boolean type handling |
 | `e2e_build.rs` | E2E | 15 | `lak build` command behavior |
-| `e2e_comparison.rs` | E2E | 75 | Comparison operators (==, !=, <, >, <=, >=) |
+| `e2e_comparison.rs` | E2E | 90 | Comparison operators (==, !=, <, >, <=, >=) |
 | `e2e_functions.rs` | E2E | 25 | User-defined function calls |
-| `e2e_if_else.rs` | E2E | 6 | `if`/`else if`/`else` statement behavior |
+| `e2e_if_else.rs` | E2E | 9 | `if`/`else if`/`else` statement behavior |
 | `e2e_if_expression.rs` | E2E | 9 | `if` expression behavior |
 | `e2e_imports.rs` | E2E | 4 | `import` syntax parsing |
 | `e2e_modules.rs` | E2E | 22 | Multi-file module compilation |
 | `e2e_panic.rs` | E2E | 7 | `panic()` function behavior |
 | `e2e_run.rs` | E2E | 17 | `lak run` command execution |
 | `e2e_strings.rs` | E2E | 21 | String literals and escape sequences |
-| `e2e_variables.rs` | E2E | 15 | Variable declarations (`let`, `let mut`, i32, i64) |
+| `e2e_variables.rs` | E2E | 25 | Variable declarations and reassignment (`let`, `let mut`, `x = ...`) |
 | `e2e_visibility.rs` | E2E | 4 | `pub fn` visibility keyword |
 | `e2e_while.rs` | E2E | 6 | `while` loop, `break`, `continue`, and return behavior |
 | `errors_codegen.rs` | Errors | 1 | Codegen internal/user-facing error diagnostics |
 | `errors_lex.rs` | Errors | 8 | Lexical analysis error detection |
 | `errors_modules.rs` | Errors | 18 | Module resolution error detection |
-| `errors_parse.rs` | Errors | 27 | Parser error detection |
-| `errors_semantic.rs` | Errors | 108 | Semantic analysis error detection |
+| `errors_parse.rs` | Errors | 29 | Parser error detection |
+| `errors_semantic.rs` | Errors | 111 | Semantic analysis error detection |
 | `pipeline.rs` | Integration | 9 | Phase integration and direct AST construction |
 
 ## Test Categories
 
-### E2E Tests (356 tests)
+### E2E Tests (385 tests)
 
 Compile, link, and execute real Lak programs, validating stdout output.
 
@@ -46,7 +46,7 @@ let output = compile_and_run(r#"fn main() -> void { println("test") }"#).unwrap(
 assert_eq!(output, "test\n");
 ```
 
-### Error Tests (161 tests)
+### Error Tests (167 tests)
 
 Verify errors are detected at the correct compilation stage with correct error kind.
 

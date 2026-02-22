@@ -101,8 +101,8 @@ This document tracks the implementation status of Lak language features as defin
 
 ### 3.2 Reassignment
 
-- [ ] Reassignment for `mut` variables
-- [ ] Error on reassignment of immutable variables
+- [x] Reassignment for `mut` variables
+- [x] Error on reassignment of immutable variables
 
 ### 3.3 Shadowing
 
@@ -160,7 +160,7 @@ This document tracks the implementation status of Lak language features as defin
 ### 4.5 Assignment Operators
 
 - [x] `=` initial assignment (in let)
-- [ ] `=` reassignment (for mut variables)
+- [x] `=` reassignment (for mut variables)
 
 ### 4.6 Operator Precedence
 

@@ -218,6 +218,65 @@ fn test_let_mixed_with_println() {
     ));
 }
 
+// ===================
+// Assignment statement parsing
+// ===================
+
+#[test]
+fn test_assign_stmt_basic() {
+    let program = parse(
+        r#"fn main() -> void {
+            let mut x: i32 = 1
+            x = 2
+        }"#,
+    )
+    .unwrap();
+
+    assert_eq!(program.functions[0].body.len(), 2);
+    match &program.functions[0].body[1].kind {
+        StmtKind::Assign { name, value } => {
+            assert_eq!(name, "x");
+            assert!(matches!(value.kind, ExprKind::IntLiteral(2)));
+        }
+        _ => panic!("Expected Assign statement"),
+    }
+}
+
+#[test]
+fn test_assign_stmt_with_binary_expression() {
+    let program = parse(
+        r#"fn main() -> void {
+            let mut x: i32 = 1
+            x = x + 1
+        }"#,
+    )
+    .unwrap();
+
+    match &program.functions[0].body[1].kind {
+        StmtKind::Assign { name, value } => {
+            assert_eq!(name, "x");
+            assert!(matches!(value.kind, ExprKind::BinaryOp { .. }));
+        }
+        _ => panic!("Expected Assign statement"),
+    }
+}
+
+#[test]
+fn test_expression_statement_equality_is_not_assignment() {
+    let program = parse(
+        r#"fn main() -> void {
+            let x: bool = true
+            x == true
+        }"#,
+    )
+    .unwrap();
+
+    assert!(matches!(
+        program.functions[0].body[1].kind,
+        StmtKind::Expr(_)
+    ));
+}
+
 #[test]
 fn test_error_let_missing_colon() {
     let err = parse_error("fn main() -> void { let x i32 = 42 }");
@@ -291,6 +350,12 @@ fn test_error_let_typed_discard_binding() {
 fn test_error_discard_missing_equals() {
     let err = parse_error("fn main() -> void { let _ let _ = 1 }");
     assert_eq!(err.message(), "Expected '=', found 'let' keyword");
+}
+
+#[test]
+fn test_error_assign_missing_value() {
+    let err = parse_error("fn main() -> void { x = }");
+    assert_eq!(err.message(), "Unexpected token: '}'");
 }
 
 // ===================

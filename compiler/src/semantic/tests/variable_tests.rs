@@ -163,3 +163,108 @@ fn test_mutable_variable_declaration_is_valid() {
     let result = analyzer.analyze(&program);
     assert!(result.is_ok());
 }
+
+#[test]
+fn test_mutable_variable_reassignment_is_valid() {
+    let program = program_with_main(vec![
+        Stmt::new(
+            StmtKind::Let {
+                is_mutable: true,
+                name: "x".to_string(),
+                ty: Type::I32,
+                init: Expr::new(ExprKind::IntLiteral(1), span_at(2, 22)),
+            },
+            span_at(2, 5),
+        ),
+        Stmt::new(
+            StmtKind::Assign {
+                name: "x".to_string(),
+                value: Expr::new(ExprKind::IntLiteral(2), span_at(3, 9)),
+            },
+            span_at(3, 5),
+        ),
+    ]);
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze(&program);
+    assert!(result.is_ok());
+}
+
+#[test]
+fn test_reassignment_to_immutable_variable_is_error() {
+    let program = program_with_main(vec![
+        Stmt::new(
+            StmtKind::Let {
+                is_mutable: false,
+                name: "x".to_string(),
+                ty: Type::I32,
+                init: Expr::new(ExprKind::IntLiteral(1), span_at(2, 18)),
+            },
+            span_at(2, 5),
+        ),
+        Stmt::new(
+            StmtKind::Assign {
+                name: "x".to_string(),
+                value: Expr::new(ExprKind::IntLiteral(2), span_at(3, 9)),
+            },
+            span_at(3, 5),
+        ),
+    ]);
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze(&program);
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert_eq!(err.kind(), SemanticErrorKind::ImmutableVariableReassignment);
+    assert_eq!(err.message(), "Cannot reassign immutable variable 'x'");
+}
+
+#[test]
+fn test_reassignment_type_mismatch_is_error() {
+    let program = program_with_main(vec![
+        Stmt::new(
+            StmtKind::Let {
+                is_mutable: true,
+                name: "x".to_string(),
+                ty: Type::I32,
+                init: Expr::new(ExprKind::IntLiteral(1), span_at(2, 22)),
+            },
+            span_at(2, 5),
+        ),
+        Stmt::new(
+            StmtKind::Assign {
+                name: "x".to_string(),
+                value: Expr::new(ExprKind::StringLiteral("hello".to_string()), span_at(3, 9)),
+            },
+            span_at(3, 5),
+        ),
+    ]);
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze(&program);
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert_eq!(err.kind(), SemanticErrorKind::TypeMismatch);
+    assert_eq!(
+        err.message(),
+        "Type mismatch: string literal cannot be assigned to type 'i32'"
+    );
+}
+
+#[test]
+fn test_reassignment_to_undefined_variable_is_error() {
+    let program = program_with_main(vec![Stmt::new(
+        StmtKind::Assign {
+            name: "x".to_string(),
+            value: Expr::new(ExprKind::IntLiteral(2), span_at(2, 9)),
+        },
+        span_at(2, 5),
+    )]);
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze(&program);
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert_eq!(err.kind(), SemanticErrorKind::UndefinedVariable);
+    assert_eq!(err.message(), "Undefined variable: 'x'");
+}

@@ -15,7 +15,7 @@ Transforms Lak AST into LLVM IR and generates native object files. Uses Inkwell 
 | `binding.rs` | `VarBinding` (stack allocation and type info for variables) |
 | `builtins.rs` | Built-in functions (`println` → `lak_println`) |
 | `expr.rs` | Expression codegen (literals, variable references, calls) |
-| `stmt.rs` | Statement codegen (expression/let/discard/return/if/while/break/continue) |
+| `stmt.rs` | Statement codegen (expression/let/assign/discard/return/if/while/break/continue) |
 | `target.rs` | Target machine initialization and object file output |
 | `tests.rs` | Unit tests |
 
@@ -47,7 +47,8 @@ pub struct Codegen<'ctx> { ... }
 - `VarBinding` holds stack allocation (`alloca`) and type information
 - Managed via scoped stack `variables: Vec<HashMap<String, VarBinding>>`
 - Cleared per function
-- `StmtKind::Let` carries `is_mutable`; codegen accepts it but currently has no behavior difference (reserved for future reassignment support).
+- `StmtKind::Assign` reuses the existing variable binding (`alloca`) and emits `store`
+- Mutability is validated in semantic analysis; codegen assumes reassignment is semantically valid
 
 ## Type Mapping
 

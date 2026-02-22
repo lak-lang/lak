@@ -519,7 +519,7 @@ impl CodegenError {
         Self::new(
             CodegenErrorKind::InternalError,
             format!(
-                "Internal error: failed to store initial value for '{}'. \
+                "Internal error: failed to store value for '{}'. \
                  This is a compiler bug: {}",
                 name, error
             ),

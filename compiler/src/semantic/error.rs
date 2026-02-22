@@ -56,6 +56,8 @@ pub enum SemanticErrorKind {
     DuplicateVariable,
     /// A variable was referenced but not defined.
     UndefinedVariable,
+    /// A reassignment targeted an immutable variable.
+    ImmutableVariableReassignment,
     /// A function was called but not defined.
     UndefinedFunction,
     /// Type mismatch between expected and actual types.
@@ -220,6 +222,7 @@ impl SemanticError {
             SemanticErrorKind::DuplicateFunction => "Duplicate function",
             SemanticErrorKind::DuplicateVariable => "Duplicate variable",
             SemanticErrorKind::UndefinedVariable => "Undefined variable",
+            SemanticErrorKind::ImmutableVariableReassignment => "Invalid assignment",
             SemanticErrorKind::UndefinedFunction => "Undefined function",
             SemanticErrorKind::TypeMismatch => "Type mismatch",
             SemanticErrorKind::IfExpressionBranchTypeMismatch => {
@@ -253,6 +256,19 @@ impl SemanticError {
             SemanticErrorKind::UndefinedVariable,
             format!("Undefined variable: '{}'", name),
             span,
+        )
+    }
+
+    /// Creates an "immutable variable reassignment" error.
+    pub fn immutable_variable_reassignment(name: &str, span: Span) -> Self {
+        Self::new_with_help(
+            SemanticErrorKind::ImmutableVariableReassignment,
+            format!("Cannot reassign immutable variable '{}'", name),
+            span,
+            format!(
+                "declare '{}' as mutable first: `let mut {}: <type> = ...`",
+                name, name
+            ),
         )
     }
 

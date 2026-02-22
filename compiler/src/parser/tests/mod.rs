@@ -103,7 +103,7 @@ fn test_parse_error_unknown_type_constructor() {
     assert_eq!(err.kind(), ParseErrorKind::ExpectedType);
     assert_eq!(
         err.message(),
-        "Unknown type: 'int'. Expected 'i32', 'i64', or 'string'"
+        "Unknown type: 'int'. Expected 'i32', 'i64', 'string', or 'bool'"
     );
 }
 

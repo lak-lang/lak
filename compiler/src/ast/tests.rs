@@ -119,6 +119,25 @@ fn test_stmt_let() {
 }
 
 #[test]
+fn test_stmt_assign() {
+    let stmt = Stmt::new(
+        StmtKind::Assign {
+            name: "x".to_string(),
+            value: Expr::new(ExprKind::IntLiteral(10), dummy_span()),
+        },
+        dummy_span(),
+    );
+
+    match stmt.kind {
+        StmtKind::Assign { name, value } => {
+            assert_eq!(name, "x");
+            assert!(matches!(value.kind, ExprKind::IntLiteral(10)));
+        }
+        _ => panic!("Expected Assign statement"),
+    }
+}
+
+#[test]
 fn test_stmt_while() {
     let stmt = Stmt::new(
         StmtKind::While {

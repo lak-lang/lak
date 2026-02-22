@@ -25,6 +25,7 @@ Program
       └─ Stmt (statement)
           ├─ StmtKind::Expr(Expr)
           ├─ StmtKind::Let { is_mutable, name, ty: Type, init: Expr }
+          ├─ StmtKind::Assign { name, value: Expr }
           ├─ StmtKind::Discard(Expr)
           ├─ StmtKind::Return(Option<Expr>)
           ├─ StmtKind::If { condition, then_branch, else_branch }
@@ -60,6 +61,7 @@ Expression nodes are recursive: function calls contain argument expressions.
 `StmtKind` variants:
 - `Expr(Expr)` - Expression statement (side effects only)
 - `Let { is_mutable, name, ty, init }` - Variable declaration (`let` / `let mut`)
+- `Assign { name, value }` - Reassignment of an existing variable (`x = expr`)
 - `Discard(Expr)` - Explicit discard (`let _ = expr`)
 - `Return(Option<Expr>)` - Return statement
 - `If { condition, then_branch, else_branch }` - Conditional branching

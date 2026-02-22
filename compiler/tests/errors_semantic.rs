@@ -183,6 +183,80 @@ fn test_compile_error_self_referential_let_initializer() {
 }
 
 #[test]
+fn test_compile_error_reassignment_to_immutable_variable() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let x: i32 = 1
+    x = 2
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(msg, "Cannot reassign immutable variable 'x'");
+    assert_eq!(short_msg, "Invalid assignment");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::ImmutableVariableReassignment),
+        "Expected ImmutableVariableReassignment error kind"
+    );
+}
+
+#[test]
+fn test_compile_error_reassignment_type_mismatch() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let mut x: i32 = 1
+    x = "hello"
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Type mismatch: string literal cannot be assigned to type 'i32'"
+    );
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch),
+        "Expected TypeMismatch error kind"
+    );
+}
+
+#[test]
+fn test_compile_error_reassignment_to_undefined_variable() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    x = 1
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(msg, "Undefined variable: 'x'");
+    assert_eq!(short_msg, "Undefined variable");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::UndefinedVariable),
+        "Expected UndefinedVariable error kind"
+    );
+}
+
+#[test]
 fn test_compile_error_type_mismatch() {
     let result = compile_error_with_kind(
         r#"fn main() -> void {

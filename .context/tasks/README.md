@@ -33,8 +33,8 @@ Status:
 - `print-function.md` - print Built-in Function
 
 ### Variables
-- `mut-modifier.md` - mut Modifier
-- `reassignment.md` - Reassignment for Mutable Variables
+- `mut-modifier.md` - mut Modifier [Done]
+- `reassignment.md` - Reassignment for Mutable Variables [Done]
 - `type-inference.md` - Type Inference
 
 ### Types
@@ -76,8 +76,8 @@ Status:
 8. `function-parameters.md` [Done]
 9. `non-void-return.md` [Done]
 10. `print-function.md` [Todo]
-11. `mut-modifier.md` [Todo]
-12. `reassignment.md` [Todo]
+11. `mut-modifier.md` [Done]
+12. `reassignment.md` [Done]
 13. `type-inference.md` [Todo]
 14. `integer-types.md` [Todo]
 15. `float-types.md` [Todo]

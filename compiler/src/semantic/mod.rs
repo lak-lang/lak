@@ -270,6 +270,10 @@ impl SemanticAnalyzer {
                 self.analyze_let(*is_mutable, name, ty, init, stmt.span)?;
                 Ok(false)
             }
+            StmtKind::Assign { name, value } => {
+                self.analyze_assign(name, value, stmt.span)?;
+                Ok(false)
+            }
             StmtKind::Discard(expr) => {
                 self.analyze_discard(expr, stmt.span)?;
                 Ok(false)
@@ -732,6 +736,28 @@ impl SemanticAnalyzer {
         };
         self.symbols.define_variable(info)?;
 
+        Ok(())
+    }
+
+    fn analyze_assign(
+        &mut self,
+        name: &str,
+        value: &Expr,
+        span: Span,
+    ) -> Result<(), SemanticError> {
+        let (is_mutable, variable_ty) = {
+            let var_info = self
+                .symbols
+                .lookup_variable(name)
+                .ok_or_else(|| SemanticError::undefined_variable(name, span))?;
+            (var_info.is_mutable, var_info.ty.clone())
+        };
+
+        if !is_mutable {
+            return Err(SemanticError::immutable_variable_reassignment(name, span));
+        }
+
+        self.check_expr_type(value, &variable_ty)?;
         Ok(())
     }
 

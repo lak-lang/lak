@@ -69,6 +69,78 @@ fn test_let_mut_bool_with_type_annotation() {
 }
 
 #[test]
+fn test_let_mut_reassignment_i32() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let mut x: i32 = 0
+    x = x + 1
+    x = 10
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "10\n");
+}
+
+#[test]
+fn test_let_mut_reassignment_bool() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let mut ok: bool = false
+    ok = true
+    println(ok)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "true\n");
+}
+
+#[test]
+fn test_let_mut_reassignment_string() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let mut s: string = "before"
+    s = "after"
+    println(s)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "after\n");
+}
+
+#[test]
+fn test_let_mut_reassignment_in_while_loop() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let mut i: i32 = 0
+    while i < 3 {
+        i = i + 1
+    }
+    println(i)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "3\n");
+}
+
+#[test]
+fn test_let_mut_reassignment_in_if_branch() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let mut value: i32 = 1
+    if true {
+        value = 2
+    } else {
+        value = 3
+    }
+    println(value)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "2\n");
+}
+
+#[test]
 fn test_let_mut_inside_if_scope() {
     let output = compile_and_run(
         r#"fn main() -> void {

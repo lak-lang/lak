@@ -83,6 +83,22 @@ fn test_undefined_variable_constructor() {
 }
 
 #[test]
+fn test_immutable_variable_reassignment_constructor() {
+    let err = SemanticError::immutable_variable_reassignment("counter", span_at(10, 5));
+    assert_eq!(err.kind(), SemanticErrorKind::ImmutableVariableReassignment);
+    assert_eq!(
+        err.message(),
+        "Cannot reassign immutable variable 'counter'"
+    );
+    assert_eq!(
+        err.help(),
+        Some("declare 'counter' as mutable first: `let mut counter: <type> = ...`")
+    );
+    assert_eq!(err.span().unwrap().line, 10);
+    assert_eq!(err.span().unwrap().column, 5);
+}
+
+#[test]
 fn test_undefined_function_constructor() {
     let err = SemanticError::undefined_function("bar", span_at(20, 3));
     assert_eq!(err.kind(), SemanticErrorKind::UndefinedFunction);

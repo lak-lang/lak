@@ -11,7 +11,7 @@ impl Parser {
     /// # Grammar
     ///
     /// ```text
-    /// stmt → let_stmt | return_stmt | if_stmt | while_stmt | break_stmt | continue_stmt | expr_stmt
+    /// stmt → let_stmt | assign_stmt | return_stmt | if_stmt | while_stmt | break_stmt | continue_stmt | expr_stmt
     /// ```
     pub(super) fn parse_stmt(&mut self) -> Result<Stmt, ParseError> {
         match self.current_kind() {
@@ -22,6 +22,13 @@ impl Parser {
             TokenKind::Break => self.parse_break_stmt(),
             TokenKind::Continue => self.parse_continue_stmt(),
             _ => {
+                let next_kind = self.tokens.get(self.pos + 1).map(|token| &token.kind);
+                if matches!(self.current_kind(), TokenKind::Identifier(_))
+                    && matches!(next_kind, Some(TokenKind::Equals))
+                {
+                    return self.parse_assign_stmt();
+                }
+
                 let expr = self.parse_expr()?;
                 let span = expr.span;
                 Ok(Stmt::new(StmtKind::Expr(expr), span))
@@ -107,6 +114,29 @@ impl Parser {
             },
             span,
         ))
+    }
+
+    /// Parses a reassignment statement.
+    ///
+    /// # Grammar
+    ///
+    /// ```text
+    /// assign_stmt → IDENTIFIER "=" expr
+    /// ```
+    pub(super) fn parse_assign_stmt(&mut self) -> Result<Stmt, ParseError> {
+        let start_span = self.current_span();
+        let name = self.expect_identifier()?;
+        self.expect(&TokenKind::Equals)?;
+        let value = self.parse_expr()?;
+
+        let span = Span::new(
+            start_span.start,
+            value.span.end,
+            start_span.line,
+            start_span.column,
+        );
+
+        Ok(Stmt::new(StmtKind::Assign { name, value }, span))
     }
 
     /// Parses a return statement.

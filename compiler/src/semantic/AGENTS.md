@@ -22,7 +22,7 @@ Validates an AST for semantic correctness before code generation. Performs name 
 |------|----------|
 | `tests/mod.rs` | Test helpers, SemanticError Display tests |
 | `tests/function_tests.rs` | Function definition, main validation, undefined function, scope isolation |
-| `tests/variable_tests.rs` | Duplicate/undefined variable detection, mutable declaration path |
+| `tests/variable_tests.rs` | Duplicate/undefined variable detection, mutable declaration/reassignment paths |
 | `tests/type_tests.rs` | Type mismatch, overflow, invalid expressions, println arguments, valid programs |
 | `tests/symbol_table_tests.rs` | SymbolTable data structure unit tests, mutable flag preservation |
 
@@ -45,6 +45,7 @@ Note: `analyze_module()` (used for imported modules) skips phase 2 (main validat
 | `DuplicateFunction` | Function defined multiple times |
 | `DuplicateVariable` | Variable defined multiple times in same scope |
 | `UndefinedVariable` | Variable used but not defined |
+| `ImmutableVariableReassignment` | Reassignment to immutable variable |
 | `UndefinedFunction` | Function called but not defined |
 | `TypeMismatch` | Expected vs actual type mismatch |
 | `IntegerOverflow` | Integer out of range for target type |
@@ -93,6 +94,7 @@ Currently supports:
 
 Type checking occurs in:
 - `let` statements (`let` / `let mut`): initializer must match declared type
+- reassignment statements (`x = expr`): variable must be mutable and RHS must match variable type
 - Variable references: variable type must match expected type
 
 ## Built-in Functions
@@ -119,6 +121,7 @@ Only function calls and module-qualified function calls are valid as expression 
 If `analyze()` returns `Ok(())`, codegen can assume:
 - `main` function exists with `void` return type
 - All variable references are defined
+- Reassignments target mutable variables only
 - All variable types match their usage
 - All integer literals fit their target types
 - All function calls reference defined functions

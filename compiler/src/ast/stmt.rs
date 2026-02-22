@@ -33,6 +33,16 @@ pub enum StmtKind {
         init: Expr,
     },
 
+    /// A variable reassignment statement.
+    ///
+    /// Assigns a new value to an existing variable.
+    Assign {
+        /// The name of the variable being reassigned.
+        name: String,
+        /// The new value expression.
+        value: Expr,
+    },
+
     /// A return statement.
     ///
     /// `return` without a value is represented as `None`.

@@ -14,7 +14,7 @@ Transforms a token stream from the lexer into an Abstract Syntax Tree (AST). Imp
 | `error.rs` | `ParseError` type |
 | `helpers.rs` | Token navigation (`current`, `advance`, `expect`, `skip_newlines`) |
 | `fn_def.rs` | Function definition parsing |
-| `stmt.rs` | Statement parsing (`let`, `return`, `if`, `while`, `break`, `continue`, expression statements) |
+| `stmt.rs` | Statement parsing (`let`, assignment, `return`, `if`, `while`, `break`, `continue`, expression statements) |
 | `types.rs` | Type annotation parsing |
 | `expr.rs` | Expression parsing (if-expression, calls, operators, identifiers, literals) |
 | `tests/` | Unit tests (see below) |
@@ -27,7 +27,7 @@ Tests are organized by parser component:
 |------|----------|
 | `tests/mod.rs` | Shared test helpers |
 | `tests/fn_def.rs` | Function definitions, parameters, visibility, spans |
-| `tests/stmt.rs` | Statements, newlines, `let mut`, discard |
+| `tests/stmt.rs` | Statements, newlines, `let mut`, assignment, discard |
 | `tests/expr.rs` | Expressions, precedence, calls, literals, `if` expression |
 | `tests/errors.rs` | Error detection and message quality |
 | `tests/helpers.rs` | Edge cases, utilities |
@@ -39,8 +39,9 @@ program     → import* fn_def* EOF
 import      → "import" STRING ("as" IDENTIFIER)?
 fn_def      → ("pub")? "fn" IDENTIFIER "(" param_list? ")" "->" return_type "{" stmt* "}"
 param_list  → IDENTIFIER ":" type ("," IDENTIFIER ":" type)*
-stmt        → let_stmt | return_stmt | if_stmt | while_stmt | break_stmt | continue_stmt | expr_stmt
+stmt        → let_stmt | assign_stmt | return_stmt | if_stmt | while_stmt | break_stmt | continue_stmt | expr_stmt
 let_stmt    → "let" "mut"? IDENTIFIER ":" type "=" expr | "let" "_" "=" expr
+assign_stmt → IDENTIFIER "=" expr
 return_stmt → "return" expr?
 if_stmt     → "if" expr "{" stmt* "}" ("else" (if_stmt | "{" stmt* "}"))?
 while_stmt  → "while" expr "{" stmt* "}"
