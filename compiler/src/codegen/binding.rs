@@ -19,8 +19,14 @@ use inkwell::values::PointerValue;
 /// # Invariants
 ///
 /// The LLVM type of `alloca` must correspond to `ty`:
+/// - `Type::I8` → `alloca` points to an LLVM `i8`
+/// - `Type::I16` → `alloca` points to an LLVM `i16`
 /// - `Type::I32` → `alloca` points to an LLVM `i32`
 /// - `Type::I64` → `alloca` points to an LLVM `i64`
+/// - `Type::U8` → `alloca` points to an LLVM `i8`
+/// - `Type::U16` → `alloca` points to an LLVM `i16`
+/// - `Type::U32` → `alloca` points to an LLVM `i32`
+/// - `Type::U64` → `alloca` points to an LLVM `i64`
 /// - `Type::Bool` → `alloca` points to an LLVM `i1`
 /// - `Type::String` → `alloca` points to an LLVM `ptr` (pointer to string data)
 ///
@@ -60,8 +66,14 @@ impl<'ctx> VarBinding<'ctx> {
         span: Span,
     ) -> Result<Self, CodegenError> {
         let llvm_type: BasicTypeEnum = match ty {
+            Type::I8 => context.i8_type().into(),
+            Type::I16 => context.i16_type().into(),
             Type::I32 => context.i32_type().into(),
             Type::I64 => context.i64_type().into(),
+            Type::U8 => context.i8_type().into(),
+            Type::U16 => context.i16_type().into(),
+            Type::U32 => context.i32_type().into(),
+            Type::U64 => context.i64_type().into(),
             Type::String => context.ptr_type(AddressSpace::default()).into(),
             Type::Bool => context.bool_type().into(),
         };

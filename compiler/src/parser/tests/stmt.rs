@@ -155,6 +155,39 @@ fn test_let_stmt_i64() {
 }
 
 #[test]
+fn test_let_stmt_remaining_integer_types_and_byte_alias() {
+    let program = parse(
+        r#"fn main() -> void {
+            let a: i8 = -1
+            let b: i16 = 2
+            let c: u8 = 3
+            let d: u16 = 4
+            let e: u32 = 5
+            let f: u64 = 6
+            let g: byte = 7
+        }"#,
+    )
+    .unwrap();
+
+    let expected = [
+        Type::I8,
+        Type::I16,
+        Type::U8,
+        Type::U16,
+        Type::U32,
+        Type::U64,
+        Type::U8, // byte alias
+    ];
+
+    for (idx, expected_ty) in expected.iter().enumerate() {
+        match &program.functions[0].body[idx].kind {
+            StmtKind::Let { ty, .. } => assert_eq!(ty, expected_ty),
+            _ => panic!("Expected Let statement"),
+        }
+    }
+}
+
+#[test]
 fn test_let_with_variable_reference() {
     let program = parse("fn main() -> void { let x: i32 = 1\nlet y: i32 = x }").unwrap();
     assert_eq!(program.functions[0].body.len(), 2);
@@ -309,7 +342,7 @@ fn test_error_let_unknown_type() {
     let err = parse_error("fn main() -> void { let x: unknown = 42 }");
     assert_eq!(
         err.message(),
-        "Unknown type: 'unknown'. Expected 'i32', 'i64', 'string', or 'bool'"
+        "Unknown type: 'unknown'. Expected 'i8', 'i16', 'i32', 'i64', 'u8', 'u16', 'u32', 'u64', 'byte', 'string', or 'bool'"
     );
 }
 

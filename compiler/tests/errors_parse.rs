@@ -7,6 +7,7 @@ mod common;
 
 use common::{CompileErrorKind, CompileStage, compile_error_with_kind};
 use lak::parser::ParseErrorKind;
+use lak::semantic::SemanticErrorKind;
 
 #[test]
 fn test_compile_error_top_level_statement() {
@@ -42,7 +43,7 @@ fn test_compile_error_unknown_type() {
     );
     assert_eq!(
         msg,
-        "Unknown type: 'unknown'. Expected 'i32', 'i64', 'string', or 'bool'"
+        "Unknown type: 'unknown'. Expected 'i8', 'i16', 'i32', 'i64', 'u8', 'u16', 'u32', 'u64', 'byte', 'string', or 'bool'"
     );
     assert_eq!(short_msg, "Unknown type");
     assert_eq!(
@@ -599,8 +600,8 @@ fn test_compile_error_positive_i64_overflow() {
     );
     let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
     assert!(
-        matches!(stage, CompileStage::Parse),
-        "Expected Parse error for positive i64 overflow, got {:?}: {}",
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error for positive i64 overflow, got {:?}: {}",
         stage,
         msg
     );
@@ -611,8 +612,8 @@ fn test_compile_error_positive_i64_overflow() {
     assert_eq!(short_msg, "Integer overflow");
     assert_eq!(
         kind,
-        CompileErrorKind::Parse(ParseErrorKind::IntegerLiteralOutOfRange),
-        "Expected IntegerLiteralOutOfRange error kind"
+        CompileErrorKind::Semantic(SemanticErrorKind::IntegerOverflow),
+        "Expected IntegerOverflow error kind"
     );
 }
 
@@ -626,8 +627,8 @@ fn test_compile_error_positive_i64_overflow_in_println_binary_op_with_variable()
     );
     let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
     assert!(
-        matches!(stage, CompileStage::Parse),
-        "Expected Parse error for positive i64 overflow, got {:?}: {}",
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error for positive i64 overflow, got {:?}: {}",
         stage,
         msg
     );
@@ -638,8 +639,8 @@ fn test_compile_error_positive_i64_overflow_in_println_binary_op_with_variable()
     assert_eq!(short_msg, "Integer overflow");
     assert_eq!(
         kind,
-        CompileErrorKind::Parse(ParseErrorKind::IntegerLiteralOutOfRange),
-        "Expected IntegerLiteralOutOfRange error kind"
+        CompileErrorKind::Semantic(SemanticErrorKind::IntegerOverflow),
+        "Expected IntegerOverflow error kind"
     );
 }
 
@@ -680,20 +681,20 @@ fn test_compile_error_parenthesized_i64_overflow() {
     );
     let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
     assert!(
-        matches!(stage, CompileStage::Parse),
-        "Expected Parse error for parenthesized overflow, got {:?}: {}",
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error for parenthesized overflow, got {:?}: {}",
         stage,
         msg
     );
     assert_eq!(
         msg,
-        "Integer literal '9223372036854775808' is out of range for i64 (valid range: -9223372036854775808 to 9223372036854775807)"
+        "in unary '-' operation: Integer literal '9223372036854775808' is out of range for i64 (valid range: -9223372036854775808 to 9223372036854775807)"
     );
     assert_eq!(short_msg, "Integer overflow");
     assert_eq!(
         kind,
-        CompileErrorKind::Parse(ParseErrorKind::IntegerLiteralOutOfRange),
-        "Expected IntegerLiteralOutOfRange error kind"
+        CompileErrorKind::Semantic(SemanticErrorKind::IntegerOverflow),
+        "Expected IntegerOverflow error kind"
     );
 }
 

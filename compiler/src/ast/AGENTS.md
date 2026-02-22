@@ -11,7 +11,7 @@ Defines the data structures that represent parsed Lak programs. The AST is produ
 | File | Responsibility |
 |------|----------------|
 | `mod.rs` | Module documentation, public re-exports |
-| `types.rs` | Type annotations (`Type` enum: i32, i64) |
+| `types.rs` | Type annotations (`Type` enum: integers, bool, string, void, any) |
 | `expr.rs` | Expression nodes (`Expr`, `ExprKind`) |
 | `stmt.rs` | Statement nodes (`Stmt`, `StmtKind`) |
 | `program.rs` | Top-level structure (`Program`, `FnDef`) |
@@ -37,8 +37,18 @@ Program
 ## Type System
 
 `Type` enum represents type annotations:
+- `I8` - 8-bit signed integer (`i8`)
+- `I16` - 16-bit signed integer (`i16`)
 - `I32` - 32-bit signed integer (`i32`)
 - `I64` - 64-bit signed integer (`i64`)
+- `U8` - 8-bit unsigned integer (`u8`)
+- `U16` - 16-bit unsigned integer (`u16`)
+- `U32` - 32-bit unsigned integer (`u32`)
+- `U64` - 64-bit unsigned integer (`u64`)
+- `Bool` - boolean (`bool`)
+- `String` - UTF-8 string (`string`)
+- `Void` - no return value (`void`)
+- `Any` - compile-time dispatch target for builtins (`any`)
 
 Implements `Display` for user-facing error messages.
 
@@ -48,7 +58,7 @@ Implements `Display` for user-facing error messages.
 
 `ExprKind` variants:
 - `StringLiteral(String)` - String literal (unescaped)
-- `IntLiteral(i64)` - Integer literal
+- `IntLiteral(i128)` - Integer literal (wide storage for deferred range checking)
 - `Identifier(String)` - Variable reference
 - `Call { callee, args }` - Function call
 

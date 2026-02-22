@@ -137,9 +137,10 @@ pub enum ExprKind {
 
     /// An integer literal value.
     ///
-    /// The value is stored as i64 internally and converted to the
-    /// appropriate type during code generation.
-    IntLiteral(i64),
+    /// The value is stored as i128 so the parser can preserve all
+    /// lexer-accepted unsigned literals (`u64::MAX`) and signed folded
+    /// literals (`i64::MIN`) until semantic range checking.
+    IntLiteral(i128),
 
     /// A boolean literal value (`true` or `false`).
     BoolLiteral(bool),
@@ -272,7 +273,7 @@ impl Expr {
     ///
     /// Rules:
     /// - Same type on both sides => that type
-    /// - Integer literal mixed with `i32`/`i64` => non-literal integer side
+    /// - Integer literal mixed with an integer type => non-literal integer side
     /// - Otherwise => no common type (`None`)
     pub fn infer_common_binary_operand_type(
         left: &Expr,

@@ -180,7 +180,7 @@ impl ParseError {
         Self::new(
             ParseErrorKind::ExpectedType,
             format!(
-                "Unknown type: '{}'. Expected 'i32', 'i64', 'string', or 'bool'",
+                "Unknown type: '{}'. Expected 'i8', 'i16', 'i32', 'i64', 'u8', 'u16', 'u32', 'u64', 'byte', 'string', or 'bool'",
                 name
             ),
             span,

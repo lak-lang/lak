@@ -278,12 +278,43 @@ fn test_int_literal_large() {
 }
 
 #[test]
+fn test_int_literal_above_i64_is_preserved_for_semantic_checking() {
+    let program = parse("fn main() -> void { let x: i64 = 9223372036854775808 }").unwrap();
+    match &program.functions[0].body[0].kind {
+        StmtKind::Let { init, .. } => {
+            assert!(matches!(
+                init.kind,
+                ExprKind::IntLiteral(v) if v == 9223372036854775808_i128
+            ));
+        }
+        _ => panic!("Expected Let statement"),
+    }
+}
+
+#[test]
+fn test_int_literal_u64_max_is_preserved() {
+    let program = parse("fn main() -> void { let x: u64 = 18446744073709551615 }").unwrap();
+    match &program.functions[0].body[0].kind {
+        StmtKind::Let { init, .. } => {
+            assert!(matches!(
+                init.kind,
+                ExprKind::IntLiteral(v) if v == u64::MAX as i128
+            ));
+        }
+        _ => panic!("Expected Let statement"),
+    }
+}
+
+#[test]
 fn test_int_literal_i64_min() {
     // -9223372036854775808 is i64::MIN, only representable via negation folding
     let program = parse("fn main() -> void { let x: i64 = -9223372036854775808 }").unwrap();
     match &program.functions[0].body[0].kind {
         StmtKind::Let { init, .. } => {
-            assert!(matches!(init.kind, ExprKind::IntLiteral(i64::MIN)));
+            assert!(matches!(
+                init.kind,
+                ExprKind::IntLiteral(v) if v == i64::MIN as i128
+            ));
         }
         _ => panic!("Expected Let statement"),
     }

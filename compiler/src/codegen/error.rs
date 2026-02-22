@@ -325,7 +325,7 @@ impl CodegenError {
     }
 
     /// Creates an internal error for integer used as string.
-    pub fn internal_int_as_string(value: i64, span: Span) -> Self {
+    pub fn internal_int_as_string(value: i128, span: Span) -> Self {
         Self::new(
             CodegenErrorKind::InternalError,
             format!(
@@ -338,7 +338,7 @@ impl CodegenError {
     }
 
     /// Creates an internal error for integer used as bool.
-    pub fn internal_int_as_bool(value: i64, span: Span) -> Self {
+    pub fn internal_int_as_bool(value: i128, span: Span) -> Self {
         Self::new(
             CodegenErrorKind::InternalError,
             format!(
@@ -655,12 +655,12 @@ impl CodegenError {
         )
     }
 
-    /// Creates an internal error for binary operation on string type.
+    /// Creates an internal error for binary operation dispatched with a non-integer type.
     pub fn internal_binary_op_string(op: crate::ast::BinaryOperator, span: Span) -> Self {
         Self::new(
             CodegenErrorKind::InternalError,
             format!(
-                "Internal error: binary operator '{}' applied to string type in codegen. \
+                "Internal error: binary operator '{}' dispatched with non-integer type in codegen. \
                  Semantic analysis should have caught this. This is a compiler bug.",
                 op
             ),
@@ -822,12 +822,12 @@ impl CodegenError {
         )
     }
 
-    /// Creates an internal error for unary operation on string type.
+    /// Creates an internal error for unary operation dispatched with an invalid type.
     pub fn internal_unary_op_string(op: crate::ast::UnaryOperator, span: Span) -> Self {
         let err = Self::new(
             CodegenErrorKind::InternalError,
             format!(
-                "Internal error: unary operator '{}' applied to string type in codegen. \
+                "Internal error: unary operator '{}' dispatched with non-signed-integer type in codegen. \
                  Semantic analysis should have caught this. This is a compiler bug.",
                 op
             ),

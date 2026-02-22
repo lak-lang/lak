@@ -471,7 +471,9 @@ fn test_wrap_in_unary_context_with_help_preserves_help() {
     );
     assert_eq!(
         wrapped.help(),
-        Some("arithmetic operators (+, -, *, /, %) only work with numeric types (i32, i64)")
+        Some(
+            "arithmetic operators (+, -, *, /, %) only work with integer types (i8, i16, i32, i64, u8, u16, u32, u64)"
+        )
     );
 }
 

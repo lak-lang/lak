@@ -47,7 +47,7 @@ if_stmt     → "if" expr "{" stmt* "}" ("else" (if_stmt | "{" stmt* "}"))?
 while_stmt  → "while" expr "{" stmt* "}"
 break_stmt  → "break"
 continue_stmt → "continue"
-type        → "i32" | "i64" | "string" | "bool"
+type        → "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "byte" | "string" | "bool"
 return_type → type | "void"
 expr_stmt   → expr
 expr        → if_expr | unary | binary | call | module_call | IDENTIFIER | STRING | INT | BOOL
@@ -60,6 +60,7 @@ Grammar notes:
 - Mutable discard bindings are rejected with parse errors because `_` is discard-only:
   - `let mut _ = expr`
   - `let mut _: type = expr`
+- `byte` is parsed as an alias of `u8`.
 - `if`/`while`/`return`/`break`/`continue` are parsed as statements.
 
 ## Statement Termination

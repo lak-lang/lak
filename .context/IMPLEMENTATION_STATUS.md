@@ -26,14 +26,14 @@ This document tracks the implementation status of Lak language features as defin
 
 #### Numeric Types
 
-- [ ] `i8` - 8-bit signed integer
-- [ ] `i16` - 16-bit signed integer
+- [x] `i8` - 8-bit signed integer
+- [x] `i16` - 16-bit signed integer
 - [x] `i32` - 32-bit signed integer
 - [x] `i64` - 64-bit signed integer
-- [ ] `u8` - 8-bit unsigned integer
-- [ ] `u16` - 16-bit unsigned integer
-- [ ] `u32` - 32-bit unsigned integer
-- [ ] `u64` - 64-bit unsigned integer
+- [x] `u8` - 8-bit unsigned integer
+- [x] `u16` - 16-bit unsigned integer
+- [x] `u32` - 32-bit unsigned integer
+- [x] `u64` - 64-bit unsigned integer
 - [ ] `f32` - 32-bit floating point
 - [ ] `f64` - 64-bit floating point
 
@@ -46,10 +46,10 @@ This document tracks the implementation status of Lak language features as defin
   - [x] String literals with double quotes
   - [x] Escape sequences (`\n`, `\t`, `\r`, `\\`, `\"`)
   - [ ] String concatenation with `+`
-- [ ] `byte` (alias for `u8`)
+- [x] `byte` (alias for `u8`)
 - [x] `any` type (for generic output functions)
   - [x] Implicit conversion from any type to `any` (compile-time dispatch)
-  - [x] Default format for integer types (i32, i64)
+  - [x] Default format for integer types (i8, i16, i32, i64, u8, u16, u32, u64)
   - [ ] Default format for other types
   - [ ] Stringer interface priority
 - [ ] `never` type (for functions that don't return)
@@ -114,31 +114,31 @@ This document tracks the implementation status of Lak language features as defin
 ### 4.1 Arithmetic Operators
 
 - [x] `+` addition
-  - [x] Integer addition (i32, i64)
+  - [x] Integer addition (i8, i16, i32, i64, u8, u16, u32, u64)
   - [x] Overflow detection with panic
-  - [x] Integer literal adaptation (`int_literal <op> i32/i64`)
+  - [x] Integer literal adaptation (`int_literal <op> <integer_type>`)
   - [ ] Non-literal mixed integer arithmetic (`i32` + `i64`) with widening to `i64`
   - [ ] Float addition
   - [ ] Mixed float arithmetic (`f32` + `f64`) with widening to `f64`
   - [ ] Integer/float mixed arithmetic requires explicit cast (no implicit conversion)
   - [ ] String concatenation
-- [x] `-` subtraction (i32, i64)
+- [x] `-` subtraction (i8, i16, i32, i64, u8, u16, u32, u64)
   - [x] Overflow detection with panic
-- [x] `*` multiplication (i32, i64)
+- [x] `*` multiplication (i8, i16, i32, i64, u8, u16, u32, u64)
   - [x] Overflow detection with panic
-- [x] `/` division (i32, i64)
+- [x] `/` division (i8, i16, i32, i64, u8, u16, u32, u64)
   - [x] Overflow detection with panic
-- [x] `%` modulo (i32, i64)
+- [x] `%` modulo (i8, i16, i32, i64, u8, u16, u32, u64)
   - [x] Overflow detection with panic
 
 ### 4.2 Comparison Operators
 
-- [x] `==` equal (i32, i64, bool, string)
-- [x] `!=` not equal (i32, i64, bool, string)
-- [x] `<` less than (i32, i64, string)
-- [x] `>` greater than (i32, i64, string)
-- [x] `<=` less than or equal (i32, i64, string)
-- [x] `>=` greater than or equal (i32, i64, string)
+- [x] `==` equal (i8, i16, i32, i64, u8, u16, u32, u64, bool, string)
+- [x] `!=` not equal (i8, i16, i32, i64, u8, u16, u32, u64, bool, string)
+- [x] `<` less than (i8, i16, i32, i64, u8, u16, u32, u64, string)
+- [x] `>` greater than (i8, i16, i32, i64, u8, u16, u32, u64, string)
+- [x] `<=` less than or equal (i8, i16, i32, i64, u8, u16, u32, u64, string)
+- [x] `>=` greater than or equal (i8, i16, i32, i64, u8, u16, u32, u64, string)
 - [x] Integer literal adaptation in numeric comparisons
 - [ ] Non-literal mixed integer comparison (`i32` vs `i64`) with widening to `i64`
 - [ ] Mixed float comparison (`f32` vs `f64`) with widening to `f64`
@@ -152,6 +152,7 @@ This document tracks the implementation status of Lak language features as defin
 ### 4.4 Unary Operators
 
 - [x] `-` negation (unary minus)
+  - [x] Signed integer operands only (i8, i16, i32, i64)
   - [x] Overflow detection with panic
 - [x] `!` logical NOT
 
@@ -204,7 +205,7 @@ This document tracks the implementation status of Lak language features as defin
 
 - [x] `println(value: any)` - print any value with newline
   - [x] String argument support
-  - [x] Integer argument support (i32, i64)
+  - [x] Integer argument support (i8, i16, i32, i64, u8, u16, u32, u64)
   - [x] Bool argument support
   - [ ] Float argument support (f32, f64)
   - [ ] Struct argument support (default format)
@@ -386,7 +387,7 @@ This document tracks the implementation status of Lak language features as defin
 
 ### 15.2 Prelude Functions
 
-- [x] `println(value: any)` available (string, i32, i64)
+- [x] `println(value: any)` available (string, bool, i8, i16, i32, i64, u8, u16, u32, u64)
 - [ ] `print(value: any)` available
 - [x] `panic(message: string)` available
 
@@ -476,8 +477,14 @@ This document tracks the implementation status of Lak language features as defin
 ### 18.5 Runtime Library
 
 - [x] `lak_println` function (string)
+- [x] `lak_println_i8` function
+- [x] `lak_println_i16` function
 - [x] `lak_println_i32` function
 - [x] `lak_println_i64` function
+- [x] `lak_println_u8` function
+- [x] `lak_println_u16` function
+- [x] `lak_println_u32` function
+- [x] `lak_println_u64` function
 - [x] `lak_println_bool` function
 - [ ] `lak_print` function
 - [x] `lak_panic` function

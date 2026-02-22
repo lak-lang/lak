@@ -178,7 +178,9 @@ impl Parser {
                 self.advance();
                 self.skip_newlines(); // allow newlines after operator
 
-                // Fold negation into integer literal to allow i64::MIN
+                // Fold negation into integer literal to allow i64::MIN.
+                // Positive literals are tokenized as u64; only values up to
+                // i64::MIN.unsigned_abs() can be negated into a valid signed literal.
                 if matches!(op, UnaryOperator::Neg)
                     && let TokenKind::IntLiteral(unsigned_value) = self.current_kind()
                 {
@@ -194,9 +196,9 @@ impl Parser {
                     );
 
                     let signed_value = if unsigned_value <= i64::MAX as u64 {
-                        -(unsigned_value as i64)
+                        -(unsigned_value as i128)
                     } else if unsigned_value == i64::MIN.unsigned_abs() {
-                        i64::MIN
+                        i64::MIN as i128
                     } else {
                         return Err(ParseError::integer_literal_out_of_range_negative(
                             unsigned_value,
@@ -344,15 +346,8 @@ impl Parser {
                 let unsigned_value = *unsigned_value;
                 self.advance();
 
-                if unsigned_value > i64::MAX as u64 {
-                    return Err(ParseError::integer_literal_out_of_range_positive(
-                        unsigned_value,
-                        start_span,
-                    ));
-                }
-
                 Ok(Expr::new(
-                    ExprKind::IntLiteral(unsigned_value as i64),
+                    ExprKind::IntLiteral(unsigned_value as i128),
                     start_span,
                 ))
             }

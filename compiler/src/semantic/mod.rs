@@ -419,6 +419,13 @@ impl SemanticAnalyzer {
         let value =
             value.ok_or_else(|| SemanticError::return_value_required(return_type_name, span))?;
 
+        // For integer return types, try contextual checking first so wide literals
+        // (e.g. u64::MAX) are validated against the declared return type rather
+        // than defaulting to i64 during context-free inference.
+        if expected_ty.is_integer() && self.check_expr_type(value, &expected_ty).is_ok() {
+            return Ok(true);
+        }
+
         // Infer and validate the return expression in its own type context first.
         // This avoids misleading diagnostics such as reporting arithmetic operators
         // against the function return type when the expression itself is valid.
@@ -445,8 +452,14 @@ impl SemanticAnalyzer {
 
     fn return_type_name_to_type(&self, name: &str, span: Span) -> Result<Type, SemanticError> {
         match name {
+            "i8" => Ok(Type::I8),
+            "i16" => Ok(Type::I16),
             "i32" => Ok(Type::I32),
             "i64" => Ok(Type::I64),
+            "u8" | "byte" => Ok(Type::U8),
+            "u16" => Ok(Type::U16),
+            "u32" => Ok(Type::U32),
+            "u64" => Ok(Type::U64),
             "string" => Ok(Type::String),
             "bool" => Ok(Type::Bool),
             _ => Err(SemanticError::invalid_function_return_type(name, span)),
@@ -973,7 +986,7 @@ impl SemanticAnalyzer {
             ));
         }
 
-        // Keep existing mismatch diagnostics for non-literal i32/i64 mixes
+        // Keep existing mismatch diagnostics for non-literal mixed integer types
         // by checking the right operand against the left operand type.
         self.check_expr_type(right, &left_ty)?;
 
@@ -1001,7 +1014,7 @@ impl SemanticAnalyzer {
         {
             common_ty
         } else {
-            // Keep existing mismatch diagnostics for non-literal i32/i64 mixes
+            // Keep existing mismatch diagnostics for non-literal mixed integer types
             // by checking the right operand against the left operand type.
             self.check_expr_type(right, &left_ty)?;
 
@@ -1096,7 +1109,7 @@ impl SemanticAnalyzer {
     ///
     /// For arithmetic operators:
     /// 1. Both operands must have the expected type
-    /// 2. The expected type must be numeric (i32 or i64)
+    /// 2. The expected type must be an integer primitive
     ///
     /// For comparison operators:
     /// 1. The expected type must be bool (comparison result type)
@@ -1156,7 +1169,7 @@ impl SemanticAnalyzer {
             Ok(())
         } else if op.is_arithmetic() {
             // Arithmetic operators: expected type must be numeric
-            if *expected_ty == Type::String || *expected_ty == Type::Bool {
+            if !expected_ty.is_integer() {
                 return Err(SemanticError::invalid_binary_op_type(
                     op,
                     &expected_ty.to_string(),
@@ -1178,7 +1191,8 @@ impl SemanticAnalyzer {
     ///
     /// Unary operations require:
     /// 1. The operand to have the expected type
-    /// 2. The expected type to be numeric (i32 or i64)
+    /// 2. For unary `-`, the expected type to be a signed integer primitive
+    /// 3. For unary `!`, the expected type to be `bool`
     fn check_unary_op_type(
         &mut self,
         operand: &Expr,
@@ -1188,8 +1202,16 @@ impl SemanticAnalyzer {
     ) -> Result<(), SemanticError> {
         match op {
             UnaryOperator::Neg => {
-                // Verify the expected type is numeric (not string or bool)
-                if *expected_ty == Type::String || *expected_ty == Type::Bool {
+                if !expected_ty.is_integer() {
+                    return Err(SemanticError::invalid_unary_op_type(
+                        op,
+                        &expected_ty.to_string(),
+                        span,
+                    ));
+                }
+
+                // Lak does not allow unary negation for unsigned integers.
+                if expected_ty.is_unsigned_integer() {
                     return Err(SemanticError::invalid_unary_op_type(
                         op,
                         &expected_ty.to_string(),
@@ -1238,16 +1260,95 @@ impl SemanticAnalyzer {
         Ok(())
     }
 
-    fn check_integer_range(&self, value: i64, ty: &Type, span: Span) -> Result<(), SemanticError> {
+    fn check_integer_range(&self, value: i128, ty: &Type, span: Span) -> Result<(), SemanticError> {
         match ty {
+            Type::I8 => {
+                if value < i8::MIN as i128 || value > i8::MAX as i128 {
+                    return Err(SemanticError::integer_overflow_for_type(
+                        value,
+                        "i8",
+                        i8::MIN as i128,
+                        i8::MAX as i128,
+                        span,
+                    ));
+                }
+            }
+            Type::I16 => {
+                if value < i16::MIN as i128 || value > i16::MAX as i128 {
+                    return Err(SemanticError::integer_overflow_for_type(
+                        value,
+                        "i16",
+                        i16::MIN as i128,
+                        i16::MAX as i128,
+                        span,
+                    ));
+                }
+            }
             Type::I32 => {
-                if value < i32::MIN as i64 || value > i32::MAX as i64 {
-                    return Err(SemanticError::integer_overflow_i32(value, span));
+                if value < i32::MIN as i128 || value > i32::MAX as i128 {
+                    return Err(SemanticError::integer_overflow_for_type(
+                        value,
+                        "i32",
+                        i32::MIN as i128,
+                        i32::MAX as i128,
+                        span,
+                    ));
                 }
             }
             Type::I64 => {
-                // Invariant: The parser converts u64 tokens to i64 AST nodes,
-                // so any value that made it past parsing is guaranteed to be within i64 range.
+                if value < i64::MIN as i128 || value > i64::MAX as i128 {
+                    return Err(SemanticError::integer_overflow_for_type(
+                        value,
+                        "i64",
+                        i64::MIN as i128,
+                        i64::MAX as i128,
+                        span,
+                    ));
+                }
+            }
+            Type::U8 => {
+                if value < u8::MIN as i128 || value > u8::MAX as i128 {
+                    return Err(SemanticError::integer_overflow_for_type(
+                        value,
+                        "u8",
+                        u8::MIN as i128,
+                        u8::MAX as i128,
+                        span,
+                    ));
+                }
+            }
+            Type::U16 => {
+                if value < u16::MIN as i128 || value > u16::MAX as i128 {
+                    return Err(SemanticError::integer_overflow_for_type(
+                        value,
+                        "u16",
+                        u16::MIN as i128,
+                        u16::MAX as i128,
+                        span,
+                    ));
+                }
+            }
+            Type::U32 => {
+                if value < u32::MIN as i128 || value > u32::MAX as i128 {
+                    return Err(SemanticError::integer_overflow_for_type(
+                        value,
+                        "u32",
+                        u32::MIN as i128,
+                        u32::MAX as i128,
+                        span,
+                    ));
+                }
+            }
+            Type::U64 => {
+                if value < u64::MIN as i128 || value > u64::MAX as i128 {
+                    return Err(SemanticError::integer_overflow_for_type(
+                        value,
+                        "u64",
+                        u64::MIN as i128,
+                        u64::MAX as i128,
+                        span,
+                    ));
+                }
             }
             Type::String => {
                 // This branch should never be reached because check_expr_type

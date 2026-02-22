@@ -43,9 +43,45 @@ pub extern "C" fn lak_println_i32(value: i32) {
     println!("{}", value);
 }
 
+/// Prints an 8-bit signed integer followed by a newline to stdout.
+#[unsafe(no_mangle)]
+pub extern "C" fn lak_println_i8(value: i8) {
+    println!("{}", value);
+}
+
+/// Prints a 16-bit signed integer followed by a newline to stdout.
+#[unsafe(no_mangle)]
+pub extern "C" fn lak_println_i16(value: i16) {
+    println!("{}", value);
+}
+
 /// Prints a 64-bit signed integer followed by a newline to stdout.
 #[unsafe(no_mangle)]
 pub extern "C" fn lak_println_i64(value: i64) {
+    println!("{}", value);
+}
+
+/// Prints an 8-bit unsigned integer followed by a newline to stdout.
+#[unsafe(no_mangle)]
+pub extern "C" fn lak_println_u8(value: u8) {
+    println!("{}", value);
+}
+
+/// Prints a 16-bit unsigned integer followed by a newline to stdout.
+#[unsafe(no_mangle)]
+pub extern "C" fn lak_println_u16(value: u16) {
+    println!("{}", value);
+}
+
+/// Prints a 32-bit unsigned integer followed by a newline to stdout.
+#[unsafe(no_mangle)]
+pub extern "C" fn lak_println_u32(value: u32) {
+    println!("{}", value);
+}
+
+/// Prints a 64-bit unsigned integer followed by a newline to stdout.
+#[unsafe(no_mangle)]
+pub extern "C" fn lak_println_u64(value: u64) {
     println!("{}", value);
 }
 
@@ -205,11 +241,55 @@ mod tests {
     }
 
     #[test]
+    fn test_println_i8() {
+        lak_println_i8(42);
+        lak_println_i8(-1);
+        lak_println_i8(i8::MAX);
+        lak_println_i8(i8::MIN);
+    }
+
+    #[test]
+    fn test_println_i16() {
+        lak_println_i16(42);
+        lak_println_i16(-1);
+        lak_println_i16(i16::MAX);
+        lak_println_i16(i16::MIN);
+    }
+
+    #[test]
     fn test_println_i64() {
         lak_println_i64(42);
         lak_println_i64(-1);
         lak_println_i64(i64::MAX);
         lak_println_i64(i64::MIN);
+    }
+
+    #[test]
+    fn test_println_u8() {
+        lak_println_u8(42);
+        lak_println_u8(u8::MAX);
+        lak_println_u8(u8::MIN);
+    }
+
+    #[test]
+    fn test_println_u16() {
+        lak_println_u16(42);
+        lak_println_u16(u16::MAX);
+        lak_println_u16(u16::MIN);
+    }
+
+    #[test]
+    fn test_println_u32() {
+        lak_println_u32(42);
+        lak_println_u32(u32::MAX);
+        lak_println_u32(u32::MIN);
+    }
+
+    #[test]
+    fn test_println_u64() {
+        lak_println_u64(42);
+        lak_println_u64(u64::MAX);
+        lak_println_u64(u64::MIN);
     }
 
     // lak_streq tests

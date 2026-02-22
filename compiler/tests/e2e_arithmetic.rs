@@ -1731,3 +1731,170 @@ fn test_modulo_no_false_positive_i64_neg_one_safe() {
     .unwrap();
     assert_eq!(output, "0\n");
 }
+
+#[test]
+fn test_unsigned_division_uses_unsigned_semantics() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let a: u8 = 200
+    let b: u8 = 3
+    let q: u8 = a / b
+    println(q)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "66\n");
+}
+
+#[test]
+fn test_unsigned_modulo_uses_unsigned_semantics() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let a: u8 = 200
+    let b: u8 = 3
+    let r: u8 = a % b
+    println(r)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "2\n");
+}
+
+#[test]
+fn test_unsigned_addition_overflow_panics() {
+    let result = compile_and_run(
+        r#"fn main() -> void {
+    let a: u8 = 255
+    let b: u8 = a + 1
+    println(b)
+}"#,
+    );
+    assert_eq!(
+        result.unwrap_err(),
+        "Executable failed with exit code: Some(1)"
+    );
+}
+
+#[test]
+fn test_signed_narrow_addition_overflow_i8_panics() {
+    let temp = tempdir().unwrap();
+    let source_path = temp.path().join("add_overflow_i8.lak");
+
+    fs::write(
+        &source_path,
+        r#"fn main() -> void {
+    let x: i8 = 127
+    let y: i8 = x + 1
+    println(y)
+}"#,
+    )
+    .unwrap();
+
+    let output = Command::new(lak_binary())
+        .args(["run", source_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(
+        !output.status.success(),
+        "i8 addition overflow should panic"
+    );
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        "panic: integer overflow\n"
+    );
+}
+
+#[test]
+fn test_signed_narrow_subtraction_overflow_i16_panics() {
+    let temp = tempdir().unwrap();
+    let source_path = temp.path().join("sub_overflow_i16.lak");
+
+    fs::write(
+        &source_path,
+        r#"fn main() -> void {
+    let x: i16 = -32767 - 1
+    let y: i16 = x - 1
+    println(y)
+}"#,
+    )
+    .unwrap();
+
+    let output = Command::new(lak_binary())
+        .args(["run", source_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(
+        !output.status.success(),
+        "i16 subtraction overflow should panic"
+    );
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        "panic: integer overflow\n"
+    );
+}
+
+#[test]
+fn test_unsigned_subtraction_underflow_panics() {
+    let temp = tempdir().unwrap();
+    let source_path = temp.path().join("sub_underflow_u8.lak");
+
+    fs::write(
+        &source_path,
+        r#"fn main() -> void {
+    let x: u8 = 0
+    let y: u8 = x - 1
+    println(y)
+}"#,
+    )
+    .unwrap();
+
+    let output = Command::new(lak_binary())
+        .args(["run", source_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(
+        !output.status.success(),
+        "u8 subtraction underflow should panic"
+    );
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        "panic: integer overflow\n"
+    );
+}
+
+#[test]
+fn test_unsigned_multiplication_overflow_panics() {
+    let temp = tempdir().unwrap();
+    let source_path = temp.path().join("mul_overflow_u16.lak");
+
+    fs::write(
+        &source_path,
+        r#"fn main() -> void {
+    let x: u16 = 65535
+    let y: u16 = x * 2
+    println(y)
+}"#,
+    )
+    .unwrap();
+
+    let output = Command::new(lak_binary())
+        .args(["run", source_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(
+        !output.status.success(),
+        "u16 multiplication overflow should panic"
+    );
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        "panic: integer overflow\n"
+    );
+}

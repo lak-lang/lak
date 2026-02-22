@@ -310,7 +310,7 @@ impl SemanticError {
     // =========================================================================
 
     /// Creates a type mismatch error for assigning integer to string.
-    pub fn type_mismatch_int_to_string(value: i64, span: Span) -> Self {
+    pub fn type_mismatch_int_to_string(value: i128, span: Span) -> Self {
         Self::new(
             SemanticErrorKind::TypeMismatch,
             format!(
@@ -322,7 +322,7 @@ impl SemanticError {
     }
 
     /// Creates a type mismatch error for assigning integer to bool.
-    pub fn type_mismatch_int_to_bool(value: i64, span: Span) -> Self {
+    pub fn type_mismatch_int_to_bool(value: i128, span: Span) -> Self {
         Self::new(
             SemanticErrorKind::TypeMismatch,
             format!(
@@ -516,7 +516,7 @@ impl SemanticError {
         Self::new(
             SemanticErrorKind::TypeMismatch,
             format!(
-                "Unsupported function return type '{}'. Expected 'void', 'i32', 'i64', 'string', or 'bool'",
+                "Unsupported function return type '{}'. Expected 'void', 'i8', 'i16', 'i32', 'i64', 'u8', 'u16', 'u32', 'u64', 'byte', 'string', or 'bool'",
                 return_type
             ),
             span,
@@ -653,7 +653,7 @@ impl SemanticError {
             SemanticErrorKind::TypeMismatch,
             format!("Operator '{}' cannot be used with '{}' type", op, actual_ty),
             span,
-            "arithmetic operators (+, -, *, /, %) only work with numeric types (i32, i64)",
+            "arithmetic operators (+, -, *, /, %) only work with integer types (i8, i16, i32, i64, u8, u16, u32, u64)",
         )
     }
 
@@ -670,7 +670,7 @@ impl SemanticError {
                 op, actual_ty
             ),
             span,
-            "ordering operators (<, >, <=, >=) only work with comparable types (i32, i64, string)",
+            "ordering operators (<, >, <=, >=) only work with comparable types (i8, i16, i32, i64, u8, u16, u32, u64, string)",
         )
     }
 
@@ -737,7 +737,7 @@ impl SemanticError {
             span,
             match op {
                 crate::ast::UnaryOperator::Neg => {
-                    "unary negation (-) only works with numeric types (i32, i64)"
+                    "unary negation (-) only works with signed integer types (i8, i16, i32, i64)"
                 }
                 crate::ast::UnaryOperator::Not => "logical NOT (!) only works with 'bool' type",
             },
@@ -825,18 +825,27 @@ impl SemanticError {
     // Integer overflow
     // =========================================================================
 
-    /// Creates an integer overflow error for i32 range.
-    pub fn integer_overflow_i32(value: i64, span: Span) -> Self {
+    /// Creates an integer overflow error for a target integer type.
+    pub fn integer_overflow_for_type(
+        value: i128,
+        ty: &str,
+        min: i128,
+        max: i128,
+        span: Span,
+    ) -> Self {
         Self::new(
             SemanticErrorKind::IntegerOverflow,
             format!(
-                "Integer literal '{}' is out of range for i32 (valid range: {} to {})",
-                value,
-                i32::MIN,
-                i32::MAX
+                "Integer literal '{}' is out of range for {} (valid range: {} to {})",
+                value, ty, min, max
             ),
             span,
         )
+    }
+
+    /// Creates an integer overflow error for i32 range.
+    pub fn integer_overflow_i32(value: i128, span: Span) -> Self {
+        Self::integer_overflow_for_type(value, "i32", i32::MIN as i128, i32::MAX as i128, span)
     }
 
     // =========================================================================
@@ -844,7 +853,7 @@ impl SemanticError {
     // =========================================================================
 
     /// Creates an internal error for check_integer_range called with string type.
-    pub fn internal_check_integer_range_string(value: i64, span: Span) -> Self {
+    pub fn internal_check_integer_range_string(value: i128, span: Span) -> Self {
         Self::new(
             SemanticErrorKind::InternalError,
             format!(
@@ -856,7 +865,7 @@ impl SemanticError {
     }
 
     /// Creates an internal error for check_integer_range called with bool type.
-    pub fn internal_check_integer_range_bool(value: i64, span: Span) -> Self {
+    pub fn internal_check_integer_range_bool(value: i128, span: Span) -> Self {
         Self::new(
             SemanticErrorKind::InternalError,
             format!(

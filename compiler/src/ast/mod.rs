@@ -17,7 +17,7 @@
 //!
 //! # Module Structure
 //!
-//! - [`types`] - Type annotations (i32, i64)
+//! - [`types`] - Type annotations (integer primitives, string, bool)
 //! - [`expr`] - Expression nodes and kinds
 //! - [`stmt`] - Statement nodes and kinds
 //! - [`program`] - Top-level program structure (Program, FnDef)

@@ -1,6 +1,6 @@
 //! End-to-end tests for any type support in println.
 //!
-//! These tests verify that println accepts values of any type (string, i32, i64).
+//! These tests verify that println accepts values of any type (string, integer primitives, bool).
 //!
 //! Note on integer literals:
 //! - Integer literals passed directly to println are always treated as i64.
@@ -65,6 +65,53 @@ fn test_println_i64_variable() {
     )
     .unwrap();
     assert_eq!(output, "200\n");
+}
+
+#[test]
+fn test_println_remaining_integer_types() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let a: i8 = -1
+    let b: i16 = -2
+    let c: u8 = 3
+    let d: u16 = 4
+    let e: u32 = 5
+    let f: u64 = 6
+
+    println(a)
+    println(b)
+    println(c)
+    println(d)
+    println(e)
+    println(f)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "-1\n-2\n3\n4\n5\n6\n");
+}
+
+#[test]
+fn test_println_byte_alias() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let b: byte = 255
+    println(b)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "255\n");
+}
+
+#[test]
+fn test_println_u64_max_variable() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let max: u64 = 18446744073709551615
+    println(max)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "18446744073709551615\n");
 }
 
 #[test]

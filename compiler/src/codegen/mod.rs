@@ -406,8 +406,14 @@ impl<'ctx> Codegen<'ctx> {
     /// and the sync test `test_builtin_names_matches_declare_builtins` in `tests.rs`.
     fn declare_builtins(&mut self) {
         self.declare_lak_println();
+        self.declare_lak_println_i8();
+        self.declare_lak_println_i16();
         self.declare_lak_println_i32();
         self.declare_lak_println_i64();
+        self.declare_lak_println_u8();
+        self.declare_lak_println_u16();
+        self.declare_lak_println_u32();
+        self.declare_lak_println_u64();
         self.declare_lak_println_bool();
         self.declare_lak_panic();
         self.declare_lak_streq();
@@ -625,8 +631,14 @@ impl<'ctx> Codegen<'ctx> {
         let parsed_return_type = self.parse_return_type(return_type, return_type_span)?;
         let fn_type = match &parsed_return_type {
             None => self.context.void_type().fn_type(&llvm_param_types, false),
+            Some(Type::I8) => self.context.i8_type().fn_type(&llvm_param_types, false),
+            Some(Type::I16) => self.context.i16_type().fn_type(&llvm_param_types, false),
             Some(Type::I32) => self.context.i32_type().fn_type(&llvm_param_types, false),
             Some(Type::I64) => self.context.i64_type().fn_type(&llvm_param_types, false),
+            Some(Type::U8) => self.context.i8_type().fn_type(&llvm_param_types, false),
+            Some(Type::U16) => self.context.i16_type().fn_type(&llvm_param_types, false),
+            Some(Type::U32) => self.context.i32_type().fn_type(&llvm_param_types, false),
+            Some(Type::U64) => self.context.i64_type().fn_type(&llvm_param_types, false),
             Some(Type::String) => self
                 .context
                 .ptr_type(AddressSpace::default())
@@ -648,8 +660,14 @@ impl<'ctx> Codegen<'ctx> {
     ) -> Result<Option<Type>, CodegenError> {
         match return_type {
             "void" => Ok(None),
+            "i8" => Ok(Some(Type::I8)),
+            "i16" => Ok(Some(Type::I16)),
             "i32" => Ok(Some(Type::I32)),
             "i64" => Ok(Some(Type::I64)),
+            "u8" | "byte" => Ok(Some(Type::U8)),
+            "u16" => Ok(Some(Type::U16)),
+            "u32" => Ok(Some(Type::U32)),
+            "u64" => Ok(Some(Type::U64)),
             "string" => Ok(Some(Type::String)),
             "bool" => Ok(Some(Type::Bool)),
             _ => Err(CodegenError::internal_unsupported_function_return_type(
@@ -801,14 +819,26 @@ impl<'ctx> Codegen<'ctx> {
     ///
     /// # Type Mapping
     ///
+    /// - `Type::I8` → LLVM `i8`
+    /// - `Type::I16` → LLVM `i16`
     /// - `Type::I32` → LLVM `i32`
     /// - `Type::I64` → LLVM `i64`
+    /// - `Type::U8` → LLVM `i8`
+    /// - `Type::U16` → LLVM `i16`
+    /// - `Type::U32` → LLVM `i32`
+    /// - `Type::U64` → LLVM `i64`
     /// - `Type::String` → LLVM `ptr` (opaque pointer)
     /// - `Type::Bool` → LLVM `i1`
     fn get_llvm_type(&self, ty: &Type) -> BasicTypeEnum<'ctx> {
         match ty {
+            Type::I8 => self.context.i8_type().into(),
+            Type::I16 => self.context.i16_type().into(),
             Type::I32 => self.context.i32_type().into(),
             Type::I64 => self.context.i64_type().into(),
+            Type::U8 => self.context.i8_type().into(),
+            Type::U16 => self.context.i16_type().into(),
+            Type::U32 => self.context.i32_type().into(),
+            Type::U64 => self.context.i64_type().into(),
             Type::String => self.context.ptr_type(AddressSpace::default()).into(),
             Type::Bool => self.context.bool_type().into(),
         }

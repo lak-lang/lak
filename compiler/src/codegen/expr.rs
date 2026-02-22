@@ -327,18 +327,25 @@ impl<'ctx> Codegen<'ctx> {
         match &expr.kind {
             ExprKind::IntLiteral(value) => {
                 // Semantic analysis guarantees the value fits in the expected type.
-                // Use match to handle integer types explicitly and reject string type.
-                match expected_ty {
-                    Type::I32 | Type::I64 => {
-                        let llvm_type = self.get_llvm_type(expected_ty).into_int_type();
-                        // Cast to u64 for the LLVM API. For const_int, LLVM takes the bottom N bits
-                        // where N is the type's bit width. The sign_extend parameter controls whether
-                        // those bits are sign-extended when the value is loaded to a wider register.
-                        let llvm_value = llvm_type.const_int(*value as u64, true);
-                        Ok(llvm_value.into())
+                if expected_ty.is_integer() {
+                    let llvm_type = self.get_llvm_type(expected_ty).into_int_type();
+                    // `const_int` receives a raw `u64` bit pattern; LLVM materializes the
+                    // destination integer constant from that pattern. Passing destination
+                    // signedness keeps the intent explicit.
+                    let llvm_value =
+                        llvm_type.const_int(*value as u64, expected_ty.is_signed_integer());
+                    Ok(llvm_value.into())
+                } else {
+                    match expected_ty {
+                        Type::String => {
+                            Err(CodegenError::internal_int_as_string(*value, expr.span))
+                        }
+                        Type::Bool => Err(CodegenError::internal_int_as_bool(*value, expr.span)),
+                        _ => Err(CodegenError::internal_non_integer_value(
+                            "integer literal",
+                            expr.span,
+                        )),
                     }
-                    Type::String => Err(CodegenError::internal_int_as_string(*value, expr.span)),
-                    Type::Bool => Err(CodegenError::internal_int_as_bool(*value, expr.span)),
                 }
             }
             ExprKind::BoolLiteral(value) => {
@@ -605,7 +612,7 @@ impl<'ctx> Codegen<'ctx> {
 
     /// Generates LLVM IR for a comparison operation.
     ///
-    /// Supports integer (i32, i64), bool (== and != only), and string comparisons.
+    /// Supports integer, bool (== and != only), and string comparisons.
     ///
     /// String `==` and `!=` use `lak_streq`, while string ordering operators
     /// (`<`, `>`, `<=`, `>=`) use `lak_strcmp`.
@@ -619,7 +626,15 @@ impl<'ctx> Codegen<'ctx> {
         let operand_ty = self.infer_binary_operand_type_for_codegen(left, right, span)?;
 
         match operand_ty {
-            Type::I32 | Type::I64 | Type::Bool => {
+            Type::I8
+            | Type::I16
+            | Type::I32
+            | Type::I64
+            | Type::U8
+            | Type::U16
+            | Type::U32
+            | Type::U64
+            | Type::Bool => {
                 // Reject ordering operators for bool
                 if operand_ty == Type::Bool && !op.is_equality() {
                     return Err(CodegenError::internal_binary_op_failed(
@@ -640,25 +655,49 @@ impl<'ctx> Codegen<'ctx> {
                     _ => return Err(CodegenError::internal_non_integer_value("comparison", span)),
                 };
 
-                let predicate = match op {
-                    BinaryOperator::Equal => IntPredicate::EQ,
-                    BinaryOperator::NotEqual => IntPredicate::NE,
-                    BinaryOperator::LessThan => IntPredicate::SLT,
-                    BinaryOperator::GreaterThan => IntPredicate::SGT,
-                    BinaryOperator::LessEqual => IntPredicate::SLE,
-                    BinaryOperator::GreaterEqual => IntPredicate::SGE,
-                    BinaryOperator::Add
-                    | BinaryOperator::Sub
-                    | BinaryOperator::Mul
-                    | BinaryOperator::Div
-                    | BinaryOperator::Mod
-                    | BinaryOperator::LogicalAnd
-                    | BinaryOperator::LogicalOr => {
-                        return Err(CodegenError::internal_binary_op_failed(
-                            op,
-                            "not a comparison operator",
-                            span,
-                        ));
+                let predicate = if operand_ty == Type::Bool || operand_ty.is_signed_integer() {
+                    match op {
+                        BinaryOperator::Equal => IntPredicate::EQ,
+                        BinaryOperator::NotEqual => IntPredicate::NE,
+                        BinaryOperator::LessThan => IntPredicate::SLT,
+                        BinaryOperator::GreaterThan => IntPredicate::SGT,
+                        BinaryOperator::LessEqual => IntPredicate::SLE,
+                        BinaryOperator::GreaterEqual => IntPredicate::SGE,
+                        BinaryOperator::Add
+                        | BinaryOperator::Sub
+                        | BinaryOperator::Mul
+                        | BinaryOperator::Div
+                        | BinaryOperator::Mod
+                        | BinaryOperator::LogicalAnd
+                        | BinaryOperator::LogicalOr => {
+                            return Err(CodegenError::internal_binary_op_failed(
+                                op,
+                                "not a comparison operator",
+                                span,
+                            ));
+                        }
+                    }
+                } else {
+                    match op {
+                        BinaryOperator::Equal => IntPredicate::EQ,
+                        BinaryOperator::NotEqual => IntPredicate::NE,
+                        BinaryOperator::LessThan => IntPredicate::ULT,
+                        BinaryOperator::GreaterThan => IntPredicate::UGT,
+                        BinaryOperator::LessEqual => IntPredicate::ULE,
+                        BinaryOperator::GreaterEqual => IntPredicate::UGE,
+                        BinaryOperator::Add
+                        | BinaryOperator::Sub
+                        | BinaryOperator::Mul
+                        | BinaryOperator::Div
+                        | BinaryOperator::Mod
+                        | BinaryOperator::LogicalAnd
+                        | BinaryOperator::LogicalOr => {
+                            return Err(CodegenError::internal_binary_op_failed(
+                                op,
+                                "not a comparison operator",
+                                span,
+                            ));
+                        }
                     }
                 };
 
@@ -929,19 +968,22 @@ impl<'ctx> Codegen<'ctx> {
     ///
     /// Returns an internal error if:
     /// - A comparison operator is dispatched with a non-bool expected type
-    /// - The expected type is string or bool for an arithmetic operator
+    /// - A non-integer expected type is used for an arithmetic operator
     /// - LLVM instruction building fails
     ///
     /// # Runtime Panics
     ///
     /// For `+`, `-`, `*` operators, generates overflow-checked operations using
-    /// LLVM signed overflow intrinsics. The compiled program panics at runtime
+    /// LLVM signed/unsigned overflow intrinsics according to operand type. The
+    /// compiled program panics at runtime
     /// if the result overflows the integer type's range.
     ///
-    /// For `/` and `%` operators, generates both a division-by-zero check and
-    /// an overflow check (MIN / -1 and MIN % -1). The compiled program panics
-    /// at runtime with "integer overflow" if the dividend is the type's minimum
-    /// value and the divisor is -1.
+    /// For `/` and `%` operators:
+    /// - signed integer types generate both division-by-zero checks and
+    ///   overflow checks (`MIN / -1`, `MIN % -1`)
+    /// - unsigned integer types generate division-by-zero checks only
+    ///
+    /// Signed overflow paths panic at runtime with "integer overflow".
     fn generate_binary_op(
         &mut self,
         left: &Expr,
@@ -973,8 +1015,8 @@ impl<'ctx> Codegen<'ctx> {
             return self.generate_comparison_op(left, op, right, span);
         }
 
-        // Arithmetic operators below: semantic analysis guarantees the type is numeric (not string or bool)
-        if *expected_ty == Type::String || *expected_ty == Type::Bool {
+        // Arithmetic operators below: semantic analysis guarantees the type is an integer.
+        if !expected_ty.is_integer() {
             return Err(CodegenError::internal_binary_op_string(op, span));
         }
 
@@ -991,42 +1033,71 @@ impl<'ctx> Codegen<'ctx> {
         };
 
         // Generate the appropriate LLVM instruction based on the operator
+        let is_signed = expected_ty.is_signed_integer();
         let result = match op {
             BinaryOperator::Add => self.generate_overflow_checked_binop(
                 left_value,
                 right_value,
-                "llvm.sadd.with.overflow",
+                if is_signed {
+                    "llvm.sadd.with.overflow"
+                } else {
+                    "llvm.uadd.with.overflow"
+                },
                 span,
             )?,
             BinaryOperator::Sub => self.generate_overflow_checked_binop(
                 left_value,
                 right_value,
-                "llvm.ssub.with.overflow",
+                if is_signed {
+                    "llvm.ssub.with.overflow"
+                } else {
+                    "llvm.usub.with.overflow"
+                },
                 span,
             )?,
             BinaryOperator::Mul => self.generate_overflow_checked_binop(
                 left_value,
                 right_value,
-                "llvm.smul.with.overflow",
+                if is_signed {
+                    "llvm.smul.with.overflow"
+                } else {
+                    "llvm.umul.with.overflow"
+                },
                 span,
             )?,
             BinaryOperator::Div => {
                 self.generate_division_zero_check(right_value, "division by zero", span)?;
-                self.generate_division_overflow_check(left_value, right_value, span)?;
-                self.builder
-                    .build_int_signed_div(left_value, right_value, "div_tmp")
-                    .map_err(|e| {
-                        CodegenError::internal_binary_op_failed(op, &e.to_string(), span)
-                    })?
+                if is_signed {
+                    self.generate_division_overflow_check(left_value, right_value, span)?;
+                    self.builder
+                        .build_int_signed_div(left_value, right_value, "div_tmp")
+                        .map_err(|e| {
+                            CodegenError::internal_binary_op_failed(op, &e.to_string(), span)
+                        })?
+                } else {
+                    self.builder
+                        .build_int_unsigned_div(left_value, right_value, "div_tmp")
+                        .map_err(|e| {
+                            CodegenError::internal_binary_op_failed(op, &e.to_string(), span)
+                        })?
+                }
             }
             BinaryOperator::Mod => {
                 self.generate_division_zero_check(right_value, "modulo by zero", span)?;
-                self.generate_division_overflow_check(left_value, right_value, span)?;
-                self.builder
-                    .build_int_signed_rem(left_value, right_value, "mod_tmp")
-                    .map_err(|e| {
-                        CodegenError::internal_binary_op_failed(op, &e.to_string(), span)
-                    })?
+                if is_signed {
+                    self.generate_division_overflow_check(left_value, right_value, span)?;
+                    self.builder
+                        .build_int_signed_rem(left_value, right_value, "mod_tmp")
+                        .map_err(|e| {
+                            CodegenError::internal_binary_op_failed(op, &e.to_string(), span)
+                        })?
+                } else {
+                    self.builder
+                        .build_int_unsigned_rem(left_value, right_value, "mod_tmp")
+                        .map_err(|e| {
+                            CodegenError::internal_binary_op_failed(op, &e.to_string(), span)
+                        })?
+                }
             }
             BinaryOperator::Equal
             | BinaryOperator::NotEqual
@@ -1059,7 +1130,7 @@ impl<'ctx> Codegen<'ctx> {
     /// # Errors
     ///
     /// Returns an internal error if:
-    /// - The expected type is string (semantic analysis should catch this)
+    /// - The expected type is not a signed integer for unary `-`
     /// - LLVM instruction building fails
     ///
     /// # Runtime Panics
@@ -1077,8 +1148,7 @@ impl<'ctx> Codegen<'ctx> {
     ) -> Result<BasicValueEnum<'ctx>, CodegenError> {
         let result = match op {
             UnaryOperator::Neg => {
-                // Semantic analysis guarantees the type is numeric (not string or bool)
-                if *expected_ty == Type::String || *expected_ty == Type::Bool {
+                if !expected_ty.is_signed_integer() {
                     return Err(CodegenError::internal_unary_op_string(op, span));
                 }
 

@@ -38,7 +38,7 @@ Status:
 - `type-inference.md` - Type Inference
 
 ### Types
-- `integer-types.md` - Remaining Integer Types
+- `integer-types.md` - Remaining Integer Types [Done]
 - `float-types.md` - Float Types
 - `tuple-type.md` - Tuple Type
 
@@ -79,7 +79,7 @@ Status:
 11. `mut-modifier.md` [Done]
 12. `reassignment.md` [Done]
 13. `type-inference.md` [Todo]
-14. `integer-types.md` [Todo]
+14. `integer-types.md` [Done]
 15. `float-types.md` [Todo]
 16. `tuple-type.md` [Todo]
 17. `simple-enums.md` [Todo]

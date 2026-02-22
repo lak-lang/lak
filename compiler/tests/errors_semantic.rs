@@ -553,6 +553,32 @@ fn test_compile_error_i32_large_value_overflow() {
 }
 
 #[test]
+fn test_compile_error_large_literal_without_context_defaults_to_i64() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    println(9223372036854775808)
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Integer literal '9223372036854775808' is out of range for i64 (valid range: -9223372036854775808 to 9223372036854775807)"
+    );
+    assert_eq!(short_msg, "Integer overflow");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::IntegerOverflow),
+        "Expected IntegerOverflow error kind"
+    );
+}
+
+#[test]
 fn test_compile_error_duplicate_variable_different_type() {
     // Duplicate variable with different type should still be rejected
     let result = compile_error_with_kind(
@@ -1369,7 +1395,7 @@ fn main() -> void {}"#,
     assert!(matches!(stage, CompileStage::Semantic));
     assert_eq!(
         msg,
-        "Unsupported function return type 'int'. Expected 'void', 'i32', 'i64', 'string', or 'bool'"
+        "Unsupported function return type 'int'. Expected 'void', 'i8', 'i16', 'i32', 'i64', 'u8', 'u16', 'u32', 'u64', 'byte', 'string', or 'bool'"
     );
     assert_eq!(short_msg, "Type mismatch");
     assert_eq!(
@@ -1946,6 +1972,30 @@ fn test_compile_error_unary_minus_on_bool_variable() {
         msg
     );
     assert_eq!(msg, "Unary operator '-' cannot be used with 'bool' type");
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch),
+        "Expected TypeMismatch error kind"
+    );
+}
+
+#[test]
+fn test_compile_error_unary_minus_on_u32_variable() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let value: u32 = 1
+    let x: u32 = -value
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(msg, "Unary operator '-' cannot be used with 'u32' type");
     assert_eq!(short_msg, "Type mismatch");
     assert_eq!(
         kind,

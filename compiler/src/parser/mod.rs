@@ -26,7 +26,7 @@
 //! while_stmt  → "while" expr "{" stmt* "}"
 //! break_stmt  → "break"
 //! continue_stmt → "continue"
-//! type        → "i32" | "i64"
+//! type        → integer primitives | "string" | "bool"
 //! expr_stmt   → expr
 //! expr        → if_expr | call | member_access | IDENTIFIER | STRING | INT
 //! if_expr     → "if" expr "{" stmt* expr "}" "else" "{" stmt* expr "}"

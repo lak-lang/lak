@@ -42,7 +42,7 @@ impl Parser {
     ///
     /// ```text
     /// let_stmt → "let" "mut"? IDENTIFIER ":" type "=" expr | "let" "_" "=" expr
-    /// type → "i32" | "i64" | "string" | "bool"
+    /// type → integer primitives | "string" | "bool"
     /// ```
     pub(super) fn parse_let_stmt(&mut self) -> Result<Stmt, ParseError> {
         let start_span = self.current_span();

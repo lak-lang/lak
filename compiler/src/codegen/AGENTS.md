@@ -13,7 +13,7 @@ Transforms Lak AST into LLVM IR and generates native object files. Uses Inkwell 
 | `mod.rs` | `Codegen` struct, `compile()`/`compile_modules()` entry points, `mangle_name()`, `derive_mangle_prefix()`, `compute_mangle_prefixes()`, `compute_entry_mangle_prefix()`, `path_components_to_strings()`, `get_mangle_prefix()` |
 | `error.rs` | `CodegenError`, `CodegenErrorKind` |
 | `binding.rs` | `VarBinding` (stack allocation and type info for variables) |
-| `builtins.rs` | Built-in functions (`println` → `lak_println`) |
+| `builtins.rs` | Built-in functions (`println` compile-time dispatch to typed `lak_println*` symbols) |
 | `expr.rs` | Expression codegen (literals, variable references, calls) |
 | `stmt.rs` | Statement codegen (expression/let/assign/discard/return/if/while/break/continue) |
 | `target.rs` | Target machine initialization and object file output |
@@ -54,14 +54,25 @@ pub struct Codegen<'ctx> { ... }
 
 | Lak Type | LLVM Type |
 |----------|-----------|
+| `i8` | `i8` |
+| `i16` | `i16` |
 | `i32` | `i32` |
 | `i64` | `i64` |
+| `u8` | `i8` |
+| `u16` | `i16` |
+| `u32` | `i32` |
+| `u64` | `i64` |
 | `string` | `ptr` |
 | `bool` | `i1` |
 
 ## Runtime Integration
 
-- Runtime functions declared as external: `lak_println`, `lak_println_i32`, `lak_println_i64`, `lak_println_bool`, `lak_panic`
+- Runtime functions declared as external:
+  - `lak_println`
+  - `lak_println_i8`, `lak_println_i16`, `lak_println_i32`, `lak_println_i64`
+  - `lak_println_u8`, `lak_println_u16`, `lak_println_u32`, `lak_println_u64`
+  - `lak_println_bool`
+  - `lak_panic`
 - Implemented in the `runtime/` crate
 - Final binary links against the runtime library
 

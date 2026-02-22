@@ -87,8 +87,10 @@ Variables are looked up from innermost to outermost scope.
 ## Type Checking
 
 Currently supports:
-- `i32`: values must be in range `i32::MIN..=i32::MAX`
-- `i64`: all lexer-parsed integers are valid
+- Signed integers: `i8`, `i16`, `i32`, `i64`
+- Unsigned integers: `u8`, `u16`, `u32`, `u64`
+- `byte` alias (normalized to `u8` in parsing)
+- Integer literal adaptation to contextual integer type with per-type range checks
 - `string`: string literals
 - `bool`: boolean literals
 
@@ -99,7 +101,7 @@ Type checking occurs in:
 
 ## Built-in Functions
 
-- `println`: Requires exactly 1 argument (string, i32, i64, or bool)
+- `println`: Requires exactly 1 argument (string, bool, or any integer type)
 - `panic`: Requires exactly 1 argument (string only)
 - `println` / `panic` are reserved prelude names and cannot be redefined by user functions
 

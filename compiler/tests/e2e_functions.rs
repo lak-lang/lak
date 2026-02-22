@@ -444,6 +444,63 @@ fn main() -> void {
 }
 
 #[test]
+fn test_non_void_function_return_remaining_integer_types() {
+    let output = compile_and_run(
+        r#"
+fn ret_i8() -> i8 {
+    return -8
+}
+
+fn ret_i16() -> i16 {
+    return -16
+}
+
+fn ret_u8() -> u8 {
+    return 200
+}
+
+fn ret_u16() -> u16 {
+    return 50000
+}
+
+fn ret_u32() -> u32 {
+    return 4000000000
+}
+
+fn ret_u64() -> u64 {
+    return 18446744073709551615
+}
+
+fn ret_byte() -> byte {
+    return 255
+}
+
+fn main() -> void {
+    let a: i8 = ret_i8()
+    let b: i16 = ret_i16()
+    let c: u8 = ret_u8()
+    let d: u16 = ret_u16()
+    let e: u32 = ret_u32()
+    let f: u64 = ret_u64()
+    let g: byte = ret_byte()
+    println(a)
+    println(b)
+    println(c)
+    println(d)
+    println(e)
+    println(f)
+    println(g)
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(
+        output,
+        "-8\n-16\n200\n50000\n4000000000\n18446744073709551615\n255\n"
+    );
+}
+
+#[test]
 fn test_non_void_function_return_string() {
     let output = compile_and_run(
         r#"

@@ -138,6 +138,127 @@ fn test_i64_no_overflow() {
     assert!(result.is_ok());
 }
 
+#[test]
+fn test_i8_boundary_values_no_overflow() {
+    let program = program_with_main(vec![
+        Stmt::new(
+            StmtKind::Let {
+                is_mutable: false,
+                name: "min".to_string(),
+                ty: Type::I8,
+                init: Expr::new(ExprKind::IntLiteral(i8::MIN as i128), dummy_span()),
+            },
+            dummy_span(),
+        ),
+        Stmt::new(
+            StmtKind::Let {
+                is_mutable: false,
+                name: "max".to_string(),
+                ty: Type::I8,
+                init: Expr::new(ExprKind::IntLiteral(i8::MAX as i128), dummy_span()),
+            },
+            dummy_span(),
+        ),
+    ]);
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze(&program);
+    assert!(result.is_ok());
+}
+
+#[test]
+fn test_integer_overflow_i16() {
+    let program = program_with_main(vec![Stmt::new(
+        StmtKind::Let {
+            is_mutable: false,
+            name: "x".to_string(),
+            ty: Type::I16,
+            init: Expr::new(ExprKind::IntLiteral(i16::MAX as i128 + 1), span_at(2, 18)),
+        },
+        dummy_span(),
+    )]);
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze(&program);
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert_eq!(err.kind(), SemanticErrorKind::IntegerOverflow);
+    assert_eq!(
+        err.message(),
+        "Integer literal '32768' is out of range for i16 (valid range: -32768 to 32767)"
+    );
+}
+
+#[test]
+fn test_integer_overflow_negative_u8() {
+    let program = program_with_main(vec![Stmt::new(
+        StmtKind::Let {
+            is_mutable: false,
+            name: "x".to_string(),
+            ty: Type::U8,
+            init: Expr::new(ExprKind::IntLiteral(-1), span_at(2, 17)),
+        },
+        dummy_span(),
+    )]);
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze(&program);
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert_eq!(err.kind(), SemanticErrorKind::IntegerOverflow);
+    assert_eq!(
+        err.message(),
+        "Integer literal '-1' is out of range for u8 (valid range: 0 to 255)"
+    );
+}
+
+#[test]
+fn test_u64_context_allows_large_literal() {
+    let program = program_with_main(vec![Stmt::new(
+        StmtKind::Let {
+            is_mutable: false,
+            name: "x".to_string(),
+            ty: Type::U64,
+            init: Expr::new(
+                ExprKind::IntLiteral(9223372036854775808_i128),
+                span_at(2, 18),
+            ),
+        },
+        dummy_span(),
+    )]);
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze(&program);
+    assert!(result.is_ok());
+}
+
+#[test]
+fn test_large_literal_without_context_defaults_to_i64_and_overflows() {
+    let program = program_with_main(vec![Stmt::new(
+        StmtKind::Expr(Expr::new(
+            ExprKind::Call {
+                callee: "println".to_string(),
+                args: vec![Expr::new(
+                    ExprKind::IntLiteral(9223372036854775808_i128),
+                    span_at(2, 13),
+                )],
+            },
+            span_at(2, 5),
+        )),
+        dummy_span(),
+    )]);
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze(&program);
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert_eq!(err.kind(), SemanticErrorKind::IntegerOverflow);
+    assert_eq!(
+        err.message(),
+        "Integer literal '9223372036854775808' is out of range for i64 (valid range: -9223372036854775808 to 9223372036854775807)"
+    );
+}
+
 // ============================================================================
 // Invalid expression tests
 // ============================================================================
@@ -445,7 +566,7 @@ fn test_valid_program_i32_boundary_values() {
                 is_mutable: false,
                 name: "min".to_string(),
                 ty: Type::I32,
-                init: Expr::new(ExprKind::IntLiteral(i32::MIN as i64), dummy_span()),
+                init: Expr::new(ExprKind::IntLiteral(i32::MIN as i128), dummy_span()),
             },
             dummy_span(),
         ),
@@ -454,7 +575,7 @@ fn test_valid_program_i32_boundary_values() {
                 is_mutable: false,
                 name: "max".to_string(),
                 ty: Type::I32,
-                init: Expr::new(ExprKind::IntLiteral(i32::MAX as i64), dummy_span()),
+                init: Expr::new(ExprKind::IntLiteral(i32::MAX as i128), dummy_span()),
             },
             dummy_span(),
         ),
@@ -601,6 +722,35 @@ fn test_unary_minus_type_mismatch_i32_to_i64() {
     assert_eq!(
         err.message(),
         "in unary '-' operation: Type mismatch: variable 'x' has type 'i32', expected 'i64'"
+    );
+}
+
+#[test]
+fn test_unary_minus_on_u32_error() {
+    let program = program_with_main(vec![Stmt::new(
+        StmtKind::Let {
+            is_mutable: false,
+            name: "x".to_string(),
+            ty: Type::U32,
+            init: Expr::new(
+                ExprKind::UnaryOp {
+                    op: UnaryOperator::Neg,
+                    operand: Box::new(Expr::new(ExprKind::IntLiteral(1), dummy_span())),
+                },
+                span_at(2, 18),
+            ),
+        },
+        dummy_span(),
+    )]);
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze(&program);
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert_eq!(err.kind(), SemanticErrorKind::TypeMismatch);
+    assert_eq!(
+        err.message(),
+        "Unary operator '-' cannot be used with 'u32' type"
     );
 }
 

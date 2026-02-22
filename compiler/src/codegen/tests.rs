@@ -1395,8 +1395,19 @@ fn test_get_expr_type_unary_minus_variable() {
 }
 
 // ==================================
-// Unary operation error constructor tests
+// Operation error constructor tests
 // ==================================
+
+#[test]
+fn test_internal_binary_op_string_constructor() {
+    let err = CodegenError::internal_binary_op_string(BinaryOperator::Add, dummy_span());
+    assert_eq!(err.kind(), CodegenErrorKind::InternalError);
+    assert!(err.span().is_some());
+    assert_eq!(
+        err.message(),
+        "Internal error: binary operator '+' dispatched with non-integer type in codegen. Semantic analysis should have caught this. This is a compiler bug."
+    );
+}
 
 #[test]
 fn test_internal_unary_op_string_constructor() {
@@ -1405,7 +1416,7 @@ fn test_internal_unary_op_string_constructor() {
     assert!(err.span().is_some());
     assert_eq!(
         err.message(),
-        "Internal error: unary operator '-' applied to string type in codegen. Semantic analysis should have caught this. This is a compiler bug."
+        "Internal error: unary operator '-' dispatched with non-signed-integer type in codegen. Semantic analysis should have caught this. This is a compiler bug."
     );
 }
 

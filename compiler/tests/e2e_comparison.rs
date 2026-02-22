@@ -156,6 +156,38 @@ fn main() -> void {
 }
 
 #[test]
+fn test_unsigned_greater_than_high_bit_values() {
+    let output = compile_and_run(
+        r#"
+fn main() -> void {
+    let a: u8 = 200
+    let b: u8 = 100
+    let result: bool = a > b
+    println(result)
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "true\n");
+}
+
+#[test]
+fn test_unsigned_less_than_high_bit_values() {
+    let output = compile_and_run(
+        r#"
+fn main() -> void {
+    let a: u16 = 50000
+    let b: u16 = 30000
+    let result: bool = a < b
+    println(result)
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "false\n");
+}
+
+#[test]
 fn test_less_equal_true_less() {
     let output = compile_and_run(
         r#"

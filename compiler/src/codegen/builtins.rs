@@ -1,7 +1,7 @@
 //! Built-in function code generation.
 //!
 //! This module implements code generation for Lak's built-in functions:
-//! println (string, i32, i64, bool variants), panic, and string comparison helpers.
+//! println (string, integer, bool variants), panic, and string comparison helpers.
 
 use super::Codegen;
 use super::error::{CodegenError, CodegenErrorKind};
@@ -9,6 +9,7 @@ use crate::ast::{Expr, ExprKind, StmtKind, Type};
 use crate::token::Span;
 use inkwell::AddressSpace;
 use inkwell::module::Linkage;
+use inkwell::types::IntType;
 use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum};
 use std::collections::HashMap;
 
@@ -22,8 +23,14 @@ use std::collections::HashMap;
 /// Enforced by `test_builtin_names_matches_declare_builtins` in `tests.rs`.
 pub(super) const BUILTIN_NAMES: &[&str] = &[
     "lak_println",
+    "lak_println_i8",
+    "lak_println_i16",
     "lak_println_i32",
     "lak_println_i64",
+    "lak_println_u8",
+    "lak_println_u16",
+    "lak_println_u32",
+    "lak_println_u64",
     "lak_println_bool",
     "lak_panic",
     "lak_streq",
@@ -92,17 +99,29 @@ impl<'ctx> Codegen<'ctx> {
             .add_function("lak_println", println_type, Some(Linkage::External));
     }
 
+    fn declare_lak_println_integer(&self, function_name: &str, int_type: IntType<'ctx>) {
+        let void_type = self.context.void_type();
+        let println_type = void_type.fn_type(&[int_type.into()], false);
+        self.module
+            .add_function(function_name, println_type, Some(Linkage::External));
+    }
+
+    /// Declares the Lak runtime `lak_println_i8` function for use in generated code.
+    pub(super) fn declare_lak_println_i8(&self) {
+        self.declare_lak_println_integer("lak_println_i8", self.context.i8_type());
+    }
+
+    /// Declares the Lak runtime `lak_println_i16` function for use in generated code.
+    pub(super) fn declare_lak_println_i16(&self) {
+        self.declare_lak_println_integer("lak_println_i16", self.context.i16_type());
+    }
+
     /// Declares the Lak runtime `lak_println_i32` function for use in generated code.
     ///
     /// This creates an external function declaration with the signature:
     /// `void lak_println_i32(i32 value)`
     pub(super) fn declare_lak_println_i32(&self) {
-        let void_type = self.context.void_type();
-        let i32_type = self.context.i32_type();
-
-        let println_type = void_type.fn_type(&[i32_type.into()], false);
-        self.module
-            .add_function("lak_println_i32", println_type, Some(Linkage::External));
+        self.declare_lak_println_integer("lak_println_i32", self.context.i32_type());
     }
 
     /// Declares the Lak runtime `lak_println_i64` function for use in generated code.
@@ -110,12 +129,27 @@ impl<'ctx> Codegen<'ctx> {
     /// This creates an external function declaration with the signature:
     /// `void lak_println_i64(i64 value)`
     pub(super) fn declare_lak_println_i64(&self) {
-        let void_type = self.context.void_type();
-        let i64_type = self.context.i64_type();
+        self.declare_lak_println_integer("lak_println_i64", self.context.i64_type());
+    }
 
-        let println_type = void_type.fn_type(&[i64_type.into()], false);
-        self.module
-            .add_function("lak_println_i64", println_type, Some(Linkage::External));
+    /// Declares the Lak runtime `lak_println_u8` function for use in generated code.
+    pub(super) fn declare_lak_println_u8(&self) {
+        self.declare_lak_println_integer("lak_println_u8", self.context.i8_type());
+    }
+
+    /// Declares the Lak runtime `lak_println_u16` function for use in generated code.
+    pub(super) fn declare_lak_println_u16(&self) {
+        self.declare_lak_println_integer("lak_println_u16", self.context.i16_type());
+    }
+
+    /// Declares the Lak runtime `lak_println_u32` function for use in generated code.
+    pub(super) fn declare_lak_println_u32(&self) {
+        self.declare_lak_println_integer("lak_println_u32", self.context.i32_type());
+    }
+
+    /// Declares the Lak runtime `lak_println_u64` function for use in generated code.
+    pub(super) fn declare_lak_println_u64(&self) {
+        self.declare_lak_println_integer("lak_println_u64", self.context.i64_type());
     }
 
     /// Declares the Lak runtime `lak_println_bool` function for use in generated code.
@@ -220,17 +254,18 @@ impl<'ctx> Codegen<'ctx> {
     ///
     /// This is used to determine which println runtime function to call.
     /// The type dispatch is compile-time: each supported type maps to a dedicated
-    /// runtime function (`lak_println`, `lak_println_i32`, `lak_println_i64`,
-    /// `lak_println_bool`).
+    /// runtime function (`lak_println`, `lak_println_i8`, `lak_println_i16`,
+    /// `lak_println_i32`, `lak_println_i64`, `lak_println_u8`, `lak_println_u16`,
+    /// `lak_println_u32`, `lak_println_u64`, `lak_println_bool`).
     ///
     /// Type mapping:
     /// - `IntLiteral` → `Type::I64` (standalone integer literals default to i64)
     /// - `StringLiteral` → `Type::String`
     /// - `BoolLiteral` → `Type::Bool`
-    /// - `Identifier` → the variable's declared type (may be i32, i64, string, or bool)
+    /// - `Identifier` → the variable's declared type
     ///
     /// Integer literals in arithmetic/comparison expressions are adapted to
-    /// the non-literal integer operand type (`i32` or `i64`).
+    /// the non-literal integer operand type.
     ///
     /// Kept in sync with `SemanticAnalyzer::infer_expr_type` in `semantic/mod.rs`
     /// and `Codegen::infer_expr_type_for_comparison` in `codegen/expr.rs`.
@@ -356,8 +391,14 @@ impl<'ctx> Codegen<'ctx> {
     ///
     /// Type dispatch:
     /// - `string` → `lak_println` (any expression producing `string`)
+    /// - `i8` → `lak_println_i8` (any expression producing `i8`)
+    /// - `i16` → `lak_println_i16` (any expression producing `i16`)
     /// - `i32` → `lak_println_i32` (any expression producing `i32`)
     /// - `i64` → `lak_println_i64` (any expression producing `i64`)
+    /// - `u8` → `lak_println_u8` (any expression producing `u8`)
+    /// - `u16` → `lak_println_u16` (any expression producing `u16`)
+    /// - `u32` → `lak_println_u32` (any expression producing `u32`)
+    /// - `u64` → `lak_println_u64` (any expression producing `u64`)
     /// - `bool` → `lak_println_bool` (any expression producing `bool`)
     ///
     /// # Validation responsibilities
@@ -394,8 +435,62 @@ impl<'ctx> Codegen<'ctx> {
 
         match arg_type {
             Type::String => self.generate_println_string(arg, span),
-            Type::I32 => self.generate_println_i32(arg, span),
-            Type::I64 => self.generate_println_i64(arg, span),
+            Type::I8 => self.generate_println_integer(
+                arg,
+                span,
+                &Type::I8,
+                "lak_println_i8",
+                "println_i8 expr",
+            ),
+            Type::I16 => self.generate_println_integer(
+                arg,
+                span,
+                &Type::I16,
+                "lak_println_i16",
+                "println_i16 expr",
+            ),
+            Type::I32 => self.generate_println_integer(
+                arg,
+                span,
+                &Type::I32,
+                "lak_println_i32",
+                "println_i32 expr",
+            ),
+            Type::I64 => self.generate_println_integer(
+                arg,
+                span,
+                &Type::I64,
+                "lak_println_i64",
+                "println_i64 expr",
+            ),
+            Type::U8 => self.generate_println_integer(
+                arg,
+                span,
+                &Type::U8,
+                "lak_println_u8",
+                "println_u8 expr",
+            ),
+            Type::U16 => self.generate_println_integer(
+                arg,
+                span,
+                &Type::U16,
+                "lak_println_u16",
+                "println_u16 expr",
+            ),
+            Type::U32 => self.generate_println_integer(
+                arg,
+                span,
+                &Type::U32,
+                "lak_println_u32",
+                "println_u32 expr",
+            ),
+            Type::U64 => self.generate_println_integer(
+                arg,
+                span,
+                &Type::U64,
+                "lak_println_u64",
+                "println_u64 expr",
+            ),
             Type::Bool => self.generate_println_bool(arg, span),
         }
     }
@@ -449,65 +544,33 @@ impl<'ctx> Codegen<'ctx> {
         Ok(())
     }
 
-    /// Generates LLVM IR for `println` with an i32 argument.
-    ///
-    /// Note: i32-typed expressions, including mixed literal arithmetic adapted to i32,
-    /// reach this function.
-    fn generate_println_i32(&mut self, arg: &Expr, span: Span) -> Result<(), CodegenError> {
-        let i32_value = match &arg.kind {
-            ExprKind::Identifier(name) => {
-                let binding = self
-                    .lookup_variable(name)
-                    .ok_or_else(|| CodegenError::internal_variable_not_found(name, arg.span))?;
-
-                if binding.ty() != &Type::I32 {
-                    return Err(CodegenError::internal_println_type_mismatch(
-                        name,
-                        "i32",
-                        &binding.ty().to_string(),
-                        arg.span,
-                    ));
-                }
-
-                self.load_and_extract_int_value(
-                    self.context.i32_type(),
-                    binding.alloca(),
-                    name,
-                    "println_i32 load",
-                    arg.span,
-                )?
-            }
-            ExprKind::BinaryOp { .. }
-            | ExprKind::UnaryOp { .. }
-            | ExprKind::IfExpr { .. }
-            | ExprKind::Call { .. }
-            | ExprKind::ModuleCall { .. } => {
-                // For expression values, delegate to generate_expr_value.
-                match self.generate_expr_value(arg, &Type::I32)? {
-                    BasicValueEnum::IntValue(v) => v,
-                    _ => {
-                        return Err(CodegenError::internal_non_integer_value(
-                            "println_i32 expr",
-                            arg.span,
-                        ));
-                    }
-                }
-            }
-            // Standalone integer literals are routed to generate_println_i64().
+    fn generate_println_integer(
+        &mut self,
+        arg: &Expr,
+        span: Span,
+        ty: &Type,
+        runtime_name: &str,
+        context_label: &str,
+    ) -> Result<(), CodegenError> {
+        let int_value = match self.generate_expr_value(arg, ty)? {
+            BasicValueEnum::IntValue(v) => v,
             _ => {
-                return Err(CodegenError::internal_println_invalid_i32_arg(arg.span));
+                return Err(CodegenError::internal_non_integer_value(
+                    context_label,
+                    arg.span,
+                ));
             }
         };
 
-        let lak_println_i32 = self
+        let runtime_fn = self
             .module
-            .get_function("lak_println_i32")
-            .ok_or_else(|| CodegenError::internal_builtin_not_found("lak_println_i32"))?;
+            .get_function(runtime_name)
+            .ok_or_else(|| CodegenError::internal_builtin_not_found(runtime_name))?;
 
         self.builder
             .build_call(
-                lak_println_i32,
-                &[BasicMetadataValueEnum::IntValue(i32_value)],
+                runtime_fn,
+                &[BasicMetadataValueEnum::IntValue(int_value)],
                 "",
             )
             .map_err(|e| CodegenError::internal_println_call_failed(&e.to_string(), span))?;
@@ -576,72 +639,6 @@ impl<'ctx> Codegen<'ctx> {
             .build_call(
                 lak_println_bool,
                 &[BasicMetadataValueEnum::IntValue(bool_value)],
-                "",
-            )
-            .map_err(|e| CodegenError::internal_println_call_failed(&e.to_string(), span))?;
-
-        Ok(())
-    }
-
-    /// Generates LLVM IR for `println` with an i64 argument.
-    ///
-    /// This handles standalone integer literals (default i64),
-    /// i64 variables, and i64-typed binary operations.
-    fn generate_println_i64(&mut self, arg: &Expr, span: Span) -> Result<(), CodegenError> {
-        let i64_value = match &arg.kind {
-            ExprKind::IntLiteral(value) => self.context.i64_type().const_int(*value as u64, true),
-            ExprKind::Identifier(name) => {
-                let binding = self
-                    .lookup_variable(name)
-                    .ok_or_else(|| CodegenError::internal_variable_not_found(name, arg.span))?;
-
-                if binding.ty() != &Type::I64 {
-                    return Err(CodegenError::internal_println_type_mismatch(
-                        name,
-                        "i64",
-                        &binding.ty().to_string(),
-                        arg.span,
-                    ));
-                }
-
-                self.load_and_extract_int_value(
-                    self.context.i64_type(),
-                    binding.alloca(),
-                    name,
-                    "println_i64 load",
-                    arg.span,
-                )?
-            }
-            ExprKind::BinaryOp { .. }
-            | ExprKind::UnaryOp { .. }
-            | ExprKind::IfExpr { .. }
-            | ExprKind::Call { .. }
-            | ExprKind::ModuleCall { .. } => {
-                // For expression values, delegate to generate_expr_value.
-                match self.generate_expr_value(arg, &Type::I64)? {
-                    BasicValueEnum::IntValue(v) => v,
-                    _ => {
-                        return Err(CodegenError::internal_non_integer_value(
-                            "println_i64 expr",
-                            arg.span,
-                        ));
-                    }
-                }
-            }
-            _ => {
-                return Err(CodegenError::internal_println_invalid_i64_arg(arg.span));
-            }
-        };
-
-        let lak_println_i64 = self
-            .module
-            .get_function("lak_println_i64")
-            .ok_or_else(|| CodegenError::internal_builtin_not_found("lak_println_i64"))?;
-
-        self.builder
-            .build_call(
-                lak_println_i64,
-                &[BasicMetadataValueEnum::IntValue(i64_value)],
                 "",
             )
             .map_err(|e| CodegenError::internal_println_call_failed(&e.to_string(), span))?;
