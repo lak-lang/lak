@@ -26,8 +26,6 @@ This document tracks the implementation status of Lak language features as defin
 
 #### Numeric Types
 
-- [ ] `int` - Platform-default signed integer
-- [ ] `uint` - Platform-default unsigned integer
 - [ ] `i8` - 8-bit signed integer
 - [ ] `i16` - 16-bit signed integer
 - [x] `i32` - 32-bit signed integer

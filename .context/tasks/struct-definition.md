@@ -7,7 +7,7 @@ Implement struct definitions.
 ```lak
 struct User {
     pub name: string
-    age: int          // Private (default)
+    age: i64          // Private (default)
 }
 ```
 
@@ -23,6 +23,6 @@ struct User {
 ```lak
 pub struct User {
     pub name: string
-    age: int
+    age: i64
 }
 ```

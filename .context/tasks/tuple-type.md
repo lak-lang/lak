@@ -5,8 +5,8 @@ Implement tuple types for grouping multiple values.
 
 ### Syntax
 ```lak
-let pair: (int, string) = (1, "hello")
-let triple = (1, "a", true)            // Inferred as (int, string, bool)
+let pair: (i64, string) = (1, "hello")
+let triple = (1, "a", true)            // Inferred as (i64, string, bool)
 ```
 
 ### Element Access

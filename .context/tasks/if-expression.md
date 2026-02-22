@@ -14,7 +14,7 @@ let max = if a > b { a } else { b }
 
 ### Examples
 ```lak
-// OK: both branches are int
+// OK: both branches are i64
 let max = if a > b { a } else { b }
 
 // OK: nested expression

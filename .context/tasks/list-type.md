@@ -5,7 +5,7 @@ Implement the list type.
 
 ### Syntax
 ```lak
-let numbers = [1, 2, 3]                // Inferred as List<int>
+let numbers = [1, 2, 3]                // Inferred as List<i64>
 let names: List<string> = []           // Empty list requires type annotation
 ```
 
@@ -14,7 +14,7 @@ No index syntax (`[]`) for direct access. Use methods.
 
 ```lak
 let numbers = [1, 2, 3]
-let first = numbers.get(0)             // Option<int>
+let first = numbers.get(0)             // Option<i64>
 let sub = numbers.slice(0, 2)          // [1, 2]
 ```
 
@@ -30,7 +30,7 @@ items.push(4)                          // OK
 ```
 
 ### Methods
-- `get(index: int) -> Option<T>`
-- `slice(start: int, end: int) -> List<T>`
+- `get(index: i64) -> Option<T>`
+- `slice(start: i64, end: i64) -> List<T>`
 - `push(item: T)` (requires mut)
-- `len() -> int`
+- `len() -> i64`

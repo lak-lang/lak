@@ -14,7 +14,7 @@ for i, item in list {
 Loop variables receive the return value of the iterator's `next` method.
 
 ```lak
-// List<T> iterator returns (int, T) - index and element
+// List<T> iterator returns (i64, T) - index and element
 for i, item in list {
     println("${i}: ${item}")
 }

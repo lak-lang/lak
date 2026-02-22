@@ -18,7 +18,7 @@ let a = u.age           // 30
 // user.lak
 struct User {
     pub name: string
-    age: int              // private
+    age: i64              // private
 }
 
 // main.lak

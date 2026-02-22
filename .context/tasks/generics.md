@@ -21,7 +21,7 @@ struct Pair<A, B> {
     pub second: B
 }
 
-let p = Pair<int, string> { first: 1, second: "hello" }
+let p = Pair<i64, string> { first: 1, second: "hello" }
 ```
 
 ### Interface Constraints

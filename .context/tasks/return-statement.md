@@ -14,7 +14,7 @@ Implement the `return` statement.
 
 ### Examples
 ```lak
-fn abs(x: int) -> int {
+fn abs(x: i64) -> i64 {
     if x < 0 {
         return -x
     }

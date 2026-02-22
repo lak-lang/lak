@@ -23,6 +23,6 @@ x = 10              // Compile error: x is immutable
 let mut y = 5
 y = 10              // OK
 
-let mut z: int = 5
+let mut z: i64 = 5
 z = "hello"         // Compile error: type mismatch
 ```

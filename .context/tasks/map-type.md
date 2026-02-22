@@ -5,13 +5,13 @@ Implement the map type to hold key-value pairs.
 
 ### Syntax
 ```lak
-let ages = {"alice": 30, "bob": 25}    // Inferred as Map<string, int>
-let empty: Map<string, int> = {}       // Empty map requires type annotation
+let ages = {"alice": 30, "bob": 25}    // Inferred as Map<string, i64>
+let empty: Map<string, i64> = {}       // Empty map requires type annotation
 ```
 
 ### Key Type Restriction
 Keys must be primitive types only:
-- `int`, `uint`, `i8`-`i64`, `u8`-`u64`
+- `i8`-`i64`, `u8`-`u64`
 - `string`
 - `bool`
 
@@ -20,7 +20,7 @@ No index syntax (`[]`) for direct access. Use methods.
 
 ```lak
 let ages = {"alice": 30}
-let age = ages.get("alice")            // Option<int>
+let age = ages.get("alice")            // Option<i64>
 ```
 
 ### Mutability
@@ -39,4 +39,4 @@ ages2.set("bob", 25)                   // OK
 - `set(key: K, value: V)` (requires mut)
 - `remove(key: K)` (requires mut)
 - `contains(key: K) -> bool`
-- `len() -> int`
+- `len() -> i64`

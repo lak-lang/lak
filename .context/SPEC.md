@@ -31,11 +31,11 @@ Lak is a programming language emphasizing simplicity, safety, and minimal syntax
 
 | Type | Description |
 |------|-------------|
-| `int` | Signed integer (platform default size) |
-| `uint` | Unsigned integer (platform default size) |
 | `i8`, `i16`, `i32`, `i64` | Fixed-size signed integers |
 | `u8`, `u16`, `u32`, `u64` | Fixed-size unsigned integers |
 | `f32`, `f64` | Floating-point numbers |
+
+Lak does not provide platform-sized integer aliases (`int`, `uint`). Use explicit-width integer types (for example, `i64`, `u64`).
 
 #### Other Types
 
@@ -99,8 +99,8 @@ println(u)    // "User: alice" (uses to_string())
 Groups multiple values. No limit on element count.
 
 ```lak
-let pair: (int, string) = (1, "hello")
-let triple = (1, "a", true)            // Inferred as (int, string, bool)
+let pair: (i64, string) = (1, "hello")
+let triple = (1, "a", true)            // Inferred as (i64, string, bool)
 ```
 
 **Element Access**: Use `.0`, `.1`, etc.
@@ -127,17 +127,17 @@ let x, y = pair         // x = 1, y = "hello"
 #### List
 
 ```lak
-let numbers = [1, 2, 3]                // Inferred as List<int>
+let numbers = [1, 2, 3]                // Inferred as List<i64>
 let names: List<string> = []            // Empty list requires type annotation
 ```
 
 #### Map
 
-Keys are limited to primitive types (`int`, `uint`, `i8`-`i64`, `u8`-`u64`, `string`, `bool`).
+Keys are limited to primitive types (`i8`-`i64`, `u8`-`u64`, `string`, `bool`).
 
 ```lak
-let ages = {"alice": 30, "bob": 25}     // Inferred as Map<string, int>
-let empty: Map<string, int> = {}        // Empty map requires type annotation
+let ages = {"alice": 30, "bob": 25}     // Inferred as Map<string, i64>
+let empty: Map<string, i64> = {}        // Empty map requires type annotation
 ```
 
 #### Element Access
@@ -146,10 +146,10 @@ No index syntax (`[]`). Access via methods.
 
 ```lak
 let numbers = [1, 2, 3]
-let first = numbers.get(0)              // Option<int>
+let first = numbers.get(0)              // Option<i64>
 
 let ages = {"alice": 30}
-let age = ages.get("alice")             // Option<int>
+let age = ages.get("alice")             // Option<i64>
 
 // Partial list
 let sub = numbers.slice(0, 2)           // [1, 2]
@@ -299,7 +299,7 @@ Rust-style syntax. `fn` keyword, colon for parameter type annotations, `->` for 
 Return type is mandatory. Use `-> void` for no return value.
 
 ```lak
-fn add(a: int, b: int) -> int {
+fn add(a: i64, b: i64) -> i64 {
     return a + b
 }
 
@@ -314,7 +314,7 @@ fn greet() -> void {
 - `void` functions can omit trailing `return`. Use bare `return` for early return.
 
 ```lak
-fn abs(x: int) -> int {
+fn abs(x: i64) -> i64 {
     if x < 0 {
         return -x
     }
@@ -336,12 +336,12 @@ Functions can return multiple values. Return type is expressed as tuple type.
 Receiver side doesn't need type annotation (inferred from function signature).
 
 ```lak
-fn min_max(list: List<int>) -> (int, int) {
+fn min_max(list: List<i64>) -> (i64, i64) {
     return (1, 10)
 }
 
 let min, max = min_max(numbers)    // Destructuring
-let result = min_max(numbers)      // Receive as tuple: (int, int)
+let result = min_max(numbers)      // Receive as tuple: (i64, i64)
 ```
 
 ### Receiving Return Values
@@ -365,7 +365,7 @@ Default is private. Use `pub` keyword to make public.
 ```lak
 struct User {
     pub name: string
-    age: int          // Private
+    age: i64          // Private
 }
 ```
 
@@ -384,7 +384,7 @@ To allow external instance creation, expose a factory function.
 
 ```lak
 // user.lak
-pub fn new_user(name: string, age: int) -> User {
+pub fn new_user(name: string, age: i64) -> User {
     return User { name: name, age: age }
 }
 
@@ -403,7 +403,7 @@ Methods are private by default. Use `pub` to make public.
 ```lak
 struct User {
     pub name: string
-    age: int
+    age: i64
 
     pub fn greet(self) -> string {
         return "Hello, " + self.name
@@ -487,12 +487,12 @@ let name: Option<string> = Option.None
 let value = Option.Some("alice")
 
 // Return values: full qualification
-fn find(id: int) -> Option<string> {
+fn find(id: i64) -> Option<string> {
     return Option.None
 }
 
 // Arguments: full qualification
-fn process(value: Option<int>) { ... }
+fn process(value: Option<i64>) { ... }
 process(Option.None)
 ```
 
@@ -556,7 +556,7 @@ let max = if a > b { a } else { b }
 - The last evaluated expression in a block becomes the branch's value.
 
 ```lak
-// OK: both branches are int
+// OK: both branches are i64
 let max = if a > b { a } else { b }
 
 // OK: nesting allowed
@@ -589,7 +589,7 @@ Loop variable is immutable. Cannot be modified inside the loop.
 `for` loop receives the return value of the iterator's `next` method. The number of receiving variables must match the return type.
 
 ```lak
-// List<T> iterator returns (int, T) - index and element
+// List<T> iterator returns (i64, T) - index and element
 for i, item in list {
     println("${i}: ${item}")
 }
@@ -761,10 +761,10 @@ fn panic(message: string) -> never
 This allows type checking to work correctly in code like:
 
 ```lak
-fn get_value(opt: Option<int>) -> int {
+fn get_value(opt: Option<i64>) -> i64 {
     match opt {
         Some(v) => v
-        None => panic("value is required")  // never is compatible with int
+        None => panic("value is required")  // never is compatible with i64
     }
 }
 ```
@@ -781,7 +781,7 @@ fn read_file(path: string) -> Result<string, FileError> {
 }
 
 // Use panic
-fn divide(a: int, b: int) -> int {
+fn divide(a: i64, b: i64) -> i64 {
     if b == 0 {
         panic("division by zero")
     }
@@ -825,17 +825,17 @@ fn println() -> void {}
 ### Visibility
 
 ```lak
-pub fn add(a: int, b: int) -> int {
+pub fn add(a: i64, b: i64) -> i64 {
     return a + b
 }
 
-fn helper() -> int {       // Private (file-local only)
+fn helper() -> i64 {       // Private (file-local only)
     return 42
 }
 
 pub struct User {
     pub name: string
-    age: int               // Field is private
+    age: i64               // Field is private
 }
 ```
 

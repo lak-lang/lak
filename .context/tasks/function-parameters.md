@@ -5,7 +5,7 @@ Implement support for function parameters.
 
 ### Syntax
 ```lak
-fn add(a: int, b: int) -> int {
+fn add(a: i64, b: i64) -> i64 {
     return a + b
 }
 

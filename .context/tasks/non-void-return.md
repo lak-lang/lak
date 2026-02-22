@@ -5,11 +5,11 @@ Implement functions that return non-void types.
 
 ### Syntax
 ```lak
-fn add(a: int, b: int) -> int {
+fn add(a: i64, b: i64) -> i64 {
     return a + b
 }
 
-fn is_positive(x: int) -> bool {
+fn is_positive(x: i64) -> bool {
     return x > 0
 }
 ```

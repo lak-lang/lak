@@ -17,7 +17,7 @@ Enable ordered comparison operators for `string`: `<`, `>`, `<=`, `>=`.
 
 ### Type Rules
 - `string` vs `string` is valid.
-- Mixed-type ordered comparison is invalid (for example, `string < int`).
+- Mixed-type ordered comparison is invalid (for example, `string < i64`).
 - Existing equality operators (`==`, `!=`) are out of scope for this task.
 
 ### Examples

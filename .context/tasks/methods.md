@@ -9,7 +9,7 @@ Define methods inside the struct definition. The first parameter is `self`.
 ```lak
 struct User {
     pub name: string
-    age: int
+    age: i64
 
     pub fn greet(self) -> string {
         return "Hello, " + self.name

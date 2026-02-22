@@ -23,7 +23,7 @@ To allow external instantiation, expose a factory function.
 
 ```lak
 // user.lak
-pub fn new_user(name: string, age: int) -> User {
+pub fn new_user(name: string, age: i64) -> User {
     return User { name: name, age: age }
 }
 
