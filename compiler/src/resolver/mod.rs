@@ -102,17 +102,6 @@ impl ModuleResolver {
         }
     }
 
-    /// Resolves a module starting from an entry point file.
-    ///
-    /// Returns all transitively imported modules (including entry module).
-    pub fn resolve_from_entry(&mut self, entry_path: &Path) -> Result<(), ResolverError> {
-        let canonical = entry_path
-            .canonicalize()
-            .map_err(|e| ResolverError::io_error_canonicalize(entry_path, &e))?;
-
-        self.resolve_module(&canonical, None, None)
-    }
-
     /// Resolves a module starting from an entry point file with pre-read source.
     ///
     /// This avoids reading the entry file a second time when the caller has

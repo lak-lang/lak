@@ -141,11 +141,6 @@ impl CodegenError {
         self.kind
     }
 
-    /// Returns whether this error already includes unary operation context.
-    pub fn has_unary_context(&self) -> bool {
-        self.has_unary_context
-    }
-
     /// Sets the unary context flag, preventing double-wrapping by `wrap_in_unary_context()`.
     fn with_unary_context(mut self) -> Self {
         self.has_unary_context = true;
@@ -546,25 +541,6 @@ impl CodegenError {
             CodegenErrorKind::InternalError,
             "Internal error: println string argument is not a string literal or string variable. \
              This is a compiler bug.",
-            span,
-        )
-    }
-
-    /// Creates an internal error for invalid println i32 argument.
-    pub fn internal_println_invalid_i32_arg(span: Span) -> Self {
-        Self::new(
-            CodegenErrorKind::InternalError,
-            "Internal error: generate_println_i32 received a non-identifier expression. \
-             Integer literals should be routed to generate_println_i64. This is a compiler bug.",
-            span,
-        )
-    }
-
-    /// Creates an internal error for invalid println i64 argument.
-    pub fn internal_println_invalid_i64_arg(span: Span) -> Self {
-        Self::new(
-            CodegenErrorKind::InternalError,
-            "Internal error: println i64 argument is not an integer literal or i64 variable. This is a compiler bug.",
             span,
         )
     }
@@ -1002,26 +978,6 @@ impl CodegenError {
                 "Internal error: module call '{}.{}()' used as value in codegen. \
                  Semantic analysis should have caught this. This is a compiler bug.",
                 module, function
-            ),
-            span,
-        )
-    }
-
-    /// Internal error: module call with arguments reached codegen.
-    ///
-    /// Semantic analysis should reject module calls with arguments since
-    /// parameterized module function calls are not yet supported.
-    pub fn internal_module_call_with_args(
-        module: &str,
-        function: &str,
-        arg_count: usize,
-        span: Span,
-    ) -> Self {
-        Self::new(
-            CodegenErrorKind::InternalError,
-            format!(
-                "Internal error: module call '{}.{}()' has {} argument(s) in codegen, but only parameterless calls are supported. This is a compiler bug.",
-                module, function, arg_count
             ),
             span,
         )

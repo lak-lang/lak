@@ -202,11 +202,6 @@ impl SemanticError {
         self.help.as_deref()
     }
 
-    /// Returns whether this error already includes unary operation context.
-    pub fn has_unary_context(&self) -> bool {
-        self.has_unary_context
-    }
-
     /// Sets the unary context flag, preventing double-wrapping by `wrap_in_unary_context()`.
     fn with_unary_context(mut self) -> Self {
         self.has_unary_context = true;

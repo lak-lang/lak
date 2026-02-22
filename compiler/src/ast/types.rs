@@ -55,17 +55,6 @@ impl Type {
     pub fn is_unsigned_integer(&self) -> bool {
         matches!(self, Type::U8 | Type::U16 | Type::U32 | Type::U64)
     }
-
-    /// Returns the bit width for integer types.
-    pub fn integer_bit_width(&self) -> Option<u32> {
-        match self {
-            Type::I8 | Type::U8 => Some(8),
-            Type::I16 | Type::U16 => Some(16),
-            Type::I32 | Type::U32 => Some(32),
-            Type::I64 | Type::U64 => Some(64),
-            Type::String | Type::Bool => None,
-        }
-    }
 }
 
 /// Displays the type as it would appear in Lak source code.
