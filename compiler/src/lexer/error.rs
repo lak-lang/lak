@@ -18,6 +18,7 @@
 //!   [`unterminated_string()`](LexError::unterminated_string),
 //!   [`unterminated_string_newline()`](LexError::unterminated_string_newline)
 //! - **Integer errors**: [`integer_overflow()`](LexError::integer_overflow)
+//! - **Float errors**: [`invalid_float_literal()`](LexError::invalid_float_literal)
 
 use crate::token::Span;
 
@@ -41,6 +42,8 @@ pub enum LexErrorKind {
     UnterminatedString,
     /// Integer literal exceeds representable range.
     IntegerOverflow,
+    /// Float literal could not be parsed.
+    InvalidFloatLiteral,
 }
 
 /// An error that occurred during lexical analysis.
@@ -108,6 +111,7 @@ impl LexError {
             LexErrorKind::UnknownEscapeSequence => "Unknown escape sequence",
             LexErrorKind::UnterminatedString => "Unterminated string",
             LexErrorKind::IntegerOverflow => "Integer overflow",
+            LexErrorKind::InvalidFloatLiteral => "Invalid float literal",
         }
     }
 
@@ -200,6 +204,15 @@ impl LexError {
                 "Integer literal '{}' is too large (exceeds maximum representable value)",
                 value_str
             ),
+            span,
+        )
+    }
+
+    /// Creates an "invalid float literal" error.
+    pub fn invalid_float_literal(value_str: &str, span: Span) -> Self {
+        Self::new(
+            LexErrorKind::InvalidFloatLiteral,
+            format!("Invalid float literal '{}'", value_str),
             span,
         )
     }

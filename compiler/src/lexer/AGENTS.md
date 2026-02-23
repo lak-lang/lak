@@ -28,7 +28,7 @@ Tests are organized by category in `tests/` directory:
 | `identifiers.rs` | Identifier parsing (ASCII only, rejects Unicode) |
 | `keywords.rs` | Keyword recognition and identifier disambiguation |
 | `strings.rs` | String literals and escape sequences |
-| `integers.rs` | Integer literal parsing |
+| `integers.rs` | Integer and float literal parsing |
 | `comments.rs` | Comment handling |
 | `compound.rs` | Function calls, nested expressions |
 | `newlines.rs` | Newline token emission rules |
@@ -43,6 +43,7 @@ Tests are organized by category in `tests/` directory:
 | Keywords | `fn`, `let`, `mut`, `if`, `else`, `return`, `while`, `break`, `continue`, `pub`, `import`, `as` |
 | Identifiers | ASCII alphabetic (a-z, A-Z)/underscore start, ASCII alphanumeric/underscore continue (non-ASCII rejected) |
 | Integer literals | ASCII digit sequences, stored as `u64` (overflow → error) |
+| Float literals | `digits '.' digits`, stored as `f64` |
 | Boolean literals | `true`, `false` |
 | String literals | Double-quoted, supports `\n`, `\t`, `\r`, `\\`, `\"` |
 | Punctuation / Operators | `(`, `)`, `{`, `}`, `,`, `:`, `.`, `=`, `->`, `+`, `-`, `*`, `/`, `%`, `!`, `&&`, `||`, `==`, `!=`, `<`, `>`, `<=`, `>=` |
@@ -52,7 +53,7 @@ Tests are organized by category in `tests/` directory:
 
 Inspired by Go's semicolon insertion. `Newline` tokens are emitted after:
 - Identifiers
-- Literals (string, integer, boolean)
+- Literals (string, integer, float, boolean)
 - `return`, `break`, `continue`
 - `)` (right parenthesis)
 - `}` (right brace)
@@ -70,6 +71,7 @@ Errors occur for:
 - Unterminated string literals
 - Unknown escape sequences
 - Integer overflow (exceeds `u64::MAX`)
+- Invalid float literals
 
 ## Lifetime `'a`
 

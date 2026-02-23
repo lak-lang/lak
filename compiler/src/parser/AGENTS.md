@@ -47,10 +47,10 @@ if_stmt     → "if" expr "{" stmt* "}" ("else" (if_stmt | "{" stmt* "}"))?
 while_stmt  → "while" expr "{" stmt* "}"
 break_stmt  → "break"
 continue_stmt → "continue"
-type        → "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "byte" | "string" | "bool"
+type        → "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "f32" | "f64" | "byte" | "string" | "bool"
 return_type → type | "void"
 expr_stmt   → expr
-expr        → if_expr | unary | binary | call | module_call | IDENTIFIER | STRING | INT | BOOL
+expr        → if_expr | unary | binary | call | module_call | IDENTIFIER | STRING | INT | FLOAT | BOOL
 call        → IDENTIFIER "(" arguments? ")"
 module_call → IDENTIFIER "." IDENTIFIER "(" arguments? ")"
 arguments   → expr ("," expr)*

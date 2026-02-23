@@ -103,7 +103,7 @@ fn test_parse_error_unknown_type_constructor() {
     assert_eq!(err.kind(), ParseErrorKind::ExpectedType);
     assert_eq!(
         err.message(),
-        "Unknown type: 'int'. Expected 'i8', 'i16', 'i32', 'i64', 'u8', 'u16', 'u32', 'u64', 'byte', 'string', or 'bool'"
+        "Unknown type: 'int'. Expected 'i8', 'i16', 'i32', 'i64', 'u8', 'u16', 'u32', 'u64', 'f32', 'f64', 'byte', 'string', or 'bool'"
     );
 }
 
@@ -124,6 +124,16 @@ fn test_parse_error_missing_fn_call_parens_int_constructor() {
     assert_eq!(
         err.message(),
         "Unexpected integer literal after 'foo'. If this is a function call, add parentheses: foo(...)"
+    );
+}
+
+#[test]
+fn test_parse_error_missing_fn_call_parens_float_constructor() {
+    let err = ParseError::missing_fn_call_parens_float("foo", dummy_span());
+    assert_eq!(err.kind(), ParseErrorKind::MissingFunctionCallParentheses);
+    assert_eq!(
+        err.message(),
+        "Unexpected float literal after 'foo'. If this is a function call, add parentheses: foo(...)"
     );
 }
 

@@ -28,8 +28,16 @@ Functions are marked with `#[unsafe(no_mangle)]` to preserve their names in the 
 | Function | Signature | Description |
 |----------|-----------|-------------|
 | `lak_println` | `unsafe fn(s: *const c_char)` | Print string with newline |
+| `lak_println_i8` | `fn(value: i8)` | Print i8 with newline |
+| `lak_println_i16` | `fn(value: i16)` | Print i16 with newline |
 | `lak_println_i32` | `fn(value: i32)` | Print i32 with newline |
 | `lak_println_i64` | `fn(value: i64)` | Print i64 with newline |
+| `lak_println_u8` | `fn(value: u8)` | Print u8 with newline |
+| `lak_println_u16` | `fn(value: u16)` | Print u16 with newline |
+| `lak_println_u32` | `fn(value: u32)` | Print u32 with newline |
+| `lak_println_u64` | `fn(value: u64)` | Print u64 with newline |
+| `lak_println_f32` | `fn(value: f32)` | Print f32 with newline |
+| `lak_println_f64` | `fn(value: f64)` | Print f64 with newline |
 | `lak_println_bool` | `fn(value: bool)` | Print boolean ("true"/"false") with newline |
 | `lak_panic` | `unsafe fn(message: *const c_char) -> !` | Print panic message to stderr and exit(1) |
 
@@ -44,15 +52,23 @@ pub unsafe extern "C" fn lak_println(s: *const c_char)
 - Handles invalid UTF-8 with lossy conversion
 - Called by Lak's `println("...")` built-in function
 
-### `lak_println_i32` / `lak_println_i64`
+### `lak_println_*` Numeric Variants
 
 ```rust
+pub extern "C" fn lak_println_i8(value: i8)
+pub extern "C" fn lak_println_i16(value: i16)
 pub extern "C" fn lak_println_i32(value: i32)
 pub extern "C" fn lak_println_i64(value: i64)
+pub extern "C" fn lak_println_u8(value: u8)
+pub extern "C" fn lak_println_u16(value: u16)
+pub extern "C" fn lak_println_u32(value: u32)
+pub extern "C" fn lak_println_u64(value: u64)
+pub extern "C" fn lak_println_f32(value: f32)
+pub extern "C" fn lak_println_f64(value: f64)
 ```
 
-- Print integer value followed by a newline to stdout
-- Called by Lak's `println()` when argument is an integer type
+- Print numeric value followed by a newline to stdout
+- Called by Lak's `println()` when argument is an integer or float type
 
 ### `lak_println_bool`
 
@@ -77,11 +93,12 @@ pub unsafe extern "C" fn lak_panic(message: *const c_char) -> !
 
 ## Safety
 
-All exported functions are `unsafe` because they accept raw pointers from C/LLVM code. The compiler guarantees valid pointers through semantic analysis.
+Pointer-taking exported functions are `unsafe` because they accept raw pointers
+from C/LLVM code. Numeric/bool print functions are safe `extern "C"` entry points.
 
 ## Integration with Compiler
 
-1. Compiler generates calls to runtime functions (`lak_println`, `lak_println_i32`, `lak_println_i64`, `lak_println_bool`, `lak_panic`) in LLVM IR
+1. Compiler generates calls to runtime functions (`lak_println`, `lak_println_i*`, `lak_println_u*`, `lak_println_f*`, `lak_println_bool`, `lak_panic`) in LLVM IR
 2. Compiler resolves the runtime static library from the same directory as the running `lak` executable
 3. System linker (`cc` on Unix, `link.exe` on Windows MSVC) links the object file with the runtime
 

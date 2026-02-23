@@ -139,12 +139,12 @@ Use the following prefixes based on the type of change:
 When adding a new primitive type to Lak, update all of the following locations:
 
 1. **AST**: `ast/types.rs` (`Type` enum), `ast/expr.rs` (`ExprKind` variant if literal)
-2. **Lexer**: `lexer/tokens.rs` (keyword/literal recognition), `lexer/skip.rs` (newline emission rules)
-3. **Parser**: `parser/types.rs` (type parsing), `parser/expr.rs` (literal parsing), `parser/helpers.rs` (token display)
+2. **Lexer**: `lexer/tokens.rs` (keyword/literal recognition), `lexer/skip.rs` (newline emission rules), `lexer/error.rs` (literal-specific diagnostics)
+3. **Parser**: `parser/types.rs` (type parsing), `parser/expr.rs` (literal parsing), `parser/helpers.rs` (token display), `parser/error.rs` (literal-related parse errors)
 4. **Semantic**: `semantic/mod.rs` (type checking, operator validation), `semantic/error.rs` (type-specific errors)
 5. **Codegen**: `codegen/mod.rs` (`get_llvm_type`), `codegen/binding.rs`, `codegen/expr.rs`, `codegen/builtins.rs` (println dispatch), `codegen/error.rs` (internal errors)
 6. **Runtime**: `runtime/src/lib.rs` (println function if needed)
 7. **Tests**: E2E tests for happy path, error tests for type mismatches and invalid operations
-8. **Docs**: `.context/IMPLEMENTATION_STATUS.md`
+8. **Docs**: `.context/IMPLEMENTATION_STATUS.md`, `.context/tasks/README.md` (task state)
 
-**Critical**: Ensure operator type checks (`check_binary_op_type`, `check_unary_op_type`) reject non-numeric types.
+**Critical**: Ensure operator type checks reject non-numeric types, reject float modulo (`%`), and keep int/float mixed arithmetic/comparison disallowed unless explicit cast support is added.

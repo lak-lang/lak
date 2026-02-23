@@ -39,7 +39,7 @@ Status:
 
 ### Types
 - `integer-types.md` - Remaining Integer Types [Done]
-- `float-types.md` - Float Types
+- `float-types.md` - Float Types [Done]
 - `tuple-type.md` - Tuple Type
 
 ### Algebraic Data Types
@@ -80,7 +80,7 @@ Status:
 12. `reassignment.md` [Done]
 13. `type-inference.md` [Todo]
 14. `integer-types.md` [Done]
-15. `float-types.md` [Todo]
+15. `float-types.md` [Done]
 16. `tuple-type.md` [Todo]
 17. `simple-enums.md` [Todo]
 18. `match-expression.md` [Todo]

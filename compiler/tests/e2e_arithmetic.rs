@@ -75,6 +75,80 @@ fn test_modulo() {
     assert_eq!(output, "2\n");
 }
 
+#[test]
+fn test_float_addition_f64() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: f64 = 3.5 + 2.25
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "5.75\n");
+}
+
+#[test]
+fn test_float_subtraction_f64() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: f64 = 5.5 - 2.25
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "3.25\n");
+}
+
+#[test]
+fn test_float_multiplication_f64() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: f64 = 1.5 * 2.5
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "3.75\n");
+}
+
+#[test]
+fn test_float_division_f64() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: f64 = 7.5 / 2.0
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "3.75\n");
+}
+
+#[test]
+fn test_float_arithmetic_mixed_f32_f64_promotes_to_f64() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let a: f32 = 1.5
+    let b: f64 = 2.25
+    let c: f64 = a + b
+    println(c)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "3.75\n");
+}
+
+#[test]
+fn test_float_unary_minus() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: f64 = -(3.5)
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "-3.5\n");
+}
+
 // ============================================================================
 // Operator Precedence
 // ============================================================================

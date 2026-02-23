@@ -271,6 +271,36 @@ fn main() -> void {
     assert_eq!(output, "false\n");
 }
 
+#[test]
+fn test_float_comparison_less_than() {
+    let output = compile_and_run(
+        r#"
+fn main() -> void {
+    let result: bool = 1.5 < 2.0
+    println(result)
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "true\n");
+}
+
+#[test]
+fn test_float_comparison_mixed_f32_f64() {
+    let output = compile_and_run(
+        r#"
+fn main() -> void {
+    let a: f32 = 2.5
+    let b: f64 = 2.5
+    let result: bool = a == b
+    println(result)
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "true\n");
+}
+
 // ============================================================================
 // Type Compatibility
 // ============================================================================

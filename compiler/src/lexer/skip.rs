@@ -59,6 +59,7 @@ impl<'a> Lexer<'a> {
             &self.last_token_kind,
             Some(TokenKind::Identifier(_))
                 | Some(TokenKind::IntLiteral(_))
+                | Some(TokenKind::FloatLiteral(_))
                 | Some(TokenKind::StringLiteral(_))
                 | Some(TokenKind::BoolLiteral(_))
                 | Some(TokenKind::Return)

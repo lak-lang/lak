@@ -460,6 +460,8 @@ impl SemanticAnalyzer {
             "u16" => Ok(Type::U16),
             "u32" => Ok(Type::U32),
             "u64" => Ok(Type::U64),
+            "f32" => Ok(Type::F32),
+            "f64" => Ok(Type::F64),
             "string" => Ok(Type::String),
             "bool" => Ok(Type::Bool),
             _ => Err(SemanticError::invalid_function_return_type(name, span)),
@@ -609,6 +611,12 @@ impl SemanticAnalyzer {
                 ExprKind::IntLiteral(_) => {
                     return Err(SemanticError::invalid_argument_panic_type(
                         "integer literal",
+                        args[0].span,
+                    ));
+                }
+                ExprKind::FloatLiteral(_) => {
+                    return Err(SemanticError::invalid_argument_panic_type(
+                        "float literal",
                         args[0].span,
                     ));
                 }
@@ -783,6 +791,9 @@ impl SemanticAnalyzer {
             ExprKind::IntLiteral(_) => {
                 Err(SemanticError::invalid_expression_int_literal(expr.span))
             }
+            ExprKind::FloatLiteral(_) => {
+                Err(SemanticError::invalid_expression_float_literal(expr.span))
+            }
             ExprKind::BoolLiteral(_) => {
                 Err(SemanticError::invalid_expression_bool_literal(expr.span))
             }
@@ -816,7 +827,23 @@ impl SemanticAnalyzer {
                 if *expected_ty == Type::Bool {
                     return Err(SemanticError::type_mismatch_int_to_bool(*value, expr.span));
                 }
+                if expected_ty.is_float() {
+                    return Err(SemanticError::type_mismatch_int_to_type(
+                        *value,
+                        &expected_ty.to_string(),
+                        expr.span,
+                    ));
+                }
                 self.check_integer_range(*value, expected_ty, expr.span)
+            }
+            ExprKind::FloatLiteral(_) => {
+                if !expected_ty.is_float() {
+                    return Err(SemanticError::type_mismatch_float_to_type(
+                        &expected_ty.to_string(),
+                        expr.span,
+                    ));
+                }
+                Ok(())
             }
             ExprKind::Identifier(name) => {
                 let var_info = self
@@ -948,6 +975,26 @@ impl SemanticAnalyzer {
         }
     }
 
+    /// Checks expression type compatibility, allowing implicit `f32 -> f64`
+    /// widening only when the expected operand type is `f64`.
+    ///
+    /// This helper is used for arithmetic/comparison operands so Lak's
+    /// mixed-float promotion rules are enforced while keeping other contexts
+    /// strict (no implicit narrowing, no int/float mixing).
+    fn check_expr_type_with_float_widening(
+        &mut self,
+        expr: &Expr,
+        expected_ty: &Type,
+    ) -> Result<(), SemanticError> {
+        if *expected_ty == Type::F64 {
+            let actual_ty = self.infer_expr_type(expr)?;
+            if actual_ty == Type::F32 {
+                return self.check_expr_type(expr, &Type::F32);
+            }
+        }
+        self.check_expr_type(expr, expected_ty)
+    }
+
     fn infer_arithmetic_operand_type(
         &mut self,
         left: &Expr,
@@ -961,7 +1008,14 @@ impl SemanticAnalyzer {
         if let Some(operand_ty) =
             Expr::infer_common_binary_operand_type(left, &left_ty, right, &right_ty)
         {
-            if operand_ty.is_integer() {
+            if operand_ty.is_numeric() {
+                if op == BinaryOperator::Mod && !operand_ty.is_integer() {
+                    return Err(SemanticError::invalid_binary_op_type(
+                        op,
+                        &operand_ty.to_string(),
+                        span,
+                    ));
+                }
                 return Ok(operand_ty);
             }
             return Err(SemanticError::invalid_binary_op_type(
@@ -971,14 +1025,14 @@ impl SemanticAnalyzer {
             ));
         }
 
-        if !left_ty.is_integer() {
+        if !left_ty.is_numeric() {
             return Err(SemanticError::invalid_binary_op_type(
                 op,
                 &left_ty.to_string(),
                 span,
             ));
         }
-        if !right_ty.is_integer() {
+        if !right_ty.is_numeric() {
             return Err(SemanticError::invalid_binary_op_type(
                 op,
                 &right_ty.to_string(),
@@ -1027,7 +1081,11 @@ impl SemanticAnalyzer {
             ));
         };
 
-        if !(op.is_equality() || operand_ty.is_integer() || operand_ty == Type::String) {
+        if !(op.is_equality()
+            || operand_ty.is_integer()
+            || operand_ty.is_float()
+            || operand_ty == Type::String)
+        {
             return Err(SemanticError::invalid_ordering_op_type(
                 op,
                 &operand_ty.to_string(),
@@ -1035,8 +1093,8 @@ impl SemanticAnalyzer {
             ));
         }
 
-        self.check_expr_type(left, &operand_ty)?;
-        self.check_expr_type(right, &operand_ty)?;
+        self.check_expr_type_with_float_widening(left, &operand_ty)?;
+        self.check_expr_type_with_float_widening(right, &operand_ty)?;
         Ok(operand_ty)
     }
 
@@ -1051,6 +1109,7 @@ impl SemanticAnalyzer {
     fn infer_expr_type(&mut self, expr: &Expr) -> Result<Type, SemanticError> {
         match &expr.kind {
             ExprKind::IntLiteral(_) => Ok(Type::I64),
+            ExprKind::FloatLiteral(_) => Ok(Type::F64),
             ExprKind::StringLiteral(_) => Ok(Type::String),
             ExprKind::BoolLiteral(_) => Ok(Type::Bool),
             ExprKind::Identifier(name) => {
@@ -1169,7 +1228,14 @@ impl SemanticAnalyzer {
             Ok(())
         } else if op.is_arithmetic() {
             // Arithmetic operators: expected type must be numeric
-            if !expected_ty.is_integer() {
+            if !expected_ty.is_numeric() {
+                return Err(SemanticError::invalid_binary_op_type(
+                    op,
+                    &expected_ty.to_string(),
+                    span,
+                ));
+            }
+            if op == BinaryOperator::Mod && !expected_ty.is_integer() {
                 return Err(SemanticError::invalid_binary_op_type(
                     op,
                     &expected_ty.to_string(),
@@ -1178,8 +1244,8 @@ impl SemanticAnalyzer {
             }
 
             // Check both operands have the expected type
-            self.check_expr_type(left, expected_ty)?;
-            self.check_expr_type(right, expected_ty)?;
+            self.check_expr_type_with_float_widening(left, expected_ty)?;
+            self.check_expr_type_with_float_widening(right, expected_ty)?;
 
             Ok(())
         } else {
@@ -1202,16 +1268,7 @@ impl SemanticAnalyzer {
     ) -> Result<(), SemanticError> {
         match op {
             UnaryOperator::Neg => {
-                if !expected_ty.is_integer() {
-                    return Err(SemanticError::invalid_unary_op_type(
-                        op,
-                        &expected_ty.to_string(),
-                        span,
-                    ));
-                }
-
-                // Lak does not allow unary negation for unsigned integers.
-                if expected_ty.is_unsigned_integer() {
+                if !(expected_ty.is_signed_integer() || expected_ty.is_float()) {
                     return Err(SemanticError::invalid_unary_op_type(
                         op,
                         &expected_ty.to_string(),
@@ -1349,6 +1406,20 @@ impl SemanticAnalyzer {
                         span,
                     ));
                 }
+            }
+            Type::F32 => {
+                // This branch should never be reached because check_expr_type
+                // handles float expectations before calling check_integer_range.
+                return Err(SemanticError::internal_check_integer_range_unexpected_f32(
+                    value, span,
+                ));
+            }
+            Type::F64 => {
+                // This branch should never be reached because check_expr_type
+                // handles float expectations before calling check_integer_range.
+                return Err(SemanticError::internal_check_integer_range_unexpected_f64(
+                    value, span,
+                ));
             }
             Type::String => {
                 // This branch should never be reached because check_expr_type

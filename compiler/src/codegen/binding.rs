@@ -74,6 +74,8 @@ impl<'ctx> VarBinding<'ctx> {
             Type::U16 => context.i16_type().into(),
             Type::U32 => context.i32_type().into(),
             Type::U64 => context.i64_type().into(),
+            Type::F32 => context.f32_type().into(),
+            Type::F64 => context.f64_type().into(),
             Type::String => context.ptr_type(AddressSpace::default()).into(),
             Type::Bool => context.bool_type().into(),
         };

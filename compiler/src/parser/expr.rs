@@ -82,7 +82,7 @@ impl Parser {
     ///
     /// ```text
     /// expr → primary (binary_op primary)*
-    /// primary → IDENTIFIER | IDENTIFIER "(" arguments? ")" | STRING | INT | "(" expr ")"
+    /// primary → IDENTIFIER | IDENTIFIER "(" arguments? ")" | STRING | INT | FLOAT | "(" expr ")"
     /// binary_op → "+" | "-" | "*" | "/" | "%" | "==" | "!=" | "<" | ">" | "<=" | ">="
     /// ```
     pub(super) fn parse_expr(&mut self) -> Result<Expr, ParseError> {
@@ -160,6 +160,7 @@ impl Parser {
     /// Primary expressions are the basic building blocks:
     /// - Unary operators (`-`, `!`)
     /// - Integer literals
+    /// - Float literals
     /// - String literals
     /// - Identifiers (variable references)
     /// - Function calls
@@ -323,6 +324,9 @@ impl Parser {
                             &name,
                             self.current_span(),
                         )),
+                        TokenKind::FloatLiteral(_) => Err(
+                            ParseError::missing_fn_call_parens_float(&name, self.current_span()),
+                        ),
                         TokenKind::Identifier(next_name) => {
                             let next_name = next_name.clone();
                             Err(ParseError::missing_fn_call_parens_ident(
@@ -350,6 +354,11 @@ impl Parser {
                     ExprKind::IntLiteral(unsigned_value as i128),
                     start_span,
                 ))
+            }
+            TokenKind::FloatLiteral(value) => {
+                let value = *value;
+                self.advance();
+                Ok(Expr::new(ExprKind::FloatLiteral(value), start_span))
             }
             TokenKind::BoolLiteral(value) => {
                 let value = *value;

@@ -64,6 +64,15 @@ fn test_function_with_multiple_parameters() {
 }
 
 #[test]
+fn test_function_with_float_parameters() {
+    let program = parse("fn blend(a: f32, b: f64) -> void {}").unwrap();
+    let fn_def = &program.functions[0];
+    assert_eq!(fn_def.params.len(), 2);
+    assert_eq!(fn_def.params[0].ty, Type::F32);
+    assert_eq!(fn_def.params[1].ty, Type::F64);
+}
+
+#[test]
 fn test_function_parameters_allow_newlines() {
     let program = parse(
         r#"fn greet(

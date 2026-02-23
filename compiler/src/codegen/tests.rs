@@ -1005,6 +1005,17 @@ fn test_get_expr_type_string_literal() {
 }
 
 #[test]
+fn test_get_expr_type_float_literal() {
+    let context = Context::create();
+    let codegen = Codegen::new(&context, "test");
+
+    let expr = Expr::new(ExprKind::FloatLiteral(2.5), dummy_span());
+    let result = codegen.get_expr_type(&expr);
+    assert!(result.is_ok(), "Expected Ok, got: {:?}", result);
+    assert_eq!(result.unwrap(), Type::F64);
+}
+
+#[test]
 fn test_get_expr_type_undefined_identifier() {
     let context = Context::create();
     let codegen = Codegen::new(&context, "test");
@@ -1079,6 +1090,38 @@ fn test_get_expr_type_defined_i64_variable() {
     let result = codegen.get_expr_type(&expr);
     assert!(result.is_ok(), "Expected Ok, got: {:?}", result);
     assert_eq!(result.unwrap(), Type::I64);
+}
+
+#[test]
+fn test_get_expr_type_mixed_float_f32_f64_promotes_to_f64() {
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "test");
+
+    let program = make_program(vec![
+        let_stmt("a", Type::F32, ExprKind::FloatLiteral(1.0)),
+        let_stmt("b", Type::F64, ExprKind::FloatLiteral(2.0)),
+    ]);
+    codegen
+        .compile(&program)
+        .expect("Program should compile successfully");
+
+    let expr = Expr::new(
+        ExprKind::BinaryOp {
+            left: Box::new(Expr::new(
+                ExprKind::Identifier("a".to_string()),
+                dummy_span(),
+            )),
+            op: crate::ast::BinaryOperator::Add,
+            right: Box::new(Expr::new(
+                ExprKind::Identifier("b".to_string()),
+                dummy_span(),
+            )),
+        },
+        dummy_span(),
+    );
+    let result = codegen.get_expr_type(&expr);
+    assert!(result.is_ok(), "Expected Ok, got: {:?}", result);
+    assert_eq!(result.unwrap(), Type::F64);
 }
 
 #[test]
@@ -1405,7 +1448,7 @@ fn test_internal_binary_op_string_constructor() {
     assert!(err.span().is_some());
     assert_eq!(
         err.message(),
-        "Internal error: binary operator '+' dispatched with non-integer type in codegen. Semantic analysis should have caught this. This is a compiler bug."
+        "Internal error: binary operator '+' dispatched with non-numeric type in codegen. Semantic analysis should have caught this. This is a compiler bug."
     );
 }
 
@@ -1416,7 +1459,7 @@ fn test_internal_unary_op_string_constructor() {
     assert!(err.span().is_some());
     assert_eq!(
         err.message(),
-        "Internal error: unary operator '-' dispatched with non-signed-integer type in codegen. Semantic analysis should have caught this. This is a compiler bug."
+        "Internal error: unary operator '-' dispatched with non-signed-integer-or-float type in codegen. Semantic analysis should have caught this. This is a compiler bug."
     );
 }
 

@@ -43,7 +43,7 @@ fn test_compile_error_unknown_type() {
     );
     assert_eq!(
         msg,
-        "Unknown type: 'unknown'. Expected 'i8', 'i16', 'i32', 'i64', 'u8', 'u16', 'u32', 'u64', 'byte', 'string', or 'bool'"
+        "Unknown type: 'unknown'. Expected 'i8', 'i16', 'i32', 'i64', 'u8', 'u16', 'u32', 'u64', 'f32', 'f64', 'byte', 'string', or 'bool'"
     );
     assert_eq!(short_msg, "Unknown type");
     assert_eq!(

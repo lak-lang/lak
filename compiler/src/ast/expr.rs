@@ -142,6 +142,11 @@ pub enum ExprKind {
     /// literals (`i64::MIN`) until semantic range checking.
     IntLiteral(i128),
 
+    /// A floating-point literal value.
+    ///
+    /// Float literals are parsed and stored as `f64`.
+    FloatLiteral(f64),
+
     /// A boolean literal value (`true` or `false`).
     BoolLiteral(bool),
 
@@ -269,11 +274,12 @@ impl Expr {
         }
     }
 
-    /// Infers a common operand type for binary operations with integer-literal adaptation.
+    /// Infers a common operand type for binary operations.
     ///
     /// Rules:
     /// - Same type on both sides => that type
     /// - Integer literal mixed with an integer type => non-literal integer side
+    /// - `f32` + `f64` / `f64` + `f32` => `f64`
     /// - Otherwise => no common type (`None`)
     pub fn infer_common_binary_operand_type(
         left: &Expr,
@@ -289,6 +295,13 @@ impl Expr {
         }
         if right.is_integer_literal() && left_ty.is_integer() {
             return Some(left_ty.clone());
+        }
+        if left_ty.is_float() && right_ty.is_float() {
+            return if *left_ty == Type::F64 || *right_ty == Type::F64 {
+                Some(Type::F64)
+            } else {
+                Some(Type::F32)
+            };
         }
         None
     }

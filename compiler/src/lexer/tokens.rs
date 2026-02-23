@@ -354,9 +354,11 @@ impl<'a> Lexer<'a> {
         Ok(Token::new(kind, span))
     }
 
-    /// Reads an integer literal from the input.
+    /// Reads a numeric literal from the input.
     ///
-    /// Integer literals consist of one or more ASCII digits.
+    /// Numeric literals are either:
+    /// - Integer literals: one or more ASCII digits
+    /// - Float literals: `digits '.' digits`
     ///
     /// # Arguments
     ///
@@ -366,11 +368,13 @@ impl<'a> Lexer<'a> {
     ///
     /// # Returns
     ///
-    /// A [`Token`] with kind [`TokenKind::IntLiteral`].
+    /// A [`Token`] with kind [`TokenKind::IntLiteral`] or [`TokenKind::FloatLiteral`].
     ///
     /// # Errors
     ///
-    /// Returns a [`LexError`] if the integer is too large to fit in a u64.
+    /// Returns a [`LexError`] if:
+    /// - an integer is too large to fit in a `u64`
+    /// - a float literal cannot be parsed
     fn read_number(
         &mut self,
         start_pos: usize,
@@ -379,6 +383,28 @@ impl<'a> Lexer<'a> {
     ) -> Result<Token, LexError> {
         while self.current_char().is_some_and(|c| c.is_ascii_digit()) {
             self.advance();
+        }
+
+        // Parse float literal only when a dot is followed by at least one digit.
+        let has_fraction = self.current_char() == Some('.')
+            && self
+                .input
+                .get(self.pos..)
+                .and_then(|s| s.chars().nth(1))
+                .is_some_and(|c| c.is_ascii_digit());
+
+        if has_fraction {
+            self.advance(); // consume '.'
+            while self.current_char().is_some_and(|c| c.is_ascii_digit()) {
+                self.advance();
+            }
+
+            let value_str = &self.input[start_pos..self.pos];
+            let span = Span::new(start_pos, self.pos, start_line, start_column);
+            let value: f64 = value_str.parse().map_err(|_: std::num::ParseFloatError| {
+                LexError::invalid_float_literal(value_str, span)
+            })?;
+            return Ok(Token::new(TokenKind::FloatLiteral(value), span));
         }
 
         let value_str = &self.input[start_pos..self.pos];

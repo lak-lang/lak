@@ -414,6 +414,8 @@ impl<'ctx> Codegen<'ctx> {
         self.declare_lak_println_u16();
         self.declare_lak_println_u32();
         self.declare_lak_println_u64();
+        self.declare_lak_println_f32();
+        self.declare_lak_println_f64();
         self.declare_lak_println_bool();
         self.declare_lak_panic();
         self.declare_lak_streq();
@@ -639,6 +641,8 @@ impl<'ctx> Codegen<'ctx> {
             Some(Type::U16) => self.context.i16_type().fn_type(&llvm_param_types, false),
             Some(Type::U32) => self.context.i32_type().fn_type(&llvm_param_types, false),
             Some(Type::U64) => self.context.i64_type().fn_type(&llvm_param_types, false),
+            Some(Type::F32) => self.context.f32_type().fn_type(&llvm_param_types, false),
+            Some(Type::F64) => self.context.f64_type().fn_type(&llvm_param_types, false),
             Some(Type::String) => self
                 .context
                 .ptr_type(AddressSpace::default())
@@ -668,6 +672,8 @@ impl<'ctx> Codegen<'ctx> {
             "u16" => Ok(Some(Type::U16)),
             "u32" => Ok(Some(Type::U32)),
             "u64" => Ok(Some(Type::U64)),
+            "f32" => Ok(Some(Type::F32)),
+            "f64" => Ok(Some(Type::F64)),
             "string" => Ok(Some(Type::String)),
             "bool" => Ok(Some(Type::Bool)),
             _ => Err(CodegenError::internal_unsupported_function_return_type(
@@ -839,6 +845,8 @@ impl<'ctx> Codegen<'ctx> {
             Type::U16 => self.context.i16_type().into(),
             Type::U32 => self.context.i32_type().into(),
             Type::U64 => self.context.i64_type().into(),
+            Type::F32 => self.context.f32_type().into(),
+            Type::F64 => self.context.f64_type().into(),
             Type::String => self.context.ptr_type(AddressSpace::default()).into(),
             Type::Bool => self.context.bool_type().into(),
         }

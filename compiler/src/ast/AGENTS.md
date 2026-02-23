@@ -11,7 +11,7 @@ Defines the data structures that represent parsed Lak programs. The AST is produ
 | File | Responsibility |
 |------|----------------|
 | `mod.rs` | Module documentation, public re-exports |
-| `types.rs` | Type annotations (`Type` enum: integers, bool, string, void, any) |
+| `types.rs` | Type annotations (`Type` enum: integer/float primitives, bool, string) |
 | `expr.rs` | Expression nodes (`Expr`, `ExprKind`) |
 | `stmt.rs` | Statement nodes (`Stmt`, `StmtKind`) |
 | `program.rs` | Top-level structure (`Program`, `FnDef`) |
@@ -45,10 +45,10 @@ Program
 - `U16` - 16-bit unsigned integer (`u16`)
 - `U32` - 32-bit unsigned integer (`u32`)
 - `U64` - 64-bit unsigned integer (`u64`)
+- `F32` - 32-bit floating-point (`f32`)
+- `F64` - 64-bit floating-point (`f64`)
 - `Bool` - boolean (`bool`)
 - `String` - UTF-8 string (`string`)
-- `Void` - no return value (`void`)
-- `Any` - compile-time dispatch target for builtins (`any`)
 
 Implements `Display` for user-facing error messages.
 
@@ -59,10 +59,18 @@ Implements `Display` for user-facing error messages.
 `ExprKind` variants:
 - `StringLiteral(String)` - String literal (unescaped)
 - `IntLiteral(i128)` - Integer literal (wide storage for deferred range checking)
+- `FloatLiteral(f64)` - Floating-point literal (parsed as `f64`, may be contextually typed as `f32`)
+- `BoolLiteral(bool)` - Boolean literal
 - `Identifier(String)` - Variable reference
 - `Call { callee, args }` - Function call
+- `BinaryOp { left, op, right }` - Binary operator expression
+- `UnaryOp { op, operand }` - Unary operator expression
+- `IfExpr { condition, then_block, else_block }` - If-expression value form
+- `MemberAccess { object, field }` - Member access syntax node (module access path)
+- `ModuleCall { module, function, args }` - Module-qualified function call
 
-Expression nodes are recursive: function calls contain argument expressions.
+Expression nodes are recursive and include helper logic for numeric operand
+adaptation in binary expressions.
 
 ## Statements
 
@@ -85,7 +93,7 @@ Expression nodes are recursive: function calls contain argument expressions.
 
 `FnDef` represents a function definition:
 - `name: String` - Function name
-- `return_type: String` - Return type (currently only "void")
+- `return_type: String` - Return type as parsed source text (e.g., `void`, `i32`, `f64`)
 - `return_type_span: Span` - Location of return type token
 - `body: Vec<Stmt>` - Function body statements
 - `span: Span` - Location from `fn` to `{`

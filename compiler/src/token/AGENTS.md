@@ -39,7 +39,7 @@ Token classification enum.
 |----------|----------|
 | Keywords | `Fn`, `Let`, `Mut`, `If`, `Else`, `Return`, `While`, `Break`, `Continue`, `Pub`, `Import`, `As` |
 | Identifiers | `Identifier(String)` |
-| Literals | `StringLiteral(String)`, `IntLiteral(u64)`, `BoolLiteral(bool)` |
+| Literals | `StringLiteral(String)`, `IntLiteral(u64)`, `FloatLiteral(f64)`, `BoolLiteral(bool)` |
 | Punctuation / Operators | `LeftParen`, `RightParen`, `LeftBrace`, `RightBrace`, `Comma`, `Colon`, `Dot`, `Equals`, `Arrow`, `Plus`, `Minus`, `Star`, `Slash`, `Percent`, `Bang`, `AndAnd`, `OrOr`, `EqualEqual`, `BangEqual`, `LessThan`, `GreaterThan`, `LessEqual`, `GreaterEqual` |
 | Special | `Newline`, `Eof` |
 

@@ -57,3 +57,41 @@ fn test_integer_literal_u64_max() {
         vec![TokenKind::IntLiteral(18446744073709551615), TokenKind::Eof]
     );
 }
+
+#[test]
+fn test_float_literal_simple() {
+    let kinds = tokenize_kinds("2.5");
+    assert_eq!(kinds, vec![TokenKind::FloatLiteral(2.5), TokenKind::Eof]);
+}
+
+#[test]
+fn test_float_literal_zero_leading() {
+    let kinds = tokenize_kinds("0.5");
+    assert_eq!(kinds, vec![TokenKind::FloatLiteral(0.5), TokenKind::Eof]);
+}
+
+#[test]
+fn test_integer_then_dot_without_fraction() {
+    let kinds = tokenize_kinds("1.");
+    assert_eq!(
+        kinds,
+        vec![TokenKind::IntLiteral(1), TokenKind::Dot, TokenKind::Eof]
+    );
+}
+
+#[test]
+fn test_float_literal_in_let_statement_tokens() {
+    let kinds = tokenize_kinds("let x: f64 = 2.5");
+    assert_eq!(
+        kinds,
+        vec![
+            TokenKind::Let,
+            TokenKind::Identifier("x".to_string()),
+            TokenKind::Colon,
+            TokenKind::Identifier("f64".to_string()),
+            TokenKind::Equals,
+            TokenKind::FloatLiteral(2.5),
+            TokenKind::Eof,
+        ]
+    );
+}

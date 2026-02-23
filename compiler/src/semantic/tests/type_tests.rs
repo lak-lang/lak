@@ -938,3 +938,273 @@ fn test_unary_not_on_integer_error() {
         "Unary operator '!' cannot be used with 'i64' type"
     );
 }
+
+#[test]
+fn test_float_literal_assignment_valid() {
+    let program = program_with_main(vec![
+        Stmt::new(
+            StmtKind::Let {
+                is_mutable: false,
+                name: "x".to_string(),
+                ty: Type::F32,
+                init: Expr::new(ExprKind::FloatLiteral(1.25), dummy_span()),
+            },
+            dummy_span(),
+        ),
+        Stmt::new(
+            StmtKind::Let {
+                is_mutable: false,
+                name: "y".to_string(),
+                ty: Type::F64,
+                init: Expr::new(ExprKind::FloatLiteral(3.5), dummy_span()),
+            },
+            dummy_span(),
+        ),
+    ]);
+
+    let mut analyzer = SemanticAnalyzer::new();
+    assert!(analyzer.analyze(&program).is_ok());
+}
+
+#[test]
+fn test_float_literal_to_integer_error() {
+    let program = program_with_main(vec![Stmt::new(
+        StmtKind::Let {
+            is_mutable: false,
+            name: "x".to_string(),
+            ty: Type::I32,
+            init: Expr::new(ExprKind::FloatLiteral(1.5), span_at(2, 18)),
+        },
+        dummy_span(),
+    )]);
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let err = analyzer.analyze(&program).unwrap_err();
+    assert_eq!(err.kind(), SemanticErrorKind::TypeMismatch);
+    assert_eq!(
+        err.message(),
+        "Type mismatch: float literal cannot be assigned to type 'i32'"
+    );
+}
+
+#[test]
+fn test_integer_literal_to_float_error() {
+    let program = program_with_main(vec![Stmt::new(
+        StmtKind::Let {
+            is_mutable: false,
+            name: "x".to_string(),
+            ty: Type::F64,
+            init: Expr::new(ExprKind::IntLiteral(1), span_at(2, 18)),
+        },
+        dummy_span(),
+    )]);
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let err = analyzer.analyze(&program).unwrap_err();
+    assert_eq!(err.kind(), SemanticErrorKind::TypeMismatch);
+    assert_eq!(
+        err.message(),
+        "Type mismatch: integer literal '1' cannot be assigned to type 'f64'"
+    );
+}
+
+#[test]
+fn test_mixed_float_arithmetic_widens_to_f64() {
+    let program = program_with_main(vec![
+        Stmt::new(
+            StmtKind::Let {
+                is_mutable: false,
+                name: "a".to_string(),
+                ty: Type::F32,
+                init: Expr::new(ExprKind::FloatLiteral(1.0), dummy_span()),
+            },
+            dummy_span(),
+        ),
+        Stmt::new(
+            StmtKind::Let {
+                is_mutable: false,
+                name: "b".to_string(),
+                ty: Type::F64,
+                init: Expr::new(ExprKind::FloatLiteral(2.0), dummy_span()),
+            },
+            dummy_span(),
+        ),
+        Stmt::new(
+            StmtKind::Let {
+                is_mutable: false,
+                name: "c".to_string(),
+                ty: Type::F64,
+                init: Expr::new(
+                    ExprKind::BinaryOp {
+                        left: Box::new(Expr::new(
+                            ExprKind::Identifier("a".to_string()),
+                            dummy_span(),
+                        )),
+                        op: crate::ast::BinaryOperator::Add,
+                        right: Box::new(Expr::new(
+                            ExprKind::Identifier("b".to_string()),
+                            dummy_span(),
+                        )),
+                    },
+                    dummy_span(),
+                ),
+            },
+            dummy_span(),
+        ),
+    ]);
+
+    let mut analyzer = SemanticAnalyzer::new();
+    assert!(analyzer.analyze(&program).is_ok());
+}
+
+#[test]
+fn test_float_modulo_error() {
+    let program = program_with_main(vec![Stmt::new(
+        StmtKind::Let {
+            is_mutable: false,
+            name: "x".to_string(),
+            ty: Type::F64,
+            init: Expr::new(
+                ExprKind::BinaryOp {
+                    left: Box::new(Expr::new(ExprKind::FloatLiteral(5.0), dummy_span())),
+                    op: crate::ast::BinaryOperator::Mod,
+                    right: Box::new(Expr::new(ExprKind::FloatLiteral(2.0), dummy_span())),
+                },
+                span_at(2, 18),
+            ),
+        },
+        dummy_span(),
+    )]);
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let err = analyzer.analyze(&program).unwrap_err();
+    assert_eq!(err.kind(), SemanticErrorKind::TypeMismatch);
+    assert_eq!(err.message(), "Operator '%' cannot be used with 'f64' type");
+}
+
+#[test]
+fn test_int_float_mixed_arithmetic_error() {
+    let program = program_with_main(vec![Stmt::new(
+        StmtKind::Let {
+            is_mutable: false,
+            name: "x".to_string(),
+            ty: Type::F64,
+            init: Expr::new(
+                ExprKind::BinaryOp {
+                    left: Box::new(Expr::new(ExprKind::FloatLiteral(1.0), dummy_span())),
+                    op: crate::ast::BinaryOperator::Add,
+                    right: Box::new(Expr::new(ExprKind::IntLiteral(1), dummy_span())),
+                },
+                span_at(2, 18),
+            ),
+        },
+        dummy_span(),
+    )]);
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let err = analyzer.analyze(&program).unwrap_err();
+    assert_eq!(err.kind(), SemanticErrorKind::TypeMismatch);
+    assert_eq!(
+        err.message(),
+        "Type mismatch: integer literal '1' cannot be assigned to type 'f64'"
+    );
+}
+
+#[test]
+fn test_mixed_float_comparison_widens_to_f64() {
+    let program = program_with_main(vec![
+        Stmt::new(
+            StmtKind::Let {
+                is_mutable: false,
+                name: "a".to_string(),
+                ty: Type::F32,
+                init: Expr::new(ExprKind::FloatLiteral(1.0), dummy_span()),
+            },
+            dummy_span(),
+        ),
+        Stmt::new(
+            StmtKind::Let {
+                is_mutable: false,
+                name: "b".to_string(),
+                ty: Type::F64,
+                init: Expr::new(ExprKind::FloatLiteral(2.0), dummy_span()),
+            },
+            dummy_span(),
+        ),
+        Stmt::new(
+            StmtKind::Let {
+                is_mutable: false,
+                name: "ok".to_string(),
+                ty: Type::Bool,
+                init: Expr::new(
+                    ExprKind::BinaryOp {
+                        left: Box::new(Expr::new(
+                            ExprKind::Identifier("a".to_string()),
+                            dummy_span(),
+                        )),
+                        op: crate::ast::BinaryOperator::LessThan,
+                        right: Box::new(Expr::new(
+                            ExprKind::Identifier("b".to_string()),
+                            dummy_span(),
+                        )),
+                    },
+                    dummy_span(),
+                ),
+            },
+            dummy_span(),
+        ),
+    ]);
+
+    let mut analyzer = SemanticAnalyzer::new();
+    assert!(analyzer.analyze(&program).is_ok());
+}
+
+#[test]
+fn test_int_float_mixed_comparison_error() {
+    let program = program_with_main(vec![Stmt::new(
+        StmtKind::Let {
+            is_mutable: false,
+            name: "ok".to_string(),
+            ty: Type::Bool,
+            init: Expr::new(
+                ExprKind::BinaryOp {
+                    left: Box::new(Expr::new(ExprKind::FloatLiteral(1.0), dummy_span())),
+                    op: crate::ast::BinaryOperator::LessThan,
+                    right: Box::new(Expr::new(ExprKind::IntLiteral(1), dummy_span())),
+                },
+                span_at(2, 18),
+            ),
+        },
+        dummy_span(),
+    )]);
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let err = analyzer.analyze(&program).unwrap_err();
+    assert_eq!(err.kind(), SemanticErrorKind::TypeMismatch);
+    assert_eq!(
+        err.message(),
+        "Type mismatch: integer literal '1' cannot be assigned to type 'f64'"
+    );
+}
+
+#[test]
+fn test_unary_minus_on_float_valid() {
+    let program = program_with_main(vec![Stmt::new(
+        StmtKind::Let {
+            is_mutable: false,
+            name: "x".to_string(),
+            ty: Type::F64,
+            init: Expr::new(
+                ExprKind::UnaryOp {
+                    op: UnaryOperator::Neg,
+                    operand: Box::new(Expr::new(ExprKind::FloatLiteral(1.5), dummy_span())),
+                },
+                dummy_span(),
+            ),
+        },
+        dummy_span(),
+    )]);
+
+    let mut analyzer = SemanticAnalyzer::new();
+    assert!(analyzer.analyze(&program).is_ok());
+}

@@ -336,6 +336,32 @@ fn test_int_literal_neg_i64_max() {
 }
 
 // ===================
+// Float literal parsing
+// ===================
+
+#[test]
+fn test_float_literal() {
+    let program = parse("fn main() -> void { let x: f64 = 2.5 }").unwrap();
+    match &program.functions[0].body[0].kind {
+        StmtKind::Let { init, .. } => match init.kind {
+            ExprKind::FloatLiteral(v) => assert_eq!(v, 2.5),
+            _ => panic!("Expected FloatLiteral"),
+        },
+        _ => panic!("Expected Let statement"),
+    }
+}
+
+#[test]
+fn test_missing_function_call_parentheses_with_float_literal() {
+    let err = parse_error("fn main() -> void { foo 3.14 }");
+    assert_eq!(err.kind(), ParseErrorKind::MissingFunctionCallParentheses);
+    assert_eq!(
+        err.message(),
+        "Unexpected float literal after 'foo'. If this is a function call, add parentheses: foo(...)"
+    );
+}
+
+// ===================
 // Variable reference parsing
 // ===================
 

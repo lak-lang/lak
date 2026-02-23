@@ -125,6 +125,13 @@ fn test_lex_error_integer_overflow_constructor() {
 }
 
 #[test]
+fn test_lex_error_invalid_float_literal_constructor() {
+    let err = LexError::invalid_float_literal("1.2.3", dummy_span());
+    assert_eq!(err.kind(), LexErrorKind::InvalidFloatLiteral);
+    assert_eq!(err.message(), "Invalid float literal '1.2.3'");
+}
+
+#[test]
 fn test_lex_error_display() {
     let err = LexError::unexpected_character('#', span_at(10, 20));
     let display = format!("{}", err);
@@ -175,4 +182,10 @@ fn test_lex_error_short_message_unterminated_string() {
 fn test_lex_error_short_message_integer_overflow() {
     let err = LexError::integer_overflow("999", dummy_span());
     assert_eq!(err.short_message(), "Integer overflow");
+}
+
+#[test]
+fn test_lex_error_short_message_invalid_float_literal() {
+    let err = LexError::invalid_float_literal("1.2.3", dummy_span());
+    assert_eq!(err.short_message(), "Invalid float literal");
 }

@@ -68,6 +68,29 @@ fn test_println_i64_variable() {
 }
 
 #[test]
+fn test_println_f32_variable() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x: f32 = 3.5
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "3.5\n");
+}
+
+#[test]
+fn test_println_f64_literal() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    println(2.25)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "2.25\n");
+}
+
+#[test]
 fn test_println_remaining_integer_types() {
     let output = compile_and_run(
         r#"fn main() -> void {

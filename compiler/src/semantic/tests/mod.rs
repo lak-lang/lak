@@ -271,7 +271,7 @@ fn test_internal_binary_operand_type_mismatch_constructor() {
     assert_eq!(err.kind(), SemanticErrorKind::InternalError);
     assert_eq!(
         err.message(),
-        "Internal error: binary operands have incompatible types 'i32' and 'i64' after integer literal adaptation in semantic analysis. This is a compiler bug."
+        "Internal error: binary operands have incompatible types 'i32' and 'i64' after numeric operand adaptation in semantic analysis. This is a compiler bug."
     );
 }
 
@@ -471,9 +471,7 @@ fn test_wrap_in_unary_context_with_help_preserves_help() {
     );
     assert_eq!(
         wrapped.help(),
-        Some(
-            "arithmetic operators (+, -, *, /, %) only work with integer types (i8, i16, i32, i64, u8, u16, u32, u64)"
-        )
+        Some("operators (+, -, *, /) work with numeric types; '%' works only with integer types")
     );
 }
 

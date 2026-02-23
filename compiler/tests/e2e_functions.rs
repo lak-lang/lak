@@ -501,6 +501,45 @@ fn main() -> void {
 }
 
 #[test]
+fn test_non_void_function_return_f32() {
+    let output = compile_and_run(
+        r#"
+fn negate(v: f32) -> f32 {
+    return -v
+}
+
+fn main() -> void {
+    let x: f32 = 1.5
+    let y: f32 = negate(x)
+    println(y)
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "-1.5\n");
+}
+
+#[test]
+fn test_function_float_parameters_and_f64_return() {
+    let output = compile_and_run(
+        r#"
+fn add_mixed(a: f32, b: f64) -> f64 {
+    return a + b
+}
+
+fn main() -> void {
+    let x: f32 = 1.25
+    let y: f64 = 2.5
+    let z: f64 = add_mixed(x, y)
+    println(z)
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "3.75\n");
+}
+
+#[test]
 fn test_non_void_function_return_string() {
     let output = compile_and_run(
         r#"

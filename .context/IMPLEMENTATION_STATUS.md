@@ -34,8 +34,8 @@ This document tracks the implementation status of Lak language features as defin
 - [x] `u16` - 16-bit unsigned integer
 - [x] `u32` - 32-bit unsigned integer
 - [x] `u64` - 64-bit unsigned integer
-- [ ] `f32` - 32-bit floating point
-- [ ] `f64` - 64-bit floating point
+- [x] `f32` - 32-bit floating point
+- [x] `f64` - 64-bit floating point
 
 #### Other Primitive Types
 
@@ -118,9 +118,9 @@ This document tracks the implementation status of Lak language features as defin
   - [x] Overflow detection with panic
   - [x] Integer literal adaptation (`int_literal <op> <integer_type>`)
   - [ ] Non-literal mixed integer arithmetic (`i32` + `i64`) with widening to `i64`
-  - [ ] Float addition
-  - [ ] Mixed float arithmetic (`f32` + `f64`) with widening to `f64`
-  - [ ] Integer/float mixed arithmetic requires explicit cast (no implicit conversion)
+  - [x] Float addition
+  - [x] Mixed float arithmetic (`f32` + `f64`) with widening to `f64`
+  - [x] Integer/float mixed arithmetic requires explicit cast (no implicit conversion)
   - [ ] String concatenation
 - [x] `-` subtraction (i8, i16, i32, i64, u8, u16, u32, u64)
   - [x] Overflow detection with panic
@@ -141,8 +141,8 @@ This document tracks the implementation status of Lak language features as defin
 - [x] `>=` greater than or equal (i8, i16, i32, i64, u8, u16, u32, u64, string)
 - [x] Integer literal adaptation in numeric comparisons
 - [ ] Non-literal mixed integer comparison (`i32` vs `i64`) with widening to `i64`
-- [ ] Mixed float comparison (`f32` vs `f64`) with widening to `f64`
-- [ ] Integer/float mixed comparison requires explicit cast (no implicit conversion)
+- [x] Mixed float comparison (`f32` vs `f64`) with widening to `f64`
+- [x] Integer/float mixed comparison requires explicit cast (no implicit conversion)
 
 ### 4.3 Logical Operators
 
@@ -207,7 +207,7 @@ This document tracks the implementation status of Lak language features as defin
   - [x] String argument support
   - [x] Integer argument support (i8, i16, i32, i64, u8, u16, u32, u64)
   - [x] Bool argument support
-  - [ ] Float argument support (f32, f64)
+  - [x] Float argument support (f32, f64)
   - [ ] Struct argument support (default format)
   - [ ] Stringer interface priority
 - [ ] `print(value: any)` - print any value without newline

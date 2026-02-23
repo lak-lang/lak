@@ -85,6 +85,18 @@ pub extern "C" fn lak_println_u64(value: u64) {
     println!("{}", value);
 }
 
+/// Prints a 32-bit floating-point number followed by a newline to stdout.
+#[unsafe(no_mangle)]
+pub extern "C" fn lak_println_f32(value: f32) {
+    println!("{}", value);
+}
+
+/// Prints a 64-bit floating-point number followed by a newline to stdout.
+#[unsafe(no_mangle)]
+pub extern "C" fn lak_println_f64(value: f64) {
+    println!("{}", value);
+}
+
 /// Prints a boolean value followed by a newline to stdout.
 ///
 /// Outputs "true" for `true` and "false" for `false`.
@@ -290,6 +302,18 @@ mod tests {
         lak_println_u64(42);
         lak_println_u64(u64::MAX);
         lak_println_u64(u64::MIN);
+    }
+
+    #[test]
+    fn test_println_f32() {
+        lak_println_f32(3.5);
+        lak_println_f32(-0.25);
+    }
+
+    #[test]
+    fn test_println_f64() {
+        lak_println_f64(3.5);
+        lak_println_f64(-0.25);
     }
 
     // lak_streq tests

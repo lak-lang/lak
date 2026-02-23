@@ -16,6 +16,7 @@
 //!   [`unknown_type()`](ParseError::unknown_type)
 //! - **Function call syntax**: [`missing_fn_call_parens_string()`](ParseError::missing_fn_call_parens_string),
 //!   [`missing_fn_call_parens_int()`](ParseError::missing_fn_call_parens_int),
+//!   [`missing_fn_call_parens_float()`](ParseError::missing_fn_call_parens_float),
 //!   [`missing_fn_call_parens_ident()`](ParseError::missing_fn_call_parens_ident)
 //! - **Expression errors**: [`unexpected_expression_start()`](ParseError::unexpected_expression_start)
 //! - **Unsupported syntax**: [`invalid_mutable_discard()`](ParseError::invalid_mutable_discard),
@@ -180,7 +181,7 @@ impl ParseError {
         Self::new(
             ParseErrorKind::ExpectedType,
             format!(
-                "Unknown type: '{}'. Expected 'i8', 'i16', 'i32', 'i64', 'u8', 'u16', 'u32', 'u64', 'byte', 'string', or 'bool'",
+                "Unknown type: '{}'. Expected 'i8', 'i16', 'i32', 'i64', 'u8', 'u16', 'u32', 'u64', 'f32', 'f64', 'byte', 'string', or 'bool'",
                 name
             ),
             span,
@@ -209,6 +210,18 @@ impl ParseError {
             ParseErrorKind::MissingFunctionCallParentheses,
             format!(
                 "Unexpected integer literal after '{}'. If this is a function call, add parentheses: {}(...)",
+                fn_name, fn_name
+            ),
+            span,
+        )
+    }
+
+    /// Creates an error for missing function call parentheses (followed by float).
+    pub fn missing_fn_call_parens_float(fn_name: &str, span: Span) -> Self {
+        Self::new(
+            ParseErrorKind::MissingFunctionCallParentheses,
+            format!(
+                "Unexpected float literal after '{}'. If this is a function call, add parentheses: {}(...)",
                 fn_name, fn_name
             ),
             span,

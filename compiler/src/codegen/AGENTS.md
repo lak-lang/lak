@@ -62,6 +62,8 @@ pub struct Codegen<'ctx> { ... }
 | `u16` | `i16` |
 | `u32` | `i32` |
 | `u64` | `i64` |
+| `f32` | `f32` |
+| `f64` | `f64` |
 | `string` | `ptr` |
 | `bool` | `i1` |
 
@@ -71,6 +73,7 @@ pub struct Codegen<'ctx> { ... }
   - `lak_println`
   - `lak_println_i8`, `lak_println_i16`, `lak_println_i32`, `lak_println_i64`
   - `lak_println_u8`, `lak_println_u16`, `lak_println_u32`, `lak_println_u64`
+  - `lak_println_f32`, `lak_println_f64`
   - `lak_println_bool`
   - `lak_panic`
 - Implemented in the `runtime/` crate

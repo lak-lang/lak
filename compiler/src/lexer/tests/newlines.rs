@@ -32,6 +32,20 @@ fn test_newline_after_integer_literal() {
 }
 
 #[test]
+fn test_newline_after_float_literal() {
+    let kinds = tokenize_kinds("2.5\n0.5");
+    assert_eq!(
+        kinds,
+        vec![
+            TokenKind::FloatLiteral(2.5),
+            TokenKind::Newline,
+            TokenKind::FloatLiteral(0.5),
+            TokenKind::Eof
+        ]
+    );
+}
+
+#[test]
 fn test_newline_after_string_literal() {
     let kinds = tokenize_kinds("\"hello\"\n\"world\"");
     assert_eq!(

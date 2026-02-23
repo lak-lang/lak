@@ -89,8 +89,13 @@ Variables are looked up from innermost to outermost scope.
 Currently supports:
 - Signed integers: `i8`, `i16`, `i32`, `i64`
 - Unsigned integers: `u8`, `u16`, `u32`, `u64`
+- Floating-point: `f32`, `f64`
 - `byte` alias (normalized to `u8` in parsing)
 - Integer literal adaptation to contextual integer type with per-type range checks
+- Float literal adaptation (`f64` literal with contextual `f32` checks)
+- Mixed float arithmetic/comparison (`f32` + `f64`) with widening to `f64`
+- Integer/float mixed arithmetic and comparison are rejected without explicit casts
+- Float modulo (`%`) is rejected
 - `string`: string literals
 - `bool`: boolean literals
 
@@ -101,17 +106,19 @@ Type checking occurs in:
 
 ## Built-in Functions
 
-- `println`: Requires exactly 1 argument (string, bool, or any integer type)
+- `println`: Requires exactly 1 argument (string, bool, integer, or float types)
 - `panic`: Requires exactly 1 argument (string only)
 - `println` / `panic` are reserved prelude names and cannot be redefined by user functions
 
-User-defined function calls are validated for: existence, zero arguments (parameters not yet supported), non-main target, and void return type.
+User-defined function calls are validated for: existence, argument count/type
+matching, non-main target, and return-type compatibility at use sites.
 
 ## Expression Statement Validation
 
 Only function calls and module-qualified function calls are valid as expression statements. The following are rejected:
 - String literals (no effect)
 - Integer literals (no effect)
+- Float literals (no effect)
 - Boolean literals (no effect)
 - Bare identifiers (no effect)
 - Binary operations (no effect)
@@ -126,13 +133,13 @@ If `analyze()` returns `Ok(())`, codegen can assume:
 - Reassignments target mutable variables only
 - All variable types match their usage
 - All integer literals fit their target types
-- All function calls reference defined functions
+- All function calls reference defined functions with compatible argument and return types
 - All module references are valid (imported and resolved)
 - All module function calls reference existing public functions
 
 ## Extension Guidelines
 
-1. New types: add case in `check_integer_range()` and `check_expr_type()`
+1. New types: update `check_expr_type()`, `infer_expr_type()`, operator type rules, and (for integers) `check_integer_range()`
 2. New built-in functions: add case in `analyze_call()`
 3. New expression forms: add case in `check_expr_type()` and `analyze_expr_stmt()`
 4. New statement forms: add case in `analyze_stmt()`

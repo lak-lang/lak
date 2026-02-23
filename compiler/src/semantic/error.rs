@@ -328,6 +328,18 @@ impl SemanticError {
         )
     }
 
+    /// Creates a type mismatch error for assigning integer to non-integer type.
+    pub fn type_mismatch_int_to_type(value: i128, expected_ty: &str, span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::TypeMismatch,
+            format!(
+                "Type mismatch: integer literal '{}' cannot be assigned to type '{}'",
+                value, expected_ty
+            ),
+            span,
+        )
+    }
+
     /// Creates a type mismatch error for variable type.
     pub fn type_mismatch_variable(
         name: &str,
@@ -363,6 +375,18 @@ impl SemanticError {
             SemanticErrorKind::TypeMismatch,
             format!(
                 "Type mismatch: boolean literal cannot be assigned to type '{}'",
+                expected_ty
+            ),
+            span,
+        )
+    }
+
+    /// Creates a type mismatch error for assigning float to non-float type.
+    pub fn type_mismatch_float_to_type(expected_ty: &str, span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::TypeMismatch,
+            format!(
+                "Type mismatch: float literal cannot be assigned to type '{}'",
                 expected_ty
             ),
             span,
@@ -511,7 +535,7 @@ impl SemanticError {
         Self::new(
             SemanticErrorKind::TypeMismatch,
             format!(
-                "Unsupported function return type '{}'. Expected 'void', 'i8', 'i16', 'i32', 'i64', 'u8', 'u16', 'u32', 'u64', 'byte', 'string', or 'bool'",
+                "Unsupported function return type '{}'. Expected 'void', 'i8', 'i16', 'i32', 'i64', 'u8', 'u16', 'u32', 'u64', 'f32', 'f64', 'byte', 'string', or 'bool'",
                 return_type
             ),
             span,
@@ -607,6 +631,15 @@ impl SemanticError {
         )
     }
 
+    /// Creates an error for float literal used as statement.
+    pub fn invalid_expression_float_literal(span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::InvalidExpression,
+            "Float literal as a statement has no effect. Did you mean to assign it to a variable?",
+            span,
+        )
+    }
+
     /// Creates an error for boolean literal used as statement.
     pub fn invalid_expression_bool_literal(span: Span) -> Self {
         Self::new(
@@ -648,7 +681,7 @@ impl SemanticError {
             SemanticErrorKind::TypeMismatch,
             format!("Operator '{}' cannot be used with '{}' type", op, actual_ty),
             span,
-            "arithmetic operators (+, -, *, /, %) only work with integer types (i8, i16, i32, i64, u8, u16, u32, u64)",
+            "operators (+, -, *, /) work with numeric types; '%' works only with integer types",
         )
     }
 
@@ -665,7 +698,7 @@ impl SemanticError {
                 op, actual_ty
             ),
             span,
-            "ordering operators (<, >, <=, >=) only work with comparable types (i8, i16, i32, i64, u8, u16, u32, u64, string)",
+            "ordering operators (<, >, <=, >=) only work with comparable types (integers, floats, string)",
         )
     }
 
@@ -732,7 +765,7 @@ impl SemanticError {
             span,
             match op {
                 crate::ast::UnaryOperator::Neg => {
-                    "unary negation (-) only works with signed integer types (i8, i16, i32, i64)"
+                    "unary negation (-) only works with signed integer or float types"
                 }
                 crate::ast::UnaryOperator::Not => "logical NOT (!) only works with 'bool' type",
             },
@@ -871,6 +904,30 @@ impl SemanticError {
         )
     }
 
+    /// Creates an internal error for integer range checks receiving `f32`.
+    pub fn internal_check_integer_range_unexpected_f32(value: i128, span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::InternalError,
+            format!(
+                "Internal error: integer range check received non-integer type f32 for value '{}'. This is a compiler bug.",
+                value
+            ),
+            span,
+        )
+    }
+
+    /// Creates an internal error for integer range checks receiving `f64`.
+    pub fn internal_check_integer_range_unexpected_f64(value: i128, span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::InternalError,
+            format!(
+                "Internal error: integer range check received non-integer type f64 for value '{}'. This is a compiler bug.",
+                value
+            ),
+            span,
+        )
+    }
+
     /// Creates an internal error for defining variable outside a scope.
     pub fn internal_no_scope(name: &str, span: Span) -> Self {
         Self::new(
@@ -906,7 +963,7 @@ impl SemanticError {
             SemanticErrorKind::InternalError,
             format!(
                 "Internal error: binary operands have incompatible types '{}' and '{}' after \
-                 integer literal adaptation in semantic analysis. This is a compiler bug.",
+                 numeric operand adaptation in semantic analysis. This is a compiler bug.",
                 left_ty, right_ty
             ),
             span,

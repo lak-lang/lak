@@ -131,6 +131,9 @@ pub enum TokenKind {
     /// An integer literal (e.g., 42, 100).
     IntLiteral(u64),
 
+    /// A floating-point literal (e.g., 3.14, 0.5).
+    FloatLiteral(f64),
+
     /// A boolean literal (`true` or `false`).
     BoolLiteral(bool),
 
@@ -219,6 +222,12 @@ mod tests {
     fn test_token_kind_int_literal() {
         let kind = TokenKind::IntLiteral(42);
         assert!(matches!(kind, TokenKind::IntLiteral(42)));
+    }
+
+    #[test]
+    fn test_token_kind_float_literal() {
+        let kind = TokenKind::FloatLiteral(2.5);
+        assert!(matches!(kind, TokenKind::FloatLiteral(v) if v == 2.5));
     }
 
     #[test]

@@ -358,6 +358,19 @@ impl CodegenError {
         )
     }
 
+    /// Creates an internal error for float used as non-float type.
+    pub fn internal_float_as_type(expected: &str, span: Span) -> Self {
+        Self::new(
+            CodegenErrorKind::InternalError,
+            format!(
+                "Internal error: float literal used as '{}' value in codegen. \
+                 Semantic analysis should have caught this. This is a compiler bug.",
+                expected
+            ),
+            span,
+        )
+    }
+
     /// Creates an internal error for undefined variable.
     pub fn internal_variable_not_found(name: &str, span: Span) -> Self {
         Self::new(
@@ -631,12 +644,12 @@ impl CodegenError {
         )
     }
 
-    /// Creates an internal error for binary operation dispatched with a non-integer type.
+    /// Creates an internal error for binary operation dispatched with a non-numeric type.
     pub fn internal_binary_op_string(op: crate::ast::BinaryOperator, span: Span) -> Self {
         Self::new(
             CodegenErrorKind::InternalError,
             format!(
-                "Internal error: binary operator '{}' dispatched with non-integer type in codegen. \
+                "Internal error: binary operator '{}' dispatched with non-numeric type in codegen. \
                  Semantic analysis should have caught this. This is a compiler bug.",
                 op
             ),
@@ -803,7 +816,7 @@ impl CodegenError {
         let err = Self::new(
             CodegenErrorKind::InternalError,
             format!(
-                "Internal error: unary operator '{}' dispatched with non-signed-integer type in codegen. \
+                "Internal error: unary operator '{}' dispatched with non-signed-integer-or-float type in codegen. \
                  Semantic analysis should have caught this. This is a compiler bug.",
                 op
             ),
@@ -1150,6 +1163,19 @@ impl CodegenError {
             CodegenErrorKind::InternalError,
             format!(
                 "Internal error: expected integer value in {} operation, but got non-integer. \
+                 Semantic analysis should have caught this. This is a compiler bug.",
+                operation
+            ),
+            span,
+        )
+    }
+
+    /// Creates an internal error for non-float value where float was expected.
+    pub fn internal_non_float_value(operation: &str, span: Span) -> Self {
+        Self::new(
+            CodegenErrorKind::InternalError,
+            format!(
+                "Internal error: expected float value in {} operation, but got non-float. \
                  Semantic analysis should have caught this. This is a compiler bug.",
                 operation
             ),

@@ -5,7 +5,8 @@ use std::fmt;
 /// A type annotation in variable declarations.
 ///
 /// This enum represents the types that can be specified in Lak code.
-/// Currently supports integer primitives, strings, and booleans.
+/// Currently supports integer primitives, floating-point primitives, strings,
+/// and booleans.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Type {
     /// 8-bit signed integer type (`i8` in Lak source code).
@@ -24,6 +25,10 @@ pub enum Type {
     U32,
     /// 64-bit unsigned integer type (`u64` in Lak source code).
     U64,
+    /// 32-bit floating-point type (`f32` in Lak source code).
+    F32,
+    /// 64-bit floating-point type (`f64` in Lak source code).
+    F64,
     /// UTF-8 string type (`string` in Lak source code).
     String,
     /// Boolean type (`bool` in Lak source code).
@@ -55,6 +60,16 @@ impl Type {
     pub fn is_unsigned_integer(&self) -> bool {
         matches!(self, Type::U8 | Type::U16 | Type::U32 | Type::U64)
     }
+
+    /// Returns true when this type is one of Lak's floating-point primitives.
+    pub fn is_float(&self) -> bool {
+        matches!(self, Type::F32 | Type::F64)
+    }
+
+    /// Returns true when this type is numeric (integer or floating-point).
+    pub fn is_numeric(&self) -> bool {
+        self.is_integer() || self.is_float()
+    }
 }
 
 /// Displays the type as it would appear in Lak source code.
@@ -71,6 +86,8 @@ impl fmt::Display for Type {
             Type::U16 => write!(f, "u16"),
             Type::U32 => write!(f, "u32"),
             Type::U64 => write!(f, "u64"),
+            Type::F32 => write!(f, "f32"),
+            Type::F64 => write!(f, "f64"),
             Type::String => write!(f, "string"),
             Type::Bool => write!(f, "bool"),
         }

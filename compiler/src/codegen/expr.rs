@@ -9,6 +9,7 @@ use super::builtins::BUILTIN_NAMES;
 use super::error::CodegenError;
 use super::mangle_name;
 use crate::ast::{BinaryOperator, Expr, ExprKind, IfExprBlock, Type, UnaryOperator};
+use inkwell::FloatPredicate;
 use inkwell::IntPredicate;
 use inkwell::intrinsics::Intrinsic;
 use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue};
@@ -44,6 +45,7 @@ impl<'ctx> Codegen<'ctx> {
             } => self.generate_module_call(module, function, args, expr.span)?,
             ExprKind::StringLiteral(_)
             | ExprKind::IntLiteral(_)
+            | ExprKind::FloatLiteral(_)
             | ExprKind::BoolLiteral(_)
             | ExprKind::Identifier(_)
             | ExprKind::BinaryOp { .. }
@@ -348,6 +350,17 @@ impl<'ctx> Codegen<'ctx> {
                     }
                 }
             }
+            ExprKind::FloatLiteral(value) => {
+                if expected_ty.is_float() {
+                    let llvm_type = self.get_llvm_type(expected_ty).into_float_type();
+                    Ok(llvm_type.const_float(*value).into())
+                } else {
+                    Err(CodegenError::internal_float_as_type(
+                        &expected_ty.to_string(),
+                        expr.span,
+                    ))
+                }
+            }
             ExprKind::BoolLiteral(value) => {
                 // Semantic analysis guarantees the expected type is Bool.
                 if *expected_ty != Type::Bool {
@@ -435,6 +448,42 @@ impl<'ctx> Codegen<'ctx> {
         }
     }
 
+    /// Generates a float operand value and applies `f32 -> f64` widening when needed.
+    ///
+    /// Semantic analysis guarantees mixed-float expressions are evaluated as `f64`.
+    /// This helper mirrors that rule by extending `f32` operands to `f64` with
+    /// `fpext` during code generation.
+    fn generate_float_operand_value(
+        &mut self,
+        expr: &Expr,
+        operand_ty: &Type,
+        span: crate::token::Span,
+    ) -> Result<inkwell::values::FloatValue<'ctx>, CodegenError> {
+        let actual_ty = self.infer_expr_type_for_comparison(expr)?;
+
+        // Mixed float expressions are evaluated as f64. When an operand is f32,
+        // extend it to f64 at codegen time to match semantic promotion rules.
+        let source_ty = if actual_ty == Type::F32 && *operand_ty == Type::F64 {
+            Type::F32
+        } else {
+            operand_ty.clone()
+        };
+
+        let source_basic = self.generate_expr_value(expr, &source_ty)?;
+        let source_value = match source_basic {
+            BasicValueEnum::FloatValue(v) => v,
+            _ => return Err(CodegenError::internal_non_float_value("binary", span)),
+        };
+
+        if source_ty == Type::F32 && *operand_ty == Type::F64 {
+            self.builder
+                .build_float_ext(source_value, self.context.f64_type(), "fpext_tmp")
+                .map_err(|e| CodegenError::internal_compare_failed(&e.to_string(), span))
+        } else {
+            Ok(source_value)
+        }
+    }
+
     /// Infers the type of an expression for comparison operator codegen.
     ///
     /// Semantic analysis has already validated types. This re-infers the operand
@@ -467,6 +516,7 @@ impl<'ctx> Codegen<'ctx> {
     fn infer_expr_type_for_comparison(&self, expr: &Expr) -> Result<Type, CodegenError> {
         match &expr.kind {
             ExprKind::IntLiteral(_) => Ok(Type::I64),
+            ExprKind::FloatLiteral(_) => Ok(Type::F64),
             ExprKind::Identifier(name) => {
                 let binding = self
                     .lookup_variable(name)
@@ -709,6 +759,38 @@ impl<'ctx> Codegen<'ctx> {
                 let result = self
                     .builder
                     .build_int_compare(predicate, left_value, right_value, label)
+                    .map_err(|e| CodegenError::internal_compare_failed(&e.to_string(), span))?;
+                Ok(result.into())
+            }
+            Type::F32 | Type::F64 => {
+                let left_value = self.generate_float_operand_value(left, &operand_ty, span)?;
+                let right_value = self.generate_float_operand_value(right, &operand_ty, span)?;
+
+                let predicate = match op {
+                    BinaryOperator::Equal => FloatPredicate::OEQ,
+                    BinaryOperator::NotEqual => FloatPredicate::ONE,
+                    BinaryOperator::LessThan => FloatPredicate::OLT,
+                    BinaryOperator::GreaterThan => FloatPredicate::OGT,
+                    BinaryOperator::LessEqual => FloatPredicate::OLE,
+                    BinaryOperator::GreaterEqual => FloatPredicate::OGE,
+                    BinaryOperator::Add
+                    | BinaryOperator::Sub
+                    | BinaryOperator::Mul
+                    | BinaryOperator::Div
+                    | BinaryOperator::Mod
+                    | BinaryOperator::LogicalAnd
+                    | BinaryOperator::LogicalOr => {
+                        return Err(CodegenError::internal_binary_op_failed(
+                            op,
+                            "not a comparison operator",
+                            span,
+                        ));
+                    }
+                };
+
+                let result = self
+                    .builder
+                    .build_float_compare(predicate, left_value, right_value, "fcmp_tmp")
                     .map_err(|e| CodegenError::internal_compare_failed(&e.to_string(), span))?;
                 Ok(result.into())
             }
@@ -1015,9 +1097,63 @@ impl<'ctx> Codegen<'ctx> {
             return self.generate_comparison_op(left, op, right, span);
         }
 
-        // Arithmetic operators below: semantic analysis guarantees the type is an integer.
-        if !expected_ty.is_integer() {
+        // Arithmetic operators below: semantic analysis guarantees the type is numeric.
+        if !expected_ty.is_numeric() {
             return Err(CodegenError::internal_binary_op_string(op, span));
+        }
+
+        if expected_ty.is_float() {
+            let left_value = self.generate_float_operand_value(left, expected_ty, span)?;
+            let right_value = self.generate_float_operand_value(right, expected_ty, span)?;
+
+            let result = match op {
+                BinaryOperator::Add => self
+                    .builder
+                    .build_float_add(left_value, right_value, "fadd_tmp")
+                    .map_err(|e| {
+                        CodegenError::internal_binary_op_failed(op, &e.to_string(), span)
+                    })?,
+                BinaryOperator::Sub => self
+                    .builder
+                    .build_float_sub(left_value, right_value, "fsub_tmp")
+                    .map_err(|e| {
+                        CodegenError::internal_binary_op_failed(op, &e.to_string(), span)
+                    })?,
+                BinaryOperator::Mul => self
+                    .builder
+                    .build_float_mul(left_value, right_value, "fmul_tmp")
+                    .map_err(|e| {
+                        CodegenError::internal_binary_op_failed(op, &e.to_string(), span)
+                    })?,
+                BinaryOperator::Div => self
+                    .builder
+                    .build_float_div(left_value, right_value, "fdiv_tmp")
+                    .map_err(|e| {
+                        CodegenError::internal_binary_op_failed(op, &e.to_string(), span)
+                    })?,
+                BinaryOperator::Mod => {
+                    return Err(CodegenError::internal_binary_op_failed(
+                        op,
+                        "modulo is not supported for float types",
+                        span,
+                    ));
+                }
+                BinaryOperator::Equal
+                | BinaryOperator::NotEqual
+                | BinaryOperator::LessThan
+                | BinaryOperator::GreaterThan
+                | BinaryOperator::LessEqual
+                | BinaryOperator::GreaterEqual
+                | BinaryOperator::LogicalAnd
+                | BinaryOperator::LogicalOr => {
+                    return Err(CodegenError::internal_binary_op_failed(
+                        op,
+                        "non-arithmetic operators should have been dispatched before reaching this match",
+                        span,
+                    ));
+                }
+            };
+            return Ok(result.into());
         }
 
         // Generate values for both operands
@@ -1130,15 +1266,16 @@ impl<'ctx> Codegen<'ctx> {
     /// # Errors
     ///
     /// Returns an internal error if:
-    /// - The expected type is not a signed integer for unary `-`
+    /// - The expected type is neither signed integer nor float for unary `-`
     /// - LLVM instruction building fails
     ///
     /// # Runtime Panics
     ///
-    /// For negation, generates overflow-checked subtraction from zero
-    /// (`0 - operand`) using `llvm.ssub.with.overflow`. The compiled program
-    /// panics at runtime if the result overflows (e.g., negating the minimum
-    /// value of a signed integer type).
+    /// For signed integers, negation generates overflow-checked subtraction from
+    /// zero (`0 - operand`) using `llvm.ssub.with.overflow`. The compiled
+    /// program panics at runtime if the result overflows (e.g., negating the
+    /// minimum value of a signed integer type). For floats, negation uses
+    /// `fneg` without overflow checks.
     fn generate_unary_op(
         &mut self,
         operand: &Expr,
@@ -1146,8 +1283,29 @@ impl<'ctx> Codegen<'ctx> {
         expected_ty: &Type,
         span: crate::token::Span,
     ) -> Result<BasicValueEnum<'ctx>, CodegenError> {
-        let result = match op {
+        match op {
             UnaryOperator::Neg => {
+                if expected_ty.is_float() {
+                    let operand_basic = self
+                        .generate_expr_value(operand, expected_ty)
+                        .map_err(|e| CodegenError::wrap_in_unary_context(&e, op, span))?;
+                    let operand_value = match operand_basic {
+                        BasicValueEnum::FloatValue(v) => v,
+                        _ => return Err(CodegenError::internal_non_float_value("unary", span)),
+                    };
+                    let result = self
+                        .builder
+                        .build_float_neg(operand_value, "fneg_tmp")
+                        .map_err(|e| {
+                            CodegenError::wrap_in_unary_context(
+                                &CodegenError::internal_compare_failed(&e.to_string(), span),
+                                op,
+                                span,
+                            )
+                        })?;
+                    return Ok(result.into());
+                }
+
                 if !expected_ty.is_signed_integer() {
                     return Err(CodegenError::internal_unary_op_string(op, span));
                 }
@@ -1162,13 +1320,15 @@ impl<'ctx> Codegen<'ctx> {
                 };
 
                 let zero = operand_value.get_type().const_int(0, false);
-                self.generate_overflow_checked_binop(
-                    zero,
-                    operand_value,
-                    "llvm.ssub.with.overflow",
-                    span,
-                )
-                .map_err(|e| CodegenError::wrap_in_unary_context(&e, op, span))?
+                let result = self
+                    .generate_overflow_checked_binop(
+                        zero,
+                        operand_value,
+                        "llvm.ssub.with.overflow",
+                        span,
+                    )
+                    .map_err(|e| CodegenError::wrap_in_unary_context(&e, op, span))?;
+                Ok(result.into())
             }
             UnaryOperator::Not => {
                 if *expected_ty != Type::Bool {
@@ -1184,7 +1344,8 @@ impl<'ctx> Codegen<'ctx> {
                     BasicValueEnum::IntValue(v) => v,
                     _ => return Err(CodegenError::internal_non_integer_value("unary", span)),
                 };
-                self.builder
+                let result = self
+                    .builder
                     .build_not(operand_value, "not_tmp")
                     .map_err(|e| {
                         CodegenError::wrap_in_unary_context(
@@ -1192,11 +1353,10 @@ impl<'ctx> Codegen<'ctx> {
                             op,
                             span,
                         )
-                    })?
+                    })?;
+                Ok(result.into())
             }
-        };
-
-        Ok(result.into())
+        }
     }
 
     /// Generates a runtime check for division/modulo by zero.

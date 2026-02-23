@@ -31,6 +31,8 @@ pub(super) const BUILTIN_NAMES: &[&str] = &[
     "lak_println_u16",
     "lak_println_u32",
     "lak_println_u64",
+    "lak_println_f32",
+    "lak_println_f64",
     "lak_println_bool",
     "lak_panic",
     "lak_streq",
@@ -106,6 +108,17 @@ impl<'ctx> Codegen<'ctx> {
             .add_function(function_name, println_type, Some(Linkage::External));
     }
 
+    fn declare_lak_println_float(
+        &self,
+        function_name: &str,
+        float_type: inkwell::types::FloatType<'ctx>,
+    ) {
+        let void_type = self.context.void_type();
+        let println_type = void_type.fn_type(&[float_type.into()], false);
+        self.module
+            .add_function(function_name, println_type, Some(Linkage::External));
+    }
+
     /// Declares the Lak runtime `lak_println_i8` function for use in generated code.
     pub(super) fn declare_lak_println_i8(&self) {
         self.declare_lak_println_integer("lak_println_i8", self.context.i8_type());
@@ -150,6 +163,16 @@ impl<'ctx> Codegen<'ctx> {
     /// Declares the Lak runtime `lak_println_u64` function for use in generated code.
     pub(super) fn declare_lak_println_u64(&self) {
         self.declare_lak_println_integer("lak_println_u64", self.context.i64_type());
+    }
+
+    /// Declares the Lak runtime `lak_println_f32` function for use in generated code.
+    pub(super) fn declare_lak_println_f32(&self) {
+        self.declare_lak_println_float("lak_println_f32", self.context.f32_type());
+    }
+
+    /// Declares the Lak runtime `lak_println_f64` function for use in generated code.
+    pub(super) fn declare_lak_println_f64(&self) {
+        self.declare_lak_println_float("lak_println_f64", self.context.f64_type());
     }
 
     /// Declares the Lak runtime `lak_println_bool` function for use in generated code.
@@ -281,6 +304,7 @@ impl<'ctx> Codegen<'ctx> {
     ) -> Result<Type, CodegenError> {
         match &expr.kind {
             ExprKind::IntLiteral(_) => Ok(Type::I64),
+            ExprKind::FloatLiteral(_) => Ok(Type::F64),
             ExprKind::StringLiteral(_) => Ok(Type::String),
             ExprKind::BoolLiteral(_) => Ok(Type::Bool),
             ExprKind::Identifier(name) => {
@@ -491,6 +515,20 @@ impl<'ctx> Codegen<'ctx> {
                 "lak_println_u64",
                 "println_u64 expr",
             ),
+            Type::F32 => self.generate_println_float(
+                arg,
+                span,
+                &Type::F32,
+                "lak_println_f32",
+                "println_f32 expr",
+            ),
+            Type::F64 => self.generate_println_float(
+                arg,
+                span,
+                &Type::F64,
+                "lak_println_f64",
+                "println_f64 expr",
+            ),
             Type::Bool => self.generate_println_bool(arg, span),
         }
     }
@@ -571,6 +609,40 @@ impl<'ctx> Codegen<'ctx> {
             .build_call(
                 runtime_fn,
                 &[BasicMetadataValueEnum::IntValue(int_value)],
+                "",
+            )
+            .map_err(|e| CodegenError::internal_println_call_failed(&e.to_string(), span))?;
+
+        Ok(())
+    }
+
+    fn generate_println_float(
+        &mut self,
+        arg: &Expr,
+        span: Span,
+        ty: &Type,
+        runtime_name: &str,
+        context_label: &str,
+    ) -> Result<(), CodegenError> {
+        let float_value = match self.generate_expr_value(arg, ty)? {
+            BasicValueEnum::FloatValue(v) => v,
+            _ => {
+                return Err(CodegenError::internal_non_float_value(
+                    context_label,
+                    arg.span,
+                ));
+            }
+        };
+
+        let runtime_fn = self
+            .module
+            .get_function(runtime_name)
+            .ok_or_else(|| CodegenError::internal_builtin_not_found(runtime_name))?;
+
+        self.builder
+            .build_call(
+                runtime_fn,
+                &[BasicMetadataValueEnum::FloatValue(float_value)],
                 "",
             )
             .map_err(|e| CodegenError::internal_println_call_failed(&e.to_string(), span))?;

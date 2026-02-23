@@ -1395,7 +1395,7 @@ fn main() -> void {}"#,
     assert!(matches!(stage, CompileStage::Semantic));
     assert_eq!(
         msg,
-        "Unsupported function return type 'int'. Expected 'void', 'i8', 'i16', 'i32', 'i64', 'u8', 'u16', 'u32', 'u64', 'byte', 'string', or 'bool'"
+        "Unsupported function return type 'int'. Expected 'void', 'i8', 'i16', 'i32', 'i64', 'u8', 'u16', 'u32', 'u64', 'f32', 'f64', 'byte', 'string', or 'bool'"
     );
     assert_eq!(short_msg, "Type mismatch");
     assert_eq!(
@@ -2726,6 +2726,82 @@ fn test_println_comparison_mixed_i32_i64_variables() {
     assert_eq!(
         msg,
         "Type mismatch: variable 'b' has type 'i64', expected 'i32'"
+    );
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch)
+    );
+}
+
+#[test]
+fn test_println_arithmetic_mixed_float_and_integer_variables() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let a: f64 = 1.0
+    let b: i32 = 2
+    println(a + b)
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Type mismatch: variable 'b' has type 'i32', expected 'f64'"
+    );
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch)
+    );
+}
+
+#[test]
+fn test_println_float_modulo_error() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let a: f64 = 5.0
+    println(a % 2.0)
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(msg, "Operator '%' cannot be used with 'f64' type");
+    assert_eq!(short_msg, "Type mismatch");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Semantic(SemanticErrorKind::TypeMismatch)
+    );
+}
+
+#[test]
+fn test_println_comparison_mixed_float_and_integer_literal() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let a: f32 = 1.0
+    println(a < 1)
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Semantic),
+        "Expected Semantic error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Type mismatch: integer literal '1' cannot be assigned to type 'f32'"
     );
     assert_eq!(short_msg, "Type mismatch");
     assert_eq!(
