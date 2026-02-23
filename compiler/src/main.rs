@@ -28,18 +28,19 @@
 //! colorful error messages that show the exact location of problems
 //! in the source code.
 
-use ariadne::{Color, Config, IndexType, Label, Report, ReportKind, Source};
 use clap::{Parser, Subcommand};
 use inkwell::context::Context;
 use lak::codegen::{Codegen, CodegenError};
 use lak::resolver::{ModuleResolver, ResolvedModule, ResolverError};
-use lak::semantic::{SemanticAnalyzer, SemanticError, SemanticErrorKind};
+use lak::semantic::{SemanticAnalyzer, SemanticError};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus};
 use tempfile::TempDir;
 
 #[cfg(unix)]
 use std::os::unix::process::ExitStatusExt;
+
+mod diagnostics;
 
 /// Command-line interface for the Lak compiler.
 ///
@@ -370,203 +371,7 @@ struct CompileErrorWithContext {
 impl CompileErrorWithContext {
     /// Reports this error using ariadne for beautiful error messages.
     fn report(&self) {
-        report_error(&self.context.filename, &self.context.source, &self.error);
-    }
-}
-
-/// Reports a semantic error using ariadne with proper source highlighting.
-///
-/// This is shared between entry module semantic errors and imported module semantic errors.
-fn report_semantic_error(filename: &str, source: &str, e: &SemanticError) {
-    if let Some(span) = e.span() {
-        let mut report = Report::build(ReportKind::Error, (filename, span.start..span.end))
-            .with_config(Config::default().with_index_type(IndexType::Byte))
-            .with_message(e.short_message())
-            .with_label(
-                Label::new((filename, span.start..span.end))
-                    .with_message(e.message())
-                    .with_color(Color::Red),
-            );
-
-        if let Some(help) = e.help() {
-            report = report.with_help(help);
-        }
-
-        if let Err(report_err) = report.finish().eprint((filename, Source::from(source))) {
-            eprintln!("Error: {} (at {}:{})", e.message(), span.line, span.column);
-            if let Some(help) = e.help() {
-                eprintln!("Help: {}", help);
-            }
-            eprintln!("(Failed to display detailed error report: {})", report_err);
-        }
-    } else {
-        // No span available - show error report pointing to end of file.
-        let end = source.len().saturating_sub(1);
-        let span_range = if source.is_empty() {
-            0..0
-        } else {
-            end..source.len()
-        };
-
-        // Customize label and help based on error kind
-        let is_missing_main = e.kind() == SemanticErrorKind::MissingMainFunction;
-        let label_msg: &str = if is_missing_main {
-            "main function not found"
-        } else {
-            e.message()
-        };
-        let help_msg: Option<&str> = if is_missing_main {
-            Some("add a main function: fn main() -> void { ... }")
-        } else {
-            e.help()
-        };
-
-        let mut report = Report::build(ReportKind::Error, (filename, span_range.clone()))
-            .with_config(Config::default().with_index_type(IndexType::Byte))
-            .with_message(e.short_message())
-            .with_label(
-                Label::new((filename, span_range))
-                    .with_message(label_msg)
-                    .with_color(Color::Red),
-            );
-
-        if let Some(help) = help_msg {
-            report = report.with_help(help);
-        }
-
-        if let Err(report_err) = report.finish().eprint((filename, Source::from(source))) {
-            eprintln!("Error in {}: {}", filename, e.message());
-            if let Some(help) = help_msg {
-                eprintln!("Help: {}", help);
-            }
-            eprintln!("(Failed to display detailed error report: {})", report_err);
-        }
-    }
-}
-
-/// Reports a compilation error with source location highlighting.
-///
-/// Uses [ariadne](https://docs.rs/ariadne) to produce beautiful error
-/// messages that show the exact location in the source code.
-///
-/// # Arguments
-///
-/// * `filename` - The name of the source file (for display purposes)
-/// * `source` - The source code content (must be the actual contents of `filename`)
-/// * `error` - The error to report
-///
-/// # Important
-///
-/// The `source` parameter **must** be the actual contents of `filename`.
-/// Passing mismatched values will produce confusing error messages that
-/// point to the wrong file or show incorrect source context.
-fn report_error(filename: &str, source: &str, error: &CompileError) {
-    match error {
-        CompileError::Resolve(e) => {
-            // If the error carries its own source context (e.g., lex/parse error in imported module),
-            // use that for rendering instead of the entry module's context.
-            let (report_filename, report_source) = if let (Some(src_file), Some(src_content)) =
-                (e.source_filename(), e.source_content())
-            {
-                (src_file, src_content)
-            } else {
-                (filename, source)
-            };
-
-            if let Some(span) = e.span() {
-                let mut report =
-                    Report::build(ReportKind::Error, (report_filename, span.start..span.end))
-                        .with_config(Config::default().with_index_type(IndexType::Byte))
-                        .with_message(e.short_message())
-                        .with_label(
-                            Label::new((report_filename, span.start..span.end))
-                                .with_message(e.message())
-                                .with_color(Color::Red),
-                        );
-
-                if let Some(help) = e.help() {
-                    report = report.with_help(help);
-                }
-
-                if let Err(report_err) = report
-                    .finish()
-                    .eprint((report_filename, Source::from(report_source)))
-                {
-                    eprintln!(
-                        "Error: {}: {} (at {}:{})",
-                        e.short_message(),
-                        e.message(),
-                        span.line,
-                        span.column
-                    );
-                    if let Some(help) = e.help() {
-                        eprintln!("Help: {}", help);
-                    }
-                    eprintln!("(Failed to display detailed error report: {})", report_err);
-                }
-            } else {
-                // No span available - use plain error output (resolver errors without spans
-                // are typically I/O errors unrelated to source locations)
-                eprintln!("Error: {}", e.message());
-                if let Some(help) = e.help() {
-                    eprintln!("Help: {}", help);
-                }
-            }
-        }
-        CompileError::Semantic(e) => {
-            report_semantic_error(filename, source, e);
-        }
-        CompileError::ModuleSemantic(ctx) => {
-            let ModuleSemanticContext {
-                error: e,
-                filename: module_file,
-                source: module_source,
-            } = ctx.as_ref();
-            report_semantic_error(module_file, module_source, e);
-        }
-        CompileError::Codegen(e) => {
-            // Codegen errors (InternalError, TargetError, InvalidModulePath)
-            // typically don't have source locations
-            if let Some(span) = e.span() {
-                if let Err(report_err) =
-                    Report::build(ReportKind::Error, (filename, span.start..span.end))
-                        .with_config(Config::default().with_index_type(IndexType::Byte))
-                        .with_message(e.short_message())
-                        .with_label(
-                            Label::new((filename, span.start..span.end))
-                                .with_message(e.message())
-                                .with_color(Color::Red),
-                        )
-                        .finish()
-                        .eprint((filename, Source::from(source)))
-                {
-                    // Fallback to basic error output if report printing fails
-                    eprintln!(
-                        "Error: {}: {} (at {}:{})",
-                        e.short_message(),
-                        e.message(),
-                        span.line,
-                        span.column
-                    );
-                    eprintln!("(Failed to display detailed error report: {})", report_err);
-                }
-            } else {
-                // Infrastructure errors without source location
-                eprintln!("Error in {}: {}", filename, e.message());
-            }
-        }
-        CompileError::Link(e) => {
-            eprintln!("Error: {}", e);
-        }
-        CompileError::PathNotUtf8 { .. }
-        | CompileError::FileReadError { .. }
-        | CompileError::PathResolutionError { .. }
-        | CompileError::TempDirCreationError(_)
-        | CompileError::ExecutableRunError(_)
-        | CompileError::EntryModuleNotFound { .. }
-        | CompileError::FilenameError { .. } => {
-            eprintln!("Error: {}", error);
-        }
+        diagnostics::report_error(&self.context.filename, &self.context.source, &self.error);
     }
 }
 
