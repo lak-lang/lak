@@ -3,7 +3,7 @@ use std::ops::Range;
 use ariadne::{Color, Config, IndexType, Label, Report, ReportKind, Source};
 use lak::semantic::{SemanticError, SemanticErrorKind};
 
-use crate::{CompileError, ModuleSemanticContext};
+use crate::driver::{CompileError, ModuleSemanticContext};
 
 fn print_range_report(
     filename: &str,
