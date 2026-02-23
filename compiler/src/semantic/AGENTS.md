@@ -10,9 +10,12 @@ Validates an AST for semantic correctness before code generation. Performs name 
 
 | File | Responsibility |
 |------|----------------|
-| `mod.rs` | `SemanticAnalyzer` struct, `analyze()`, `analyze_with_modules()`, `analyze_module()` entry points |
+| `mod.rs` | Thin facade: `SemanticAnalyzer` struct, session lifecycle, public entry points |
 | `error.rs` | `SemanticError`, `SemanticErrorKind` |
 | `symbol.rs` | `SymbolTable`, `FunctionInfo`, `VariableInfo` |
+| `symbols.rs` | Function collection, main signature validation, call target resolution |
+| `typecheck_stmt.rs` | Statement analysis (`analyze_stmt` family) |
+| `typecheck_expr.rs` | Expression typing/inference (`check_expr_type`, `infer_expr_type`) |
 | `module_table.rs` | `ModuleTable`, `ModuleExports`, `FunctionExport` (import tracking) |
 | `tests/` | Unit tests (see below) |
 

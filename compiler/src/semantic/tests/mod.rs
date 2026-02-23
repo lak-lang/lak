@@ -2,7 +2,8 @@
 
 use super::*;
 use crate::ast::{
-    Expr, ExprKind, FnDef, FnParam, Program, Stmt, StmtKind, Type, UnaryOperator, Visibility,
+    BinaryOperator, Expr, ExprKind, FnDef, FnParam, Program, Stmt, StmtKind, Type, UnaryOperator,
+    Visibility,
 };
 use crate::token::Span;
 
