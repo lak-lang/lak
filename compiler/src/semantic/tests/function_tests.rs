@@ -1039,6 +1039,94 @@ fn test_analyze_module_success() {
 }
 
 // ============================================================================
+// Analyzer session isolation tests
+// ============================================================================
+
+#[test]
+fn test_analyze_reuse_does_not_leak_function_symbols() {
+    let program = program_with_main(vec![]);
+    let mut analyzer = SemanticAnalyzer::new();
+
+    let first = analyzer.analyze(&program);
+    assert!(first.is_ok());
+
+    let second = analyzer.analyze(&program);
+    assert!(second.is_ok());
+}
+
+#[test]
+fn test_analyze_module_reuse_does_not_leak_function_symbols() {
+    let program = Program {
+        imports: vec![],
+        functions: vec![FnDef {
+            visibility: Visibility::Public,
+            name: "helper".to_string(),
+            params: vec![],
+            return_type: "void".to_string(),
+            return_type_span: dummy_span(),
+            body: vec![],
+            span: dummy_span(),
+        }],
+    };
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let first = analyzer.analyze_module(&program, None);
+    assert!(first.is_ok());
+
+    let second = analyzer.analyze_module(&program, None);
+    assert!(second.is_ok());
+}
+
+#[test]
+fn test_analyze_reuse_resets_mode_after_analyze_with_modules() {
+    let mut module_table = crate::semantic::ModuleTable::new();
+    let exports = crate::semantic::module_table::ModuleExports::for_testing(
+        "utils".to_string(),
+        vec![("greet".to_string(), "void".to_string(), dummy_span())],
+    )
+    .unwrap();
+    module_table.insert_for_testing("utils".to_string(), exports);
+
+    let entry_program = program_with_main(vec![Stmt::new(
+        StmtKind::Expr(Expr::new(
+            ExprKind::ModuleCall {
+                module: "utils".to_string(),
+                function: "greet".to_string(),
+                args: vec![],
+            },
+            dummy_span(),
+        )),
+        dummy_span(),
+    )]);
+
+    let single_file_program = program_with_main(vec![Stmt::new(
+        StmtKind::Expr(Expr::new(
+            ExprKind::ModuleCall {
+                module: "utils".to_string(),
+                function: "greet".to_string(),
+                args: vec![],
+            },
+            dummy_span(),
+        )),
+        dummy_span(),
+    )]);
+
+    let mut analyzer = SemanticAnalyzer::new();
+
+    let first = analyzer.analyze_with_modules(&entry_program, module_table);
+    assert!(first.is_ok());
+
+    let second = analyzer.analyze(&single_file_program);
+    assert!(second.is_err());
+    let err = second.unwrap_err();
+    assert_eq!(err.kind(), SemanticErrorKind::ModuleNotImported);
+    assert_eq!(
+        err.message(),
+        "Module-qualified function call 'utils.greet()' requires an import statement. Add: import \"./utils\""
+    );
+}
+
+// ============================================================================
 // while / break / continue tests
 // ============================================================================
 

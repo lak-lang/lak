@@ -95,11 +95,29 @@ impl SemanticAnalyzer {
     /// - Type mismatches
     /// - Integer overflow
     pub fn analyze(&mut self, program: &Program) -> Result<(), SemanticError> {
+        self.begin_session(AnalysisMode::SingleFile);
+        self.analyze_program(program, true)
+    }
+
+    fn begin_session(&mut self, mode: AnalysisMode) {
+        self.symbols = SymbolTable::new();
+        self.mode = mode;
+        self.current_function_return_type = None;
+        self.loop_depth = 0;
+    }
+
+    fn analyze_program(
+        &mut self,
+        program: &Program,
+        validate_main_function: bool,
+    ) -> Result<(), SemanticError> {
         // Phase 1: Collect function definitions
         self.collect_functions(program)?;
 
         // Phase 2: Validate main function
-        self.validate_main_function(program)?;
+        if validate_main_function {
+            self.validate_main_function(program)?;
+        }
 
         // Phase 3: Analyze function bodies
         for function in &program.functions {
@@ -117,8 +135,8 @@ impl SemanticAnalyzer {
         program: &Program,
         module_table: ModuleTable,
     ) -> Result<(), SemanticError> {
-        self.mode = AnalysisMode::EntryWithModules(module_table);
-        self.analyze(program)
+        self.begin_session(AnalysisMode::EntryWithModules(module_table));
+        self.analyze_program(program, true)
     }
 
     /// Analyzes an imported module for semantic correctness.
@@ -134,17 +152,8 @@ impl SemanticAnalyzer {
         program: &Program,
         module_table: Option<ModuleTable>,
     ) -> Result<(), SemanticError> {
-        self.mode = AnalysisMode::ImportedModule(module_table);
-
-        // Phase 1: Collect function definitions
-        self.collect_functions(program)?;
-
-        // Phase 2: Analyze function bodies
-        for function in &program.functions {
-            self.analyze_function(function)?;
-        }
-
-        Ok(())
+        self.begin_session(AnalysisMode::ImportedModule(module_table));
+        self.analyze_program(program, false)
     }
 
     // Phase 1: Function collection
