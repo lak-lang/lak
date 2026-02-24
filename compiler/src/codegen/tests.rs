@@ -57,6 +57,25 @@ fn empty_program() -> Program {
     }
 }
 
+fn collect_user_function_signatures(module: &inkwell::module::Module<'_>) -> Vec<(String, String)> {
+    let mut signatures = module
+        .get_functions()
+        .filter_map(|function| {
+            let llvm_name = function.get_name().to_str().unwrap();
+            if builtins::BUILTIN_NAMES.contains(&llvm_name) {
+                return None;
+            }
+
+            Some((
+                user_facing_function_name(llvm_name).to_string(),
+                function.get_type().print_to_string().to_string(),
+            ))
+        })
+        .collect::<Vec<_>>();
+    signatures.sort();
+    signatures
+}
+
 #[test]
 fn test_codegen_new() {
     let context = Context::create();
@@ -1675,6 +1694,75 @@ fn test_builtin_names_matches_declare_builtins() {
         declared,
         actual.iter().map(|s| s.as_str()).collect::<Vec<&str>>(),
         "BUILTIN_NAMES must match the functions declared by declare_builtins()"
+    );
+}
+
+#[test]
+fn test_compile_and_compile_modules_equivalent_for_single_entry_module() {
+    let program = Program {
+        imports: vec![],
+        functions: vec![
+            FnDef {
+                visibility: Visibility::Private,
+                name: "helper".to_string(),
+                params: vec![FnParam {
+                    name: "message".to_string(),
+                    ty: Type::String,
+                    span: dummy_span(),
+                }],
+                return_type: "void".to_string(),
+                return_type_span: dummy_span(),
+                body: vec![expr_stmt(ExprKind::Call {
+                    callee: "println".to_string(),
+                    args: vec![Expr::new(
+                        ExprKind::Identifier("message".to_string()),
+                        dummy_span(),
+                    )],
+                })],
+                span: dummy_span(),
+            },
+            FnDef {
+                visibility: Visibility::Private,
+                name: "main".to_string(),
+                params: vec![],
+                return_type: "void".to_string(),
+                return_type_span: dummy_span(),
+                body: vec![expr_stmt(ExprKind::Call {
+                    callee: "helper".to_string(),
+                    args: vec![Expr::new(
+                        ExprKind::StringLiteral("hello".to_string()),
+                        dummy_span(),
+                    )],
+                })],
+                span: dummy_span(),
+            },
+        ],
+    };
+
+    let context = Context::create();
+
+    let mut single_codegen = Codegen::new(&context, "single");
+    single_codegen
+        .compile(&program)
+        .expect("single-module compile should succeed");
+
+    let entry_path = std::env::temp_dir().join("equivalent_main.lak");
+    let entry_module = ResolvedModule::for_testing(
+        entry_path.clone(),
+        "equivalent_main".to_string(),
+        program,
+        "".to_string(),
+    );
+    let modules = [entry_module];
+
+    let mut multi_codegen = Codegen::new(&context, "multi");
+    multi_codegen
+        .compile_modules(&modules, &entry_path)
+        .expect("compile_modules with only entry module should succeed");
+
+    assert_eq!(
+        collect_user_function_signatures(&single_codegen.module),
+        collect_user_function_signatures(&multi_codegen.module)
     );
 }
 

@@ -422,6 +422,53 @@ impl<'ctx> Codegen<'ctx> {
         self.declare_lak_strcmp();
     }
 
+    fn initialize_compile_state(&mut self) {
+        self.declare_builtins();
+        self.function_param_types.clear();
+        self.function_return_types.clear();
+    }
+
+    fn run_compile_passes<DeclarePass, GeneratePass>(
+        &mut self,
+        declare_pass: DeclarePass,
+        generate_pass: GeneratePass,
+    ) -> Result<(), CodegenError>
+    where
+        DeclarePass: FnOnce(&mut Self) -> Result<(), CodegenError>,
+        GeneratePass: FnOnce(&mut Self) -> Result<(), CodegenError>,
+    {
+        declare_pass(self)?;
+        generate_pass(self)
+    }
+
+    fn declare_prefixed_function(
+        &mut self,
+        module_prefix: &str,
+        function: &FnDef,
+    ) -> Result<(), CodegenError> {
+        let llvm_name = mangle_name(module_prefix, &function.name);
+        let param_types = function
+            .params
+            .iter()
+            .map(|param| param.ty.clone())
+            .collect::<Vec<_>>();
+        self.declare_function(
+            &llvm_name,
+            &param_types,
+            &function.return_type,
+            function.return_type_span,
+        )
+    }
+
+    fn generate_prefixed_function(
+        &mut self,
+        module_prefix: &str,
+        function: &FnDef,
+    ) -> Result<(), CodegenError> {
+        let llvm_name = mangle_name(module_prefix, &function.name);
+        self.generate_function_body(&llvm_name, function)
+    }
+
     /// Compiles a Lak program to LLVM IR.
     ///
     /// This method generates the complete LLVM IR for the program using a two-pass
@@ -441,43 +488,32 @@ impl<'ctx> Codegen<'ctx> {
     ///
     /// Returns an error if LLVM IR generation fails (internal errors).
     pub fn compile(&mut self, program: &Program) -> Result<(), CodegenError> {
-        // Declare built-in functions
-        self.declare_builtins();
+        self.initialize_compile_state();
         self.current_module_prefix = Some(SINGLE_FILE_MANGLE_PREFIX.to_string());
-        self.function_param_types.clear();
-        self.function_return_types.clear();
-
-        let result = (|| -> Result<(), CodegenError> {
-            // Pass 1: Declare all user-defined functions (except main, which has a special signature)
-            for function in &program.functions {
-                if function.name != "main" {
-                    let llvm_name = mangle_name(SINGLE_FILE_MANGLE_PREFIX, &function.name);
-                    let param_types = function
-                        .params
-                        .iter()
-                        .map(|param| param.ty.clone())
-                        .collect::<Vec<_>>();
-                    self.declare_function(
-                        &llvm_name,
-                        &param_types,
-                        &function.return_type,
-                        function.return_type_span,
-                    )?;
+        let result = self.run_compile_passes(
+            |codegen| {
+                // Pass 1: Declare all user-defined functions (except main, which has a special signature)
+                for function in &program.functions {
+                    if function.name != "main" {
+                        codegen.declare_prefixed_function(SINGLE_FILE_MANGLE_PREFIX, function)?;
+                    }
                 }
-            }
 
-            // Pass 2: Generate function bodies
-            for function in &program.functions {
-                if function.name == "main" {
-                    self.generate_main(function)?;
-                } else {
-                    let llvm_name = mangle_name(SINGLE_FILE_MANGLE_PREFIX, &function.name);
-                    self.generate_function_body(&llvm_name, function)?;
+                Ok(())
+            },
+            |codegen| {
+                // Pass 2: Generate function bodies
+                for function in &program.functions {
+                    if function.name == "main" {
+                        codegen.generate_main(function)?;
+                    } else {
+                        codegen.generate_prefixed_function(SINGLE_FILE_MANGLE_PREFIX, function)?;
+                    }
                 }
-            }
 
-            Ok(())
-        })();
+                Ok(())
+            },
+        );
 
         self.current_module_prefix = None;
         result
@@ -513,10 +549,7 @@ impl<'ctx> Codegen<'ctx> {
         modules: &[ResolvedModule],
         entry_path: &Path,
     ) -> Result<(), CodegenError> {
-        // Declare built-in functions
-        self.declare_builtins();
-        self.function_param_types.clear();
-        self.function_return_types.clear();
+        self.initialize_compile_state();
 
         // Validate that entry module exists in the module list
         if !modules.iter().any(|m| m.path() == entry_path) {
@@ -526,88 +559,83 @@ impl<'ctx> Codegen<'ctx> {
         let imported_prefixes = compute_mangle_prefixes(modules, entry_path)?;
         let entry_prefix = compute_entry_mangle_prefix(entry_path, &imported_prefixes)?;
 
-        let result = (|| -> Result<(), CodegenError> {
-            // Pass 1: Declare all user-defined functions from all modules
-            for module in modules {
-                let is_entry = module.path() == entry_path;
-                let module_prefix = if is_entry {
-                    entry_prefix.as_str()
-                } else {
-                    get_mangle_prefix(&imported_prefixes, module.path())?
-                };
-
-                for function in &module.program().functions {
-                    if is_entry && function.name == "main" {
-                        // Skip main from entry module - it has special signature
-                        continue;
-                    }
-
-                    let mangled_name = mangle_name(module_prefix, &function.name);
-                    let param_types = function
-                        .params
-                        .iter()
-                        .map(|param| param.ty.clone())
-                        .collect::<Vec<_>>();
-                    self.declare_function(
-                        &mangled_name,
-                        &param_types,
-                        &function.return_type,
-                        function.return_type_span,
-                    )?;
-                }
-            }
-
-            // Pass 2: Generate function bodies for all modules
-            for module in modules {
-                // Set up this module's alias map for resolving ModuleCall expressions
-                self.module_aliases.clear();
-                for import in &module.program().imports {
-                    let canonical_path =
-                        module.resolved_imports().get(&import.path).ok_or_else(|| {
-                            CodegenError::internal_import_path_not_resolved(
-                                &import.path,
-                                import.span,
-                            )
-                        })?;
-                    let imported_module = modules
-                        .iter()
-                        .find(|m| m.path() == canonical_path.as_path())
-                        .ok_or_else(|| {
-                            CodegenError::internal_resolved_module_not_found_for_path(
-                                canonical_path,
-                                import.span,
-                            )
-                        })?;
-                    let mangle_prefix =
-                        get_mangle_prefix(&imported_prefixes, canonical_path.as_path())?;
-                    let key = import
-                        .alias
-                        .clone()
-                        .unwrap_or_else(|| imported_module.name().to_string());
-                    self.module_aliases.insert(key, mangle_prefix.to_string());
-                }
-
-                // Set module prefix for name mangling of intra-module calls
-                let is_entry = module.path() == entry_path;
-                let module_prefix = if is_entry {
-                    entry_prefix.as_str()
-                } else {
-                    get_mangle_prefix(&imported_prefixes, module.path())?
-                };
-                self.current_module_prefix = Some(module_prefix.to_string());
-
-                for function in &module.program().functions {
-                    if is_entry && function.name == "main" {
-                        self.generate_main(function)?;
+        let result = self.run_compile_passes(
+            |codegen| {
+                // Pass 1: Declare all user-defined functions from all modules
+                for module in modules {
+                    let is_entry = module.path() == entry_path;
+                    let module_prefix = if is_entry {
+                        entry_prefix.as_str()
                     } else {
-                        let llvm_name = mangle_name(module_prefix, &function.name);
-                        self.generate_function_body(&llvm_name, function)?;
+                        get_mangle_prefix(&imported_prefixes, module.path())?
+                    };
+
+                    for function in &module.program().functions {
+                        if is_entry && function.name == "main" {
+                            // Skip main from entry module - it has special signature
+                            continue;
+                        }
+
+                        codegen.declare_prefixed_function(module_prefix, function)?;
                     }
                 }
-            }
 
-            Ok(())
-        })();
+                Ok(())
+            },
+            |codegen| {
+                // Pass 2: Generate function bodies for all modules
+                for module in modules {
+                    // Set up this module's alias map for resolving ModuleCall expressions
+                    codegen.module_aliases.clear();
+                    for import in &module.program().imports {
+                        let canonical_path =
+                            module.resolved_imports().get(&import.path).ok_or_else(|| {
+                                CodegenError::internal_import_path_not_resolved(
+                                    &import.path,
+                                    import.span,
+                                )
+                            })?;
+                        let imported_module = modules
+                            .iter()
+                            .find(|m| m.path() == canonical_path.as_path())
+                            .ok_or_else(|| {
+                                CodegenError::internal_resolved_module_not_found_for_path(
+                                    canonical_path,
+                                    import.span,
+                                )
+                            })?;
+                        let mangle_prefix =
+                            get_mangle_prefix(&imported_prefixes, canonical_path.as_path())?;
+                        let key = import
+                            .alias
+                            .clone()
+                            .unwrap_or_else(|| imported_module.name().to_string());
+                        codegen
+                            .module_aliases
+                            .insert(key, mangle_prefix.to_string());
+                    }
+
+                    // Set module prefix for name mangling of intra-module calls
+                    let is_entry = module.path() == entry_path;
+                    let module_prefix = if is_entry {
+                        entry_prefix.as_str()
+                    } else {
+                        get_mangle_prefix(&imported_prefixes, module.path())?
+                    };
+                    codegen.current_module_prefix = Some(module_prefix.to_string());
+
+                    for function in &module.program().functions {
+                        if is_entry && function.name == "main" {
+                            codegen.generate_main(function)?;
+                        } else {
+                            codegen.generate_prefixed_function(module_prefix, function)?;
+                        }
+                    }
+                }
+
+                Ok(())
+            },
+        );
 
         // Reset module prefix after compilation
         self.current_module_prefix = None;
