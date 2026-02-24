@@ -6,6 +6,7 @@ use crate::ast::{
     Visibility,
 };
 use crate::resolver::ResolvedModule;
+use crate::semantic::SemanticAnalyzer;
 use crate::token::Span;
 use inkwell::context::Context;
 
@@ -49,6 +50,18 @@ fn let_stmt(name: &str, ty: Type, init_kind: ExprKind) -> Stmt {
     )
 }
 
+fn let_stmt_expr(name: &str, ty: Type, init: Expr) -> Stmt {
+    Stmt::new(
+        StmtKind::Let {
+            is_mutable: false,
+            name: name.to_string(),
+            ty,
+            init,
+        },
+        dummy_span(),
+    )
+}
+
 /// Helper to create an empty program (no imports, no functions).
 fn empty_program() -> Program {
     Program {
@@ -74,6 +87,48 @@ fn collect_user_function_signatures(module: &inkwell::module::Module<'_>) -> Vec
         .collect::<Vec<_>>();
     signatures.sort();
     signatures
+}
+
+fn assert_cross_stage_inference_contract(
+    case_name: &str,
+    program: &Program,
+    expr: &Expr,
+    expected_ty: Type,
+) {
+    let mut analyzer = SemanticAnalyzer::new();
+    analyzer.analyze(program).unwrap_or_else(|err| {
+        panic!("cross-stage inference contract semantic analysis failed for '{case_name}': {err}")
+    });
+
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "cross_stage_contract");
+    codegen.compile(program).unwrap_or_else(|err| {
+        panic!("cross-stage inference contract codegen failed for '{case_name}': {err}")
+    });
+
+    let builtin_path_ty = codegen.get_expr_type(expr).unwrap_or_else(|err| {
+        panic!("cross-stage inference contract get_expr_type failed for '{case_name}': {err}")
+    });
+    assert_eq!(
+        builtin_path_ty, expected_ty,
+        "cross-stage inference contract mismatch on get_expr_type for '{case_name}'"
+    );
+
+    let expr_path_ty = codegen
+        .infer_expr_type_for_comparison(expr)
+        .unwrap_or_else(|err| {
+            panic!(
+                "cross-stage inference contract infer_expr_type_for_comparison failed for '{case_name}': {err}"
+            )
+        });
+    assert_eq!(
+        expr_path_ty, expected_ty,
+        "cross-stage inference contract mismatch on infer_expr_type_for_comparison for '{case_name}'"
+    );
+    assert_eq!(
+        builtin_path_ty, expr_path_ty,
+        "cross-stage inference contract mismatch between codegen inference paths for '{case_name}'"
+    );
 }
 
 #[test]
@@ -1357,6 +1412,149 @@ fn test_get_expr_type_defined_string_variable() {
     let result = codegen.get_expr_type(&expr);
     assert!(result.is_ok(), "Expected Ok, got: {:?}", result);
     assert_eq!(result.unwrap(), Type::String);
+}
+
+// ==========================================
+// Cross-stage inference contract tests
+// ==========================================
+
+#[test]
+fn test_cross_stage_inference_contract_int_literal_plus_i32_identifier() {
+    let contract_expr = Expr::new(
+        ExprKind::BinaryOp {
+            left: Box::new(Expr::new(ExprKind::IntLiteral(1), dummy_span())),
+            op: BinaryOperator::Add,
+            right: Box::new(Expr::new(
+                ExprKind::Identifier("x".to_string()),
+                dummy_span(),
+            )),
+        },
+        dummy_span(),
+    );
+
+    let program = make_program(vec![
+        let_stmt("x", Type::I32, ExprKind::IntLiteral(41)),
+        let_stmt_expr("result", Type::I32, contract_expr.clone()),
+    ]);
+
+    assert_cross_stage_inference_contract(
+        "int literal + i32 identifier",
+        &program,
+        &contract_expr,
+        Type::I32,
+    );
+}
+
+#[test]
+fn test_cross_stage_inference_contract_int_literal_plus_i64_identifier() {
+    let contract_expr = Expr::new(
+        ExprKind::BinaryOp {
+            left: Box::new(Expr::new(ExprKind::IntLiteral(1), dummy_span())),
+            op: BinaryOperator::Add,
+            right: Box::new(Expr::new(
+                ExprKind::Identifier("y".to_string()),
+                dummy_span(),
+            )),
+        },
+        dummy_span(),
+    );
+
+    let program = make_program(vec![
+        let_stmt("y", Type::I64, ExprKind::IntLiteral(41)),
+        let_stmt_expr("result", Type::I64, contract_expr.clone()),
+    ]);
+
+    assert_cross_stage_inference_contract(
+        "int literal + i64 identifier",
+        &program,
+        &contract_expr,
+        Type::I64,
+    );
+}
+
+#[test]
+fn test_cross_stage_inference_contract_f32_plus_f64_promotes_to_f64() {
+    let contract_expr = Expr::new(
+        ExprKind::BinaryOp {
+            left: Box::new(Expr::new(
+                ExprKind::Identifier("a".to_string()),
+                dummy_span(),
+            )),
+            op: BinaryOperator::Add,
+            right: Box::new(Expr::new(
+                ExprKind::Identifier("b".to_string()),
+                dummy_span(),
+            )),
+        },
+        dummy_span(),
+    );
+
+    let program = make_program(vec![
+        let_stmt("a", Type::F32, ExprKind::FloatLiteral(1.25)),
+        let_stmt("b", Type::F64, ExprKind::FloatLiteral(2.5)),
+        let_stmt_expr("result", Type::F64, contract_expr.clone()),
+    ]);
+
+    assert_cross_stage_inference_contract(
+        "f32 + f64 promotes to f64",
+        &program,
+        &contract_expr,
+        Type::F64,
+    );
+}
+
+#[test]
+fn test_cross_stage_inference_contract_i32_comparison_with_int_literal_returns_bool() {
+    let contract_expr = Expr::new(
+        ExprKind::BinaryOp {
+            left: Box::new(Expr::new(
+                ExprKind::Identifier("x".to_string()),
+                dummy_span(),
+            )),
+            op: BinaryOperator::GreaterThan,
+            right: Box::new(Expr::new(ExprKind::IntLiteral(0), dummy_span())),
+        },
+        dummy_span(),
+    );
+
+    let program = make_program(vec![
+        let_stmt("x", Type::I32, ExprKind::IntLiteral(7)),
+        let_stmt_expr("result", Type::Bool, contract_expr.clone()),
+    ]);
+
+    assert_cross_stage_inference_contract(
+        "i32 comparison with int literal returns bool",
+        &program,
+        &contract_expr,
+        Type::Bool,
+    );
+}
+
+#[test]
+fn test_cross_stage_inference_contract_u32_plus_int_literal_preserves_unsigned_type() {
+    let contract_expr = Expr::new(
+        ExprKind::BinaryOp {
+            left: Box::new(Expr::new(
+                ExprKind::Identifier("x".to_string()),
+                dummy_span(),
+            )),
+            op: BinaryOperator::Add,
+            right: Box::new(Expr::new(ExprKind::IntLiteral(1), dummy_span())),
+        },
+        dummy_span(),
+    );
+
+    let program = make_program(vec![
+        let_stmt("x", Type::U32, ExprKind::IntLiteral(7)),
+        let_stmt_expr("result", Type::U32, contract_expr.clone()),
+    ]);
+
+    assert_cross_stage_inference_contract(
+        "u32 + int literal preserves unsigned type",
+        &program,
+        &contract_expr,
+        Type::U32,
+    );
 }
 
 // ====================

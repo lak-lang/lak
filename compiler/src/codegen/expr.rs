@@ -516,7 +516,7 @@ impl<'ctx> Codegen<'ctx> {
         ))
     }
 
-    fn infer_expr_type_for_comparison(&self, expr: &Expr) -> Result<Type, CodegenError> {
+    pub(super) fn infer_expr_type_for_comparison(&self, expr: &Expr) -> Result<Type, CodegenError> {
         match &expr.kind {
             ExprKind::IntLiteral(_) => Ok(Type::I64),
             ExprKind::FloatLiteral(_) => Ok(Type::F64),
