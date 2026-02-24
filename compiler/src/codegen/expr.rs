@@ -1362,6 +1362,75 @@ impl<'ctx> Codegen<'ctx> {
         }
     }
 
+    fn get_current_function(
+        &self,
+        span: crate::token::Span,
+    ) -> Result<FunctionValue<'ctx>, CodegenError> {
+        self.builder
+            .get_insert_block()
+            .and_then(|bb| bb.get_parent())
+            .ok_or_else(|| CodegenError::internal_no_current_function(span))
+    }
+
+    fn generate_runtime_panic(
+        &mut self,
+        message: &str,
+        global_name: &str,
+        span: crate::token::Span,
+    ) -> Result<(), CodegenError> {
+        let panic_msg = self
+            .builder
+            .build_global_string_ptr(message, global_name)
+            .map_err(|e| CodegenError::internal_string_ptr_failed(&e.to_string(), span))?
+            .as_pointer_value();
+
+        let lak_panic = self
+            .module
+            .get_function("lak_panic")
+            .ok_or_else(|| CodegenError::internal_builtin_not_found_with_span("lak_panic", span))?;
+
+        self.builder
+            .build_call(
+                lak_panic,
+                &[BasicMetadataValueEnum::PointerValue(panic_msg)],
+                "",
+            )
+            .map_err(|e| CodegenError::internal_panic_call_failed(&e.to_string(), span))?;
+
+        self.builder
+            .build_unreachable()
+            .map_err(|e| CodegenError::internal_unreachable_failed(&e.to_string(), span))?;
+
+        Ok(())
+    }
+
+    fn generate_runtime_check_branch(
+        &mut self,
+        condition: inkwell::values::IntValue<'ctx>,
+        panic_block_name: &str,
+        safe_block_name: &str,
+        panic_message: &str,
+        panic_message_global_name: &str,
+        span: crate::token::Span,
+    ) -> Result<(), CodegenError> {
+        let current_fn = self.get_current_function(span)?;
+        let panic_block = self
+            .context
+            .append_basic_block(current_fn, panic_block_name);
+        let safe_block = self.context.append_basic_block(current_fn, safe_block_name);
+
+        self.builder
+            .build_conditional_branch(condition, panic_block, safe_block)
+            .map_err(|e| CodegenError::internal_branch_failed(&e.to_string(), span))?;
+
+        self.builder.position_at_end(panic_block);
+        self.generate_runtime_panic(panic_message, panic_message_global_name, span)?;
+
+        self.builder.position_at_end(safe_block);
+
+        Ok(())
+    }
+
     /// Generates a runtime check for division/modulo by zero.
     ///
     /// This creates a conditional branch that panics if the divisor is zero,
@@ -1394,19 +1463,6 @@ impl<'ctx> Codegen<'ctx> {
         error_message: &str,
         span: crate::token::Span,
     ) -> Result<(), CodegenError> {
-        // Get the current function
-        let current_fn = self
-            .builder
-            .get_insert_block()
-            .and_then(|bb| bb.get_parent())
-            .ok_or_else(|| CodegenError::internal_no_current_function(span))?;
-
-        // Create basic blocks
-        let panic_block = self
-            .context
-            .append_basic_block(current_fn, "div_zero_panic");
-        let safe_block = self.context.append_basic_block(current_fn, "div_zero_safe");
-
         // Create zero constant of the same type as divisor
         let zero = divisor.get_type().const_int(0, false);
 
@@ -1416,44 +1472,14 @@ impl<'ctx> Codegen<'ctx> {
             .build_int_compare(IntPredicate::EQ, divisor, zero, "is_zero")
             .map_err(|e| CodegenError::internal_compare_failed(&e.to_string(), span))?;
 
-        // Branch: if zero goto panic_block, else goto safe_block
-        self.builder
-            .build_conditional_branch(is_zero, panic_block, safe_block)
-            .map_err(|e| CodegenError::internal_branch_failed(&e.to_string(), span))?;
-
-        // Build panic block
-        self.builder.position_at_end(panic_block);
-
-        // Create global string for error message
-        let panic_msg = self
-            .builder
-            .build_global_string_ptr(error_message, "div_zero_msg")
-            .map_err(|e| CodegenError::internal_string_ptr_failed(&e.to_string(), span))?
-            .as_pointer_value();
-
-        // Call lak_panic
-        let lak_panic = self
-            .module
-            .get_function("lak_panic")
-            .ok_or_else(|| CodegenError::internal_builtin_not_found_with_span("lak_panic", span))?;
-
-        self.builder
-            .build_call(
-                lak_panic,
-                &[BasicMetadataValueEnum::PointerValue(panic_msg)],
-                "",
-            )
-            .map_err(|e| CodegenError::internal_panic_call_failed(&e.to_string(), span))?;
-
-        // Insert unreachable instruction
-        self.builder
-            .build_unreachable()
-            .map_err(|e| CodegenError::internal_unreachable_failed(&e.to_string(), span))?;
-
-        // Position builder at safe block for the actual division/modulo
-        self.builder.position_at_end(safe_block);
-
-        Ok(())
+        self.generate_runtime_check_branch(
+            is_zero,
+            "div_zero_panic",
+            "div_zero_safe",
+            error_message,
+            "div_zero_msg",
+            span,
+        )
     }
 
     /// Generates a runtime check for division/modulo overflow (MIN / -1).
@@ -1493,21 +1519,6 @@ impl<'ctx> Codegen<'ctx> {
         divisor: inkwell::values::IntValue<'ctx>,
         span: crate::token::Span,
     ) -> Result<(), CodegenError> {
-        // Get the current function
-        let current_fn = self
-            .builder
-            .get_insert_block()
-            .and_then(|bb| bb.get_parent())
-            .ok_or_else(|| CodegenError::internal_no_current_function(span))?;
-
-        // Create basic blocks
-        let panic_block = self
-            .context
-            .append_basic_block(current_fn, "div_overflow_panic");
-        let safe_block = self
-            .context
-            .append_basic_block(current_fn, "div_overflow_safe");
-
         // Create -1 constant: all bits set to 1
         let neg_one = divisor.get_type().const_all_ones();
 
@@ -1535,44 +1546,14 @@ impl<'ctx> Codegen<'ctx> {
             .build_and(is_neg_one, is_min, "is_div_overflow")
             .map_err(|e| CodegenError::internal_compare_failed(&e.to_string(), span))?;
 
-        // Branch: if overflow goto panic_block, else goto safe_block
-        self.builder
-            .build_conditional_branch(is_overflow, panic_block, safe_block)
-            .map_err(|e| CodegenError::internal_branch_failed(&e.to_string(), span))?;
-
-        // Build panic block
-        self.builder.position_at_end(panic_block);
-
-        // Create global string for error message
-        let panic_msg = self
-            .builder
-            .build_global_string_ptr("integer overflow", "div_overflow_msg")
-            .map_err(|e| CodegenError::internal_string_ptr_failed(&e.to_string(), span))?
-            .as_pointer_value();
-
-        // Call lak_panic
-        let lak_panic = self
-            .module
-            .get_function("lak_panic")
-            .ok_or_else(|| CodegenError::internal_builtin_not_found_with_span("lak_panic", span))?;
-
-        self.builder
-            .build_call(
-                lak_panic,
-                &[BasicMetadataValueEnum::PointerValue(panic_msg)],
-                "",
-            )
-            .map_err(|e| CodegenError::internal_panic_call_failed(&e.to_string(), span))?;
-
-        // Insert unreachable instruction
-        self.builder
-            .build_unreachable()
-            .map_err(|e| CodegenError::internal_unreachable_failed(&e.to_string(), span))?;
-
-        // Position builder at safe block for the actual division/modulo
-        self.builder.position_at_end(safe_block);
-
-        Ok(())
+        self.generate_runtime_check_branch(
+            is_overflow,
+            "div_overflow_panic",
+            "div_overflow_safe",
+            "integer overflow",
+            "div_overflow_msg",
+            span,
+        )
     }
 
     /// Generates an overflow-checked binary operation using LLVM intrinsics.
@@ -1678,51 +1659,14 @@ impl<'ctx> Codegen<'ctx> {
             }
         };
 
-        // Create basic blocks for panic and safe paths
-        let current_fn = self
-            .builder
-            .get_insert_block()
-            .and_then(|bb| bb.get_parent())
-            .ok_or_else(|| CodegenError::internal_no_current_function(span))?;
-
-        let panic_block = self
-            .context
-            .append_basic_block(current_fn, "overflow_panic");
-        let safe_block = self.context.append_basic_block(current_fn, "overflow_safe");
-
-        // Branch: if overflow goto panic_block, else goto safe_block
-        self.builder
-            .build_conditional_branch(overflow_flag, panic_block, safe_block)
-            .map_err(|e| CodegenError::internal_branch_failed(&e.to_string(), span))?;
-
-        // Build panic block
-        self.builder.position_at_end(panic_block);
-
-        let panic_msg = self
-            .builder
-            .build_global_string_ptr("integer overflow", "overflow_msg")
-            .map_err(|e| CodegenError::internal_string_ptr_failed(&e.to_string(), span))?
-            .as_pointer_value();
-
-        let lak_panic = self
-            .module
-            .get_function("lak_panic")
-            .ok_or_else(|| CodegenError::internal_builtin_not_found_with_span("lak_panic", span))?;
-
-        self.builder
-            .build_call(
-                lak_panic,
-                &[BasicMetadataValueEnum::PointerValue(panic_msg)],
-                "",
-            )
-            .map_err(|e| CodegenError::internal_panic_call_failed(&e.to_string(), span))?;
-
-        self.builder
-            .build_unreachable()
-            .map_err(|e| CodegenError::internal_unreachable_failed(&e.to_string(), span))?;
-
-        // Position builder at safe block
-        self.builder.position_at_end(safe_block);
+        self.generate_runtime_check_branch(
+            overflow_flag,
+            "overflow_panic",
+            "overflow_safe",
+            "integer overflow",
+            "overflow_msg",
+            span,
+        )?;
 
         Ok(result_value)
     }
