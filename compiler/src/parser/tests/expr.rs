@@ -854,6 +854,25 @@ fn test_member_call_no_args() {
 }
 
 #[test]
+fn test_member_call_with_newline_separated_args() {
+    let expr = parse_first_expr("math.add(\n1,\n2\n)");
+    match expr.kind {
+        ExprKind::ModuleCall {
+            module,
+            function,
+            args,
+        } => {
+            assert_eq!(module, "math");
+            assert_eq!(function, "add");
+            assert_eq!(args.len(), 2);
+            assert!(matches!(args[0].kind, ExprKind::IntLiteral(1)));
+            assert!(matches!(args[1].kind, ExprKind::IntLiteral(2)));
+        }
+        _ => panic!("Expected ModuleCall expression"),
+    }
+}
+
+#[test]
 fn test_member_call_string_arg() {
     let expr = parse_first_expr(r#"io.print("hello")"#);
     match expr.kind {

@@ -485,27 +485,17 @@ impl Parser {
             && matches!(self.tokens[lookahead].kind, TokenKind::RightBrace)
     }
 
-    /// Parses a function call expression.
+    /// Parses call arguments enclosed by parentheses.
     ///
-    /// The callee identifier has already been consumed. This method parses
-    /// the argument list within parentheses.
-    ///
-    /// # Arguments
-    ///
-    /// * `callee` - The name of the function being called
-    /// * `start_span` - The span of the callee identifier
-    ///
-    /// # Grammar
+    /// Expects the current token to be `'('`, then parses:
     ///
     /// ```text
-    /// call → IDENTIFIER "(" arguments? ")"
+    /// arguments? ")"
     /// arguments → expr ("," expr)*
     /// ```
-    pub(super) fn parse_call(
-        &mut self,
-        callee: String,
-        start_span: Span,
-    ) -> Result<Expr, ParseError> {
+    ///
+    /// Returns parsed arguments and the span of the closing `')'` token.
+    fn parse_call_args(&mut self) -> Result<(Vec<Expr>, Span), ParseError> {
         self.expect(&TokenKind::LeftParen)?;
         self.skip_newlines(); // Skip newlines after opening paren
 
@@ -529,6 +519,32 @@ impl Parser {
         self.skip_newlines(); // Skip newlines before closing paren
         let end_span = self.current_span();
         self.expect(&TokenKind::RightParen)?;
+
+        Ok((args, end_span))
+    }
+
+    /// Parses a function call expression.
+    ///
+    /// The callee identifier has already been consumed. This method parses
+    /// the argument list within parentheses.
+    ///
+    /// # Arguments
+    ///
+    /// * `callee` - The name of the function being called
+    /// * `start_span` - The span of the callee identifier
+    ///
+    /// # Grammar
+    ///
+    /// ```text
+    /// call → IDENTIFIER "(" arguments? ")"
+    /// arguments → expr ("," expr)*
+    /// ```
+    pub(super) fn parse_call(
+        &mut self,
+        callee: String,
+        start_span: Span,
+    ) -> Result<Expr, ParseError> {
+        let (args, end_span) = self.parse_call_args()?;
 
         // Span covers from callee to closing paren
         let span = Span::new(
@@ -561,29 +577,7 @@ impl Parser {
         member_expr: Expr,
         start_span: Span,
     ) -> Result<Expr, ParseError> {
-        self.expect(&TokenKind::LeftParen)?;
-        self.skip_newlines();
-
-        let mut args = Vec::new();
-
-        if !matches!(self.current_kind(), TokenKind::RightParen) {
-            loop {
-                let arg = self.parse_expr()?;
-                args.push(arg);
-                self.skip_newlines();
-
-                if matches!(self.current_kind(), TokenKind::Comma) {
-                    self.advance();
-                    self.skip_newlines();
-                } else {
-                    break;
-                }
-            }
-        }
-
-        self.skip_newlines();
-        let end_span = self.current_span();
-        self.expect(&TokenKind::RightParen)?;
+        let (args, end_span) = self.parse_call_args()?;
 
         let span = Span::new(
             start_span.start,

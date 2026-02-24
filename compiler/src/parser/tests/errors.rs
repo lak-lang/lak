@@ -116,6 +116,13 @@ fn test_error_trailing_comma() {
     assert_eq!(err.message(), "Unexpected token: ')'");
 }
 
+#[test]
+fn test_error_trailing_comma_in_member_call() {
+    let err = parse_error(r#"fn main() -> void { math.add("a",) }"#);
+    assert_eq!(err.kind(), ParseErrorKind::UnexpectedToken);
+    assert_eq!(err.message(), "Unexpected token: ')'");
+}
+
 // ===================
 // Unexpected token errors
 // ===================
