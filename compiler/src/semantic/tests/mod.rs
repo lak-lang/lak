@@ -8,6 +8,7 @@ use crate::ast::{
 use crate::token::Span;
 
 mod function_tests;
+mod reuse_regression_tests;
 mod symbol_table_tests;
 mod type_tests;
 mod variable_tests;
