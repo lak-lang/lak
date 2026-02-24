@@ -406,6 +406,47 @@ fn test_compile_missing_return_error_uses_source_function_name() {
 }
 
 #[test]
+fn test_compile_invalid_return_type_reports_internal_error_at_return_type_span() {
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "test");
+
+    let invalid_return_type_span = Span::new(0, 0, 1, 16);
+    let program = Program {
+        imports: vec![],
+        functions: vec![
+            FnDef {
+                visibility: Visibility::Private,
+                name: "helper".to_string(),
+                params: vec![],
+                return_type: "int".to_string(),
+                return_type_span: invalid_return_type_span,
+                body: vec![],
+                span: dummy_span(),
+            },
+            FnDef {
+                visibility: Visibility::Private,
+                name: "main".to_string(),
+                params: vec![],
+                return_type: "void".to_string(),
+                return_type_span: dummy_span(),
+                body: vec![],
+                span: dummy_span(),
+            },
+        ],
+    };
+
+    let err = codegen
+        .compile(&program)
+        .expect_err("invalid return type must fail in codegen declaration path");
+    assert_eq!(err.kind(), CodegenErrorKind::InternalError);
+    assert_eq!(
+        err.message(),
+        "Internal error: unsupported function return type 'int' in codegen. Semantic analysis should have rejected this. This is a compiler bug."
+    );
+    assert_eq!(err.span(), Some(invalid_return_type_span));
+}
+
+#[test]
 fn test_compile_if_condition_non_bool_returns_internal_error() {
     let context = Context::create();
     let mut codegen = Codegen::new(&context, "test");

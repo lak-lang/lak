@@ -70,21 +70,8 @@ impl SemanticAnalyzer {
         name: &str,
         span: Span,
     ) -> Result<Type, SemanticError> {
-        match name {
-            "i8" => Ok(Type::I8),
-            "i16" => Ok(Type::I16),
-            "i32" => Ok(Type::I32),
-            "i64" => Ok(Type::I64),
-            "u8" | "byte" => Ok(Type::U8),
-            "u16" => Ok(Type::U16),
-            "u32" => Ok(Type::U32),
-            "u64" => Ok(Type::U64),
-            "f32" => Ok(Type::F32),
-            "f64" => Ok(Type::F64),
-            "string" => Ok(Type::String),
-            "bool" => Ok(Type::Bool),
-            _ => Err(SemanticError::invalid_function_return_type(name, span)),
-        }
+        Type::from_source_name(name)
+            .ok_or_else(|| SemanticError::invalid_function_return_type(name, span))
     }
 
     pub(super) fn resolve_user_call(

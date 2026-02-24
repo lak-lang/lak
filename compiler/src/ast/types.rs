@@ -36,6 +36,36 @@ pub enum Type {
 }
 
 impl Type {
+    /// Decodes a source-level type name into a [`Type`].
+    pub(crate) fn from_source_name(name: &str) -> Option<Self> {
+        match name {
+            "i8" => Some(Self::I8),
+            "i16" => Some(Self::I16),
+            "i32" => Some(Self::I32),
+            "i64" => Some(Self::I64),
+            "u8" | "byte" => Some(Self::U8),
+            "u16" => Some(Self::U16),
+            "u32" => Some(Self::U32),
+            "u64" => Some(Self::U64),
+            "f32" => Some(Self::F32),
+            "f64" => Some(Self::F64),
+            "string" => Some(Self::String),
+            "bool" => Some(Self::Bool),
+            _ => None,
+        }
+    }
+
+    /// Decodes a source-level function return type.
+    ///
+    /// `None` inside `Some` represents `void`.
+    pub(crate) fn from_function_return_name(name: &str) -> Option<Option<Self>> {
+        if name == "void" {
+            Some(None)
+        } else {
+            Self::from_source_name(name).map(Some)
+        }
+    }
+
     /// Returns true when this type is one of Lak's integer primitives.
     pub fn is_integer(&self) -> bool {
         matches!(

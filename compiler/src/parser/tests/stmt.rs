@@ -367,10 +367,13 @@ fn test_error_let_missing_type() {
 #[test]
 fn test_error_let_unknown_type() {
     let err = parse_error("fn main() -> void { let x: unknown = 42 }");
+    assert_eq!(err.kind(), ParseErrorKind::ExpectedType);
     assert_eq!(
         err.message(),
         "Unknown type: 'unknown'. Expected 'i8', 'i16', 'i32', 'i64', 'u8', 'u16', 'u32', 'u64', 'f32', 'f64', 'byte', 'string', or 'bool'"
     );
+    assert_eq!(err.span().line, 1);
+    assert_eq!(err.span().column, 28);
 }
 
 #[test]

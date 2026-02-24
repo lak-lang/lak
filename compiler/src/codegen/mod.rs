@@ -662,25 +662,9 @@ impl<'ctx> Codegen<'ctx> {
         return_type: &str,
         span: crate::token::Span,
     ) -> Result<Option<Type>, CodegenError> {
-        match return_type {
-            "void" => Ok(None),
-            "i8" => Ok(Some(Type::I8)),
-            "i16" => Ok(Some(Type::I16)),
-            "i32" => Ok(Some(Type::I32)),
-            "i64" => Ok(Some(Type::I64)),
-            "u8" | "byte" => Ok(Some(Type::U8)),
-            "u16" => Ok(Some(Type::U16)),
-            "u32" => Ok(Some(Type::U32)),
-            "u64" => Ok(Some(Type::U64)),
-            "f32" => Ok(Some(Type::F32)),
-            "f64" => Ok(Some(Type::F64)),
-            "string" => Ok(Some(Type::String)),
-            "bool" => Ok(Some(Type::Bool)),
-            _ => Err(CodegenError::internal_unsupported_function_return_type(
-                return_type,
-                span,
-            )),
-        }
+        Type::from_function_return_name(return_type).ok_or_else(|| {
+            CodegenError::internal_unsupported_function_return_type(return_type, span)
+        })
     }
 
     /// Generates the body of a user-defined function.

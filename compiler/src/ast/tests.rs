@@ -254,6 +254,54 @@ fn test_type_i64() {
 }
 
 #[test]
+fn test_type_from_source_name_allows_primitives() {
+    assert_eq!(Type::from_source_name("i8"), Some(Type::I8));
+    assert_eq!(Type::from_source_name("i16"), Some(Type::I16));
+    assert_eq!(Type::from_source_name("i32"), Some(Type::I32));
+    assert_eq!(Type::from_source_name("i64"), Some(Type::I64));
+    assert_eq!(Type::from_source_name("u8"), Some(Type::U8));
+    assert_eq!(Type::from_source_name("u16"), Some(Type::U16));
+    assert_eq!(Type::from_source_name("u32"), Some(Type::U32));
+    assert_eq!(Type::from_source_name("u64"), Some(Type::U64));
+    assert_eq!(Type::from_source_name("f32"), Some(Type::F32));
+    assert_eq!(Type::from_source_name("f64"), Some(Type::F64));
+    assert_eq!(Type::from_source_name("string"), Some(Type::String));
+    assert_eq!(Type::from_source_name("bool"), Some(Type::Bool));
+}
+
+#[test]
+fn test_type_from_source_name_supports_byte_alias() {
+    assert_eq!(Type::from_source_name("byte"), Some(Type::U8));
+}
+
+#[test]
+fn test_type_from_source_name_rejects_unknown() {
+    assert_eq!(Type::from_source_name("int"), None);
+}
+
+#[test]
+fn test_type_from_function_return_name_handles_void_and_types() {
+    assert_eq!(Type::from_function_return_name("void"), Some(None));
+    assert_eq!(
+        Type::from_function_return_name("i64"),
+        Some(Some(Type::I64))
+    );
+    assert_eq!(
+        Type::from_function_return_name("string"),
+        Some(Some(Type::String))
+    );
+    assert_eq!(
+        Type::from_function_return_name("byte"),
+        Some(Some(Type::U8))
+    );
+}
+
+#[test]
+fn test_type_from_function_return_name_rejects_unknown() {
+    assert_eq!(Type::from_function_return_name("int"), None);
+}
+
+#[test]
 fn test_type_is_integer() {
     assert!(Type::I32.is_integer());
     assert!(Type::I64.is_integer());

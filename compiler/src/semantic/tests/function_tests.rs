@@ -243,6 +243,48 @@ fn test_invalid_main_signature() {
     );
 }
 
+#[test]
+fn test_invalid_non_main_return_type_uses_return_type_span() {
+    let invalid_return_type_span = span_at(1, 16);
+    let program = Program {
+        imports: vec![],
+        functions: vec![
+            FnDef {
+                visibility: Visibility::Private,
+                name: "helper".to_string(),
+                params: vec![],
+                return_type: "int".to_string(),
+                return_type_span: invalid_return_type_span,
+                body: vec![Stmt::new(
+                    StmtKind::Return(Some(Expr::new(ExprKind::IntLiteral(1), span_at(2, 12)))),
+                    span_at(2, 5),
+                )],
+                span: span_at(1, 1),
+            },
+            FnDef {
+                visibility: Visibility::Private,
+                name: "main".to_string(),
+                params: vec![],
+                return_type: "void".to_string(),
+                return_type_span: span_at(4, 14),
+                body: vec![],
+                span: span_at(4, 1),
+            },
+        ],
+    };
+
+    let mut analyzer = SemanticAnalyzer::new();
+    let result = analyzer.analyze(&program);
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert_eq!(err.kind(), SemanticErrorKind::TypeMismatch);
+    assert_eq!(
+        err.message(),
+        "Unsupported function return type 'int'. Expected 'void', 'i8', 'i16', 'i32', 'i64', 'u8', 'u16', 'u32', 'u64', 'f32', 'f64', 'byte', 'string', or 'bool'"
+    );
+    assert_eq!(err.span().unwrap(), invalid_return_type_span);
+}
+
 // ============================================================================
 // Undefined function tests
 // ============================================================================
