@@ -1,4 +1,4 @@
-//! Regression tests for SemanticAnalyzer reuse behavior (RP-022).
+//! Regression tests for SemanticAnalyzer reuse behavior.
 //!
 //! These tests ensure analyzer state does not leak across successive calls to:
 //! - `analyze`
