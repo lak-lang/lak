@@ -11,7 +11,30 @@
 
 use std::cmp::Ordering;
 use std::ffi::CStr;
+use std::fmt::Display;
 use std::os::raw::c_char;
+
+fn print_display_line(value: impl Display) {
+    println!("{value}");
+}
+
+/// Converts a nullable C string pointer to `Option<&CStr>`.
+///
+/// # Safety
+///
+/// If `ptr` is non-null, it must point to a valid null-terminated C string.
+unsafe fn cstr_from_nullable_ptr<'a>(ptr: *const c_char) -> Option<&'a CStr> {
+    if ptr.is_null() {
+        return None;
+    }
+
+    // SAFETY: The caller guarantees `ptr` is valid and null-terminated when non-null.
+    Some(unsafe { CStr::from_ptr(ptr) })
+}
+
+fn cstr_to_lossy_str(c_str: &CStr) -> String {
+    c_str.to_string_lossy().into_owned()
+}
 
 /// Prints a string followed by a newline to stdout.
 ///
@@ -20,82 +43,36 @@ use std::os::raw::c_char;
 /// The caller must ensure that `s` is a valid null-terminated C string.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn lak_println(s: *const c_char) {
-    if s.is_null() {
-        println!();
-        return;
-    }
-
-    // SAFETY: We verified s is non-null above, and the caller guarantees
-    // it points to a valid null-terminated C string.
-    let c_str = unsafe { CStr::from_ptr(s) };
-    match c_str.to_str() {
-        Ok(rust_str) => println!("{}", rust_str),
-        Err(_) => {
-            // Invalid UTF-8: print bytes as lossy string
-            println!("{}", String::from_utf8_lossy(c_str.to_bytes()));
-        }
+    // SAFETY: `lak_println` requires that non-null pointers are valid C strings.
+    match unsafe { cstr_from_nullable_ptr(s) } {
+        Some(c_str) => println!("{}", cstr_to_lossy_str(c_str)),
+        None => println!(),
     }
 }
 
-/// Prints a 32-bit signed integer followed by a newline to stdout.
-#[unsafe(no_mangle)]
-pub extern "C" fn lak_println_i32(value: i32) {
-    println!("{}", value);
+macro_rules! define_numeric_println {
+    ($(($fn_name:ident, $ty:ty)),* $(,)?) => {
+        $(
+            #[unsafe(no_mangle)]
+            pub extern "C" fn $fn_name(value: $ty) {
+                print_display_line(value);
+            }
+        )*
+    };
 }
 
-/// Prints an 8-bit signed integer followed by a newline to stdout.
-#[unsafe(no_mangle)]
-pub extern "C" fn lak_println_i8(value: i8) {
-    println!("{}", value);
-}
-
-/// Prints a 16-bit signed integer followed by a newline to stdout.
-#[unsafe(no_mangle)]
-pub extern "C" fn lak_println_i16(value: i16) {
-    println!("{}", value);
-}
-
-/// Prints a 64-bit signed integer followed by a newline to stdout.
-#[unsafe(no_mangle)]
-pub extern "C" fn lak_println_i64(value: i64) {
-    println!("{}", value);
-}
-
-/// Prints an 8-bit unsigned integer followed by a newline to stdout.
-#[unsafe(no_mangle)]
-pub extern "C" fn lak_println_u8(value: u8) {
-    println!("{}", value);
-}
-
-/// Prints a 16-bit unsigned integer followed by a newline to stdout.
-#[unsafe(no_mangle)]
-pub extern "C" fn lak_println_u16(value: u16) {
-    println!("{}", value);
-}
-
-/// Prints a 32-bit unsigned integer followed by a newline to stdout.
-#[unsafe(no_mangle)]
-pub extern "C" fn lak_println_u32(value: u32) {
-    println!("{}", value);
-}
-
-/// Prints a 64-bit unsigned integer followed by a newline to stdout.
-#[unsafe(no_mangle)]
-pub extern "C" fn lak_println_u64(value: u64) {
-    println!("{}", value);
-}
-
-/// Prints a 32-bit floating-point number followed by a newline to stdout.
-#[unsafe(no_mangle)]
-pub extern "C" fn lak_println_f32(value: f32) {
-    println!("{}", value);
-}
-
-/// Prints a 64-bit floating-point number followed by a newline to stdout.
-#[unsafe(no_mangle)]
-pub extern "C" fn lak_println_f64(value: f64) {
-    println!("{}", value);
-}
+define_numeric_println!(
+    (lak_println_i32, i32),
+    (lak_println_i8, i8),
+    (lak_println_i16, i16),
+    (lak_println_i64, i64),
+    (lak_println_u8, u8),
+    (lak_println_u16, u16),
+    (lak_println_u32, u32),
+    (lak_println_u64, u64),
+    (lak_println_f32, f32),
+    (lak_println_f64, f64),
+);
 
 /// Prints a boolean value followed by a newline to stdout.
 ///
@@ -123,13 +100,16 @@ pub unsafe extern "C" fn lak_streq(a: *const c_char, b: *const c_char) -> bool {
     if a == b {
         return true;
     }
-    if a.is_null() || b.is_null() {
+
+    // SAFETY: `lak_streq` requires that non-null pointers are valid C strings.
+    let Some(a_str) = (unsafe { cstr_from_nullable_ptr(a) }) else {
         return false;
-    }
-    // SAFETY: We verified both pointers are non-null above, and the caller
-    // guarantees they point to valid null-terminated C strings.
-    let a_str = unsafe { CStr::from_ptr(a) };
-    let b_str = unsafe { CStr::from_ptr(b) };
+    };
+    // SAFETY: `lak_streq` requires that non-null pointers are valid C strings.
+    let Some(b_str) = (unsafe { cstr_from_nullable_ptr(b) }) else {
+        return false;
+    };
+
     a_str == b_str
 }
 
@@ -153,17 +133,15 @@ pub unsafe extern "C" fn lak_strcmp(a: *const c_char, b: *const c_char) -> i32 {
     if a == b {
         return 0;
     }
-    if a.is_null() {
-        return -1;
-    }
-    if b.is_null() {
-        return 1;
-    }
 
-    // SAFETY: We verified both pointers are non-null above, and the caller
-    // guarantees they point to valid null-terminated C strings.
-    let a_cstr = unsafe { CStr::from_ptr(a) };
-    let b_cstr = unsafe { CStr::from_ptr(b) };
+    // SAFETY: `lak_strcmp` requires that non-null pointers are valid C strings.
+    let Some(a_cstr) = (unsafe { cstr_from_nullable_ptr(a) }) else {
+        return -1;
+    };
+    // SAFETY: `lak_strcmp` requires that non-null pointers are valid C strings.
+    let Some(b_cstr) = (unsafe { cstr_from_nullable_ptr(b) }) else {
+        return 1;
+    };
 
     let ordering = a_cstr.cmp(b_cstr);
 
@@ -191,17 +169,9 @@ pub unsafe extern "C" fn lak_strcmp(a: *const c_char, b: *const c_char) -> i32 {
 /// The caller must ensure that `message` is a valid null-terminated C string.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn lak_panic(message: *const c_char) -> ! {
-    if !message.is_null() {
-        // SAFETY: We verified message is non-null, and the caller guarantees
-        // it points to a valid null-terminated C string.
-        let c_str = unsafe { CStr::from_ptr(message) };
-        match c_str.to_str() {
-            Ok(rust_str) => eprintln!("panic: {}", rust_str),
-            Err(_) => {
-                // Invalid UTF-8: print bytes as lossy string
-                eprintln!("panic: {}", String::from_utf8_lossy(c_str.to_bytes()));
-            }
-        }
+    // SAFETY: `lak_panic` requires that non-null pointers are valid C strings.
+    if let Some(c_str) = unsafe { cstr_from_nullable_ptr(message) } {
+        eprintln!("panic: {}", cstr_to_lossy_str(c_str));
     } else {
         eprintln!("panic: (no message)");
     }
