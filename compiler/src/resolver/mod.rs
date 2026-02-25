@@ -169,7 +169,10 @@ impl ModuleResolver {
             ResolverError::lex_error_in_module(path, e.message(), e.span(), source_content)
         })?;
 
-        let mut parser = Parser::new(tokens);
+        let mut parser = Parser::try_new(tokens).map_err(|e| {
+            let source_content = import_span.map(|_| source.clone());
+            ResolverError::parse_error_in_module(path, e.message(), e.span(), source_content)
+        })?;
         let program = parser.parse().map_err(|e| {
             let source_content = import_span.map(|_| source.clone());
             ResolverError::parse_error_in_module(path, e.message(), e.span(), source_content)

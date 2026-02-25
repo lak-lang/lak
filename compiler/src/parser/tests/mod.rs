@@ -25,7 +25,8 @@ pub(super) fn parse(input: &str) -> Result<Program, ParseError> {
     let tokens = lexer
         .tokenize()
         .unwrap_or_else(|e| panic!("Lexer failed on parser test input {:?}: {}", input, e));
-    let mut parser = Parser::new(tokens);
+    let mut parser = Parser::try_new(tokens)
+        .unwrap_or_else(|e| panic!("Parser initialization failed on input {:?}: {}", input, e));
     parser.parse()
 }
 

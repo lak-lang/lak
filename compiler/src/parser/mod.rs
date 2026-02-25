@@ -82,7 +82,7 @@ mod tests;
 pub use error::{ParseError, ParseErrorKind};
 
 use crate::ast::Program;
-use crate::token::{Token, TokenKind};
+use crate::token::{Span, Token, TokenKind};
 
 /// A recursive descent parser for the Lak language.
 ///
@@ -101,14 +101,37 @@ pub struct Parser {
 }
 
 impl Parser {
+    fn eof_placeholder_token() -> Token {
+        Token::new(TokenKind::Eof, Span::new(0, 0, 1, 1))
+    }
+
     /// Creates a new parser from a token list.
     ///
-    /// # Panics
-    /// Panics if the token list is empty. The lexer should always
-    /// produce at least an Eof token.
+    /// This compatibility constructor never panics. If `tokens` is empty,
+    /// it inserts a synthetic `Eof` token to preserve parser invariants.
     pub fn new(tokens: Vec<Token>) -> Self {
-        assert!(!tokens.is_empty(), "Token list must not be empty");
+        if tokens.is_empty() {
+            return Parser {
+                tokens: vec![Self::eof_placeholder_token()],
+                pos: 0,
+            };
+        }
+
         Parser { tokens, pos: 0 }
+    }
+
+    /// Creates a new parser from a token list, returning an error if it is empty.
+    ///
+    /// Use this when callers want explicit validation instead of normalization.
+    pub fn try_new(tokens: Vec<Token>) -> Result<Self, ParseError> {
+        if tokens.is_empty() {
+            return Err(ParseError::internal(
+                "Internal error: parser received an empty token stream. This is a compiler bug.",
+                Span::new(0, 0, 1, 1),
+            ));
+        }
+
+        Ok(Parser { tokens, pos: 0 })
     }
 
     /// Parses the entire token stream into a [`Program`].

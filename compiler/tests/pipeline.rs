@@ -24,7 +24,7 @@ fn test_lexer_parser_integration() {
     // fn, main, (, ), ->, void, {, println, (, string, ), }, eof
     assert_eq!(tokens.len(), 13);
 
-    let mut parser = Parser::new(tokens);
+    let mut parser = Parser::try_new(tokens).unwrap();
     let program = parser.parse().unwrap();
     assert_eq!(program.functions.len(), 1);
     assert_eq!(program.functions[0].name, "main");

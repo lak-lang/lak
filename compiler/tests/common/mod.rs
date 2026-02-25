@@ -160,7 +160,7 @@ pub fn compile_and_run(source: &str) -> Result<String, String> {
     let tokens = lexer.tokenize().map_err(|e| e.to_string())?;
 
     // Parse
-    let mut parser = Parser::new(tokens);
+    let mut parser = Parser::try_new(tokens).map_err(|e| e.to_string())?;
     let program = parser.parse().map_err(|e| e.to_string())?;
 
     // Semantic analysis
@@ -275,7 +275,10 @@ pub fn compile_error(source: &str) -> Option<(CompileStage, String)> {
         Err(e) => return Some((CompileStage::Lex, e.message().to_string())),
     };
 
-    let mut parser = Parser::new(tokens);
+    let mut parser = match Parser::try_new(tokens) {
+        Ok(p) => p,
+        Err(e) => return Some((CompileStage::Parse, e.message().to_string())),
+    };
     let program = match parser.parse() {
         Ok(p) => p,
         Err(e) => return Some((CompileStage::Parse, e.message().to_string())),
@@ -318,7 +321,17 @@ pub fn compile_error_with_kind(
         }
     };
 
-    let mut parser = Parser::new(tokens);
+    let mut parser = match Parser::try_new(tokens) {
+        Ok(p) => p,
+        Err(e) => {
+            return Some((
+                CompileStage::Parse,
+                e.message().to_string(),
+                e.short_message().to_string(),
+                CompileErrorKind::Parse(e.kind()),
+            ));
+        }
+    };
     let program = match parser.parse() {
         Ok(p) => p,
         Err(e) => {

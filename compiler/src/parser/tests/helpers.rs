@@ -1,7 +1,7 @@
 //! Parser helper and edge case tests.
 //!
 //! Tests for:
-//! - Parser invariants (panic tests)
+//! - Parser constructor contract behavior
 //! - Whitespace and newline handling
 //! - Unicode edge cases
 //! - Span tracking
@@ -12,13 +12,29 @@ use crate::parser::ParseErrorKind;
 use crate::token::Span;
 
 // ===================
-// Panic tests
+// Constructor contract tests
 // ===================
 
 #[test]
-#[should_panic(expected = "Token list must not be empty")]
-fn test_parser_new_panics_on_empty() {
-    Parser::new(vec![]);
+fn test_parser_new_normalizes_empty_token_list() {
+    let mut parser = Parser::new(vec![]);
+    let program = parser.parse().unwrap();
+    assert!(program.imports.is_empty());
+    assert!(program.functions.is_empty());
+}
+
+#[test]
+fn test_parser_try_new_rejects_empty_token_list() {
+    let err = match Parser::try_new(vec![]) {
+        Ok(_) => panic!("Expected empty token list to be rejected"),
+        Err(err) => err,
+    };
+    assert_eq!(err.kind(), ParseErrorKind::InternalError);
+    assert_eq!(
+        err.message(),
+        "Internal error: parser received an empty token stream. This is a compiler bug."
+    );
+    assert_eq!(err.span(), Span::new(0, 0, 1, 1));
 }
 
 // ===================
