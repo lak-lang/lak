@@ -40,7 +40,38 @@ impl<'a> Lexer<'a> {
         let start_line = self.line;
         let start_column = self.column;
 
-        match c {
+        if let Some(token) =
+            self.next_punctuation_or_operator(c, start_pos, start_line, start_column)
+        {
+            return token;
+        }
+
+        if let Some(token) = self.next_literal(c, start_pos, start_line, start_column) {
+            return token;
+        }
+
+        if let Some(token) = self.next_identifier_or_keyword(c, start_pos, start_line, start_column)
+        {
+            return token;
+        }
+
+        // Provide specific error message for non-ASCII alphabetic characters
+        let span = Span::new(self.pos, self.pos + c.len_utf8(), self.line, self.column);
+        if c.is_alphabetic() {
+            Err(LexError::invalid_identifier_character(c, span))
+        } else {
+            Err(LexError::unexpected_character(c, span))
+        }
+    }
+
+    fn next_punctuation_or_operator(
+        &mut self,
+        c: char,
+        start_pos: usize,
+        start_line: usize,
+        start_column: usize,
+    ) -> Option<Result<Token, LexError>> {
+        let token = match c {
             '(' => Ok(self.single_char_token(
                 TokenKind::LeftParen,
                 start_pos,
@@ -162,20 +193,37 @@ impl<'a> Lexer<'a> {
             '%' => {
                 Ok(self.single_char_token(TokenKind::Percent, start_pos, start_line, start_column))
             }
-            '"' => self.read_string(start_pos, start_line, start_column),
-            _ if c.is_ascii_digit() => self.read_number(start_pos, start_line, start_column),
-            _ if c.is_ascii_alphabetic() || c == '_' => {
-                self.read_identifier(start_pos, start_line, start_column)
-            }
-            _ => {
-                // Provide specific error message for non-ASCII alphabetic characters
-                let span = Span::new(self.pos, self.pos + c.len_utf8(), self.line, self.column);
-                if c.is_alphabetic() {
-                    Err(LexError::invalid_identifier_character(c, span))
-                } else {
-                    Err(LexError::unexpected_character(c, span))
-                }
-            }
+            _ => return None,
+        };
+
+        Some(token)
+    }
+
+    fn next_literal(
+        &mut self,
+        c: char,
+        start_pos: usize,
+        start_line: usize,
+        start_column: usize,
+    ) -> Option<Result<Token, LexError>> {
+        match c {
+            '"' => Some(self.read_string(start_pos, start_line, start_column)),
+            _ if c.is_ascii_digit() => Some(self.read_number(start_pos, start_line, start_column)),
+            _ => None,
+        }
+    }
+
+    fn next_identifier_or_keyword(
+        &mut self,
+        c: char,
+        start_pos: usize,
+        start_line: usize,
+        start_column: usize,
+    ) -> Option<Result<Token, LexError>> {
+        if c.is_ascii_alphabetic() || c == '_' {
+            Some(self.read_identifier(start_pos, start_line, start_column))
+        } else {
+            None
         }
     }
 
