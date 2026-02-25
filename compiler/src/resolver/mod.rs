@@ -85,12 +85,83 @@ impl ResolvedModule {
     }
 }
 
+/// Tracks the active module resolution stack and builds cycle diagnostics.
+///
+/// This keeps cycle-specific concerns isolated from the main resolution flow.
+#[derive(Default)]
+struct CycleTracker {
+    /// Current resolution stack.
+    stack: Vec<PathBuf>,
+    /// Reverse index for O(1) cycle membership checks.
+    stack_index: HashMap<PathBuf, usize>,
+}
+
+impl CycleTracker {
+    fn new() -> Self {
+        Self::default()
+    }
+
+    fn contains(&self, path: &Path) -> bool {
+        self.stack_index.contains_key(path)
+    }
+
+    fn push(&mut self, path: &Path) {
+        let index = self.stack.len();
+        let owned_path = path.to_path_buf();
+        self.stack.push(owned_path.clone());
+        self.stack_index.insert(owned_path, index);
+    }
+
+    fn pop(&mut self) {
+        if let Some(path) = self.stack.pop() {
+            self.stack_index.remove(&path);
+        }
+    }
+
+    fn circular_import_error(
+        &self,
+        path: &Path,
+        import_span: Option<Span>,
+    ) -> Option<ResolverError> {
+        if !self.contains(path) {
+            return None;
+        }
+
+        let cycle = self.format_cycle(path);
+        Some(match import_span {
+            Some(span) => ResolverError::circular_import(&cycle, span),
+            None => ResolverError::circular_import_no_span(&cycle),
+        })
+    }
+
+    fn format_cycle(&self, path: &Path) -> String {
+        let start_index = self
+            .stack_index
+            .get(path)
+            .copied()
+            .unwrap_or(self.stack.len());
+        let mut cycle_parts: Vec<String> = self.stack[start_index..]
+            .iter()
+            .map(|p| Self::path_to_name(p))
+            .collect();
+        cycle_parts.push(Self::path_to_name(path));
+        cycle_parts.join(" -> ")
+    }
+
+    fn path_to_name(path: &Path) -> String {
+        path.file_stem()
+            .and_then(|s| s.to_str())
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| path.display().to_string())
+    }
+}
+
 /// Module resolver that handles import resolution and cycle detection.
 pub struct ModuleResolver {
     /// Cache of resolved modules (key: canonical absolute path).
     modules: HashMap<PathBuf, ResolvedModule>,
-    /// Current resolution stack for cycle detection.
-    resolving: Vec<PathBuf>,
+    /// Current resolution stack and cycle reporting utilities.
+    cycle_tracker: CycleTracker,
 }
 
 impl ModuleResolver {
@@ -98,7 +169,7 @@ impl ModuleResolver {
     pub fn new() -> Self {
         ModuleResolver {
             modules: HashMap::new(),
-            resolving: Vec::new(),
+            cycle_tracker: CycleTracker::new(),
         }
     }
 
@@ -125,13 +196,9 @@ impl ModuleResolver {
         import_span: Option<Span>,
         pre_read_source: Option<String>,
     ) -> Result<(), ResolverError> {
-        // Check for circular dependency
-        if self.resolving.iter().any(|p| p == path) {
-            let cycle = self.format_cycle(path);
-            return match import_span {
-                Some(span) => Err(ResolverError::circular_import(&cycle, span)),
-                None => Err(ResolverError::circular_import_no_span(&cycle)),
-            };
+        // Check for circular dependency.
+        if let Some(error) = self.cycle_tracker.circular_import_error(path, import_span) {
+            return Err(error);
         }
 
         // Check cache
@@ -140,9 +207,9 @@ impl ModuleResolver {
         }
 
         // Add to resolution stack; always cleaned up via pop below
-        self.resolving.push(path.to_path_buf());
+        self.cycle_tracker.push(path);
         let result = self.resolve_module_inner(path, import_span, pre_read_source);
-        self.resolving.pop();
+        self.cycle_tracker.pop();
         result
     }
 
@@ -278,23 +345,9 @@ impl ModuleResolver {
     }
 
     /// Formats a circular import error message.
+    #[cfg(test)]
     fn format_cycle(&self, path: &Path) -> String {
-        let path_to_name = |p: &Path| -> String {
-            p.file_stem()
-                .and_then(|s| s.to_str())
-                .map(|s| s.to_string())
-                .unwrap_or_else(|| p.display().to_string())
-        };
-
-        let mut cycle_parts: Vec<String> = self
-            .resolving
-            .iter()
-            .skip_while(|p| p.as_path() != path)
-            .map(|p| path_to_name(p))
-            .collect();
-        cycle_parts.push(path_to_name(path));
-
-        cycle_parts.join(" -> ")
+        self.cycle_tracker.format_cycle(path)
     }
 
     /// Returns all resolved modules.
@@ -390,8 +443,8 @@ mod tests {
     #[test]
     fn test_format_cycle_two_modules() {
         let mut resolver = ModuleResolver::new();
-        resolver.resolving.push(PathBuf::from("/tmp/a.lak"));
-        resolver.resolving.push(PathBuf::from("/tmp/b.lak"));
+        resolver.cycle_tracker.push(Path::new("/tmp/a.lak"));
+        resolver.cycle_tracker.push(Path::new("/tmp/b.lak"));
         let result = resolver.format_cycle(Path::new("/tmp/a.lak"));
         assert_eq!(result, "a -> b -> a");
     }
@@ -399,7 +452,7 @@ mod tests {
     #[test]
     fn test_format_cycle_self_import() {
         let mut resolver = ModuleResolver::new();
-        resolver.resolving.push(PathBuf::from("/tmp/a.lak"));
+        resolver.cycle_tracker.push(Path::new("/tmp/a.lak"));
         let result = resolver.format_cycle(Path::new("/tmp/a.lak"));
         assert_eq!(result, "a -> a");
     }
@@ -407,9 +460,9 @@ mod tests {
     #[test]
     fn test_format_cycle_three_modules() {
         let mut resolver = ModuleResolver::new();
-        resolver.resolving.push(PathBuf::from("/tmp/a.lak"));
-        resolver.resolving.push(PathBuf::from("/tmp/b.lak"));
-        resolver.resolving.push(PathBuf::from("/tmp/c.lak"));
+        resolver.cycle_tracker.push(Path::new("/tmp/a.lak"));
+        resolver.cycle_tracker.push(Path::new("/tmp/b.lak"));
+        resolver.cycle_tracker.push(Path::new("/tmp/c.lak"));
         let result = resolver.format_cycle(Path::new("/tmp/a.lak"));
         assert_eq!(result, "a -> b -> c -> a");
     }
@@ -417,9 +470,9 @@ mod tests {
     #[test]
     fn test_format_cycle_starts_mid_stack() {
         let mut resolver = ModuleResolver::new();
-        resolver.resolving.push(PathBuf::from("/tmp/a.lak"));
-        resolver.resolving.push(PathBuf::from("/tmp/b.lak"));
-        resolver.resolving.push(PathBuf::from("/tmp/c.lak"));
+        resolver.cycle_tracker.push(Path::new("/tmp/a.lak"));
+        resolver.cycle_tracker.push(Path::new("/tmp/b.lak"));
+        resolver.cycle_tracker.push(Path::new("/tmp/c.lak"));
         let result = resolver.format_cycle(Path::new("/tmp/b.lak"));
         assert_eq!(result, "b -> c -> b");
     }
@@ -427,8 +480,8 @@ mod tests {
     #[test]
     fn test_format_cycle_path_without_extension() {
         let mut resolver = ModuleResolver::new();
-        resolver.resolving.push(PathBuf::from("/tmp/a"));
-        resolver.resolving.push(PathBuf::from("/tmp/b"));
+        resolver.cycle_tracker.push(Path::new("/tmp/a"));
+        resolver.cycle_tracker.push(Path::new("/tmp/b"));
         let result = resolver.format_cycle(Path::new("/tmp/a"));
         assert_eq!(result, "a -> b -> a");
     }
