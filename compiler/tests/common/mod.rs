@@ -9,6 +9,7 @@
 
 use lak::codegen::{Codegen, CodegenError, CodegenErrorKind};
 use lak::lexer::{LexErrorKind, Lexer};
+use lak::linker;
 use lak::parser::{ParseErrorKind, Parser};
 use lak::semantic::{SemanticAnalyzer, SemanticErrorKind};
 use lak::token::Span;
@@ -21,26 +22,13 @@ use std::process::Command;
 use tempfile::tempdir;
 
 /// Returns the runtime static library filename for the current target.
-#[cfg(all(target_os = "windows", target_env = "msvc"))]
 pub fn runtime_library_filename() -> &'static str {
-    "lak_runtime.lib"
-}
-
-/// Returns the runtime static library filename for the current target.
-#[cfg(not(all(target_os = "windows", target_env = "msvc")))]
-pub fn runtime_library_filename() -> &'static str {
-    "liblak_runtime.a"
+    linker::runtime_library_filename()
 }
 
 /// Returns the runtime library path expected next to the given `lak` binary path.
 pub fn runtime_library_path_for_binary(binary_path: &Path) -> Result<PathBuf, String> {
-    let binary_dir = binary_path.parent().ok_or_else(|| {
-        format!(
-            "Lak binary path '{}' has no parent directory",
-            binary_path.display()
-        )
-    })?;
-    Ok(binary_dir.join(runtime_library_filename()))
+    linker::runtime_library_path_for_binary(binary_path).map_err(|e| e.to_string())
 }
 
 /// Copies the built `lak` binary into `dir` and returns the copied path.
@@ -68,63 +56,7 @@ pub fn copy_lak_binary_to(dir: &Path) -> Result<PathBuf, String> {
 /// validates that the path exists and points to a regular file.
 fn resolve_runtime_library_path() -> Result<PathBuf, String> {
     let lak_path = PathBuf::from(lak_binary());
-    let runtime_path = runtime_library_path_for_binary(&lak_path)?;
-    match std::fs::metadata(&runtime_path) {
-        Ok(metadata) => {
-            if !metadata.is_file() {
-                return Err(format!(
-                    "Lak runtime library path '{}' is not a regular file (resolved from executable '{}'). Place the 'lak' executable and runtime library in the same directory.",
-                    runtime_path.display(),
-                    lak_path.display()
-                ));
-            }
-        }
-        Err(io_err) if io_err.kind() == std::io::ErrorKind::NotFound => {
-            return Err(format!(
-                "Lak runtime library not found at '{}' (resolved from executable '{}'). Place the 'lak' executable and runtime library in the same directory.",
-                runtime_path.display(),
-                lak_path.display()
-            ));
-        }
-        Err(io_err) => {
-            return Err(format!(
-                "Failed to access Lak runtime library path '{}' (resolved from executable '{}'): {}",
-                runtime_path.display(),
-                lak_path.display(),
-                io_err
-            ));
-        }
-    }
-
-    Ok(runtime_path)
-}
-
-/// Maps Rust architecture identifiers to MSVC architecture identifiers.
-#[cfg(all(target_os = "windows", target_env = "msvc"))]
-fn msvc_linker_arch() -> Result<&'static str, String> {
-    match std::env::consts::ARCH {
-        "x86_64" => Ok("x64"),
-        "aarch64" => Ok("arm64"),
-        "x86" => Ok("x86"),
-        unsupported => Err(format!(
-            "Unsupported architecture '{}' for MSVC linker auto-detection. Supported architectures are 'x86_64', 'aarch64', and 'x86'.",
-            unsupported
-        )),
-    }
-}
-
-/// Resolves an MSVC `link.exe` command with its toolchain environment.
-#[cfg(all(target_os = "windows", target_env = "msvc"))]
-fn resolve_msvc_linker_command() -> Result<Command, String> {
-    let arch = msvc_linker_arch()?;
-    // `find` returns a command preconfigured with MSVC environment variables
-    // (including LIB), so callers don't need to set them manually.
-    cc::windows_registry::find(arch, "link.exe").ok_or_else(|| {
-        format!(
-            "Failed to find MSVC linker (link.exe) for target architecture '{}'",
-            arch
-        )
-    })
+    linker::resolve_runtime_library_path_for_binary(&lak_path).map_err(|e| e.to_string())
 }
 
 /// Returns an executable filename with the correct platform extension.
@@ -146,15 +78,8 @@ pub fn dummy_span() -> Span {
     Span::new(0, 0, 1, 1)
 }
 
-/// Compiles a single-file Lak program to an executable and runs it, returning stdout output.
-///
-/// This function performs the complete single-file compilation pipeline:
-/// lexing -> parsing -> semantic analysis -> codegen -> linking -> execution.
-/// Only stdout is captured; stderr is not included in the success case.
-///
-/// Note: This helper does not support multi-module compilation (no resolver).
-/// For multi-module tests, use the CLI binary approach (see `e2e_modules.rs`).
-pub fn compile_and_run(source: &str) -> Result<String, String> {
+/// Compiles a single-file Lak program to an object file.
+pub fn compile_source_to_object(source: &str, object_path: &Path) -> Result<(), String> {
     // Lex
     let mut lexer = Lexer::new(source);
     let tokens = lexer.tokenize().map_err(|e| e.to_string())?;
@@ -174,16 +99,13 @@ pub fn compile_and_run(source: &str) -> Result<String, String> {
         .compile(&program)
         .map_err(|e: CodegenError| e.message().to_string())?;
 
-    // Write object file
-    let temp_dir = tempdir().map_err(|e| e.to_string())?;
-    let object_path = temp_dir.path().join("test.o");
-    let executable_path = temp_dir.path().join(executable_name("test"));
-
     codegen
-        .write_object_file(&object_path)
-        .map_err(|e| e.to_string())?;
+        .write_object_file(object_path)
+        .map_err(|e| e.to_string())
+}
 
-    // Link
+/// Links an object file into an executable.
+pub fn link_object(object_path: &Path, executable_path: &Path) -> Result<(), String> {
     let object_str = object_path
         .to_str()
         .ok_or_else(|| format!("Object path {:?} is not valid UTF-8", object_path))?;
@@ -195,30 +117,8 @@ pub fn compile_and_run(source: &str) -> Result<String, String> {
         .to_str()
         .ok_or_else(|| format!("Runtime path {:?} is not valid UTF-8", runtime_path))?;
 
-    #[cfg(all(target_os = "windows", target_env = "msvc"))]
-    let link_output = {
-        let mut cmd = resolve_msvc_linker_command()?;
-        cmd.args([
-            "/NOLOGO",
-            object_str,
-            runtime_str,
-            &format!("/OUT:{}", exec_str),
-            "/DEFAULTLIB:msvcrt",
-            "/DEFAULTLIB:legacy_stdio_definitions",
-            "/DEFAULTLIB:advapi32",
-            "/DEFAULTLIB:bcrypt",
-            "/DEFAULTLIB:kernel32",
-            "/DEFAULTLIB:ntdll",
-            "/DEFAULTLIB:userenv",
-            "/DEFAULTLIB:ws2_32",
-        ])
-        .output()
-        .map_err(|e| format!("Failed to run linker: {}", e))?
-    };
-
-    #[cfg(not(all(target_os = "windows", target_env = "msvc")))]
-    let link_output = Command::new("cc")
-        .args([object_str, runtime_str, "-o", exec_str])
+    let link_output = linker::create_linker_command(object_str, runtime_str, exec_str)
+        .map_err(|e| e.to_string())?
         .output()
         .map_err(|e| format!("Failed to run linker: {}", e))?;
 
@@ -233,8 +133,12 @@ pub fn compile_and_run(source: &str) -> Result<String, String> {
         ));
     }
 
-    // Run
-    let run_output = Command::new(&executable_path)
+    Ok(())
+}
+
+/// Runs an executable and returns stdout output.
+pub fn run_executable(executable_path: &Path) -> Result<String, String> {
+    let run_output = Command::new(executable_path)
         .output()
         .map_err(|e| format!("Failed to run executable: {}", e))?;
 
@@ -246,6 +150,24 @@ pub fn compile_and_run(source: &str) -> Result<String, String> {
     }
 
     Ok(String::from_utf8_lossy(&run_output.stdout).to_string())
+}
+
+/// Compiles a single-file Lak program to an executable and runs it, returning stdout output.
+///
+/// This function performs the complete single-file compilation pipeline:
+/// lexing -> parsing -> semantic analysis -> codegen -> linking -> execution.
+/// Only stdout is captured; stderr is not included in the success case.
+///
+/// Note: This helper does not support multi-module compilation (no resolver).
+/// For multi-module tests, use the CLI binary approach (see `e2e_modules.rs`).
+pub fn compile_and_run(source: &str) -> Result<String, String> {
+    let temp_dir = tempdir().map_err(|e| e.to_string())?;
+    let object_path = temp_dir.path().join("test.o");
+    let executable_path = temp_dir.path().join(executable_name("test"));
+
+    compile_source_to_object(source, &object_path)?;
+    link_object(&object_path, &executable_path)?;
+    run_executable(&executable_path)
 }
 
 /// Represents the stage at which compilation failed.
