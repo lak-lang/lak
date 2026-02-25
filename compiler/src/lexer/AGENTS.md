@@ -35,6 +35,7 @@ Tests are organized by category in `tests/` directory:
 | `spans.rs` | Position tracking verification |
 | `errors.rs` | Error cases |
 | `edge_cases.rs` | Corner cases, platform compatibility |
+| `whitespace.rs` | Whitespace handling (ASCII vs non-ASCII whitespace) |
 
 ## Supported Tokens
 
@@ -65,6 +66,7 @@ This enables statement termination without explicit semicolons.
 `LexError` contains:
 - `message: String` - Human-readable description
 - `span: Span` - Source location
+- `kind: LexErrorKind` - Structured error classification
 
 Errors occur for:
 - Unexpected characters
@@ -72,6 +74,7 @@ Errors occur for:
 - Unknown escape sequences
 - Integer overflow (exceeds `u64::MAX`)
 - Invalid float literals
+- Invalid non-ASCII whitespace characters
 
 ## Lifetime `'a`
 

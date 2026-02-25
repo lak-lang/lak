@@ -12,11 +12,11 @@ Comprehensive test suite verifying the compiler's functionality from source code
 |------|----------|-------|-------------|
 | `common/mod.rs` | Utilities | - | Shared test helpers and pipeline functions |
 | `e2e_any.rs` | E2E | 18 | Mixed type println tests |
-| `e2e_arithmetic.rs` | E2E | 112 | Arithmetic operations, division-by-zero, integer overflow, and float arithmetic |
+| `e2e_arithmetic.rs` | E2E | 3 | Arithmetic operations, division-by-zero, integer overflow, and float arithmetic (table-driven suites) |
 | `e2e_basic.rs` | E2E | 7 | Basic functionality (println, comments, functions) |
 | `e2e_bool.rs` | E2E | 12 | Boolean type handling |
 | `e2e_build.rs` | E2E | 15 | `lak build` command behavior |
-| `e2e_comparison.rs` | E2E | 94 | Comparison operators (==, !=, <, >, <=, >=), including float comparisons |
+| `e2e_comparison.rs` | E2E | 1 | Comparison operators (==, !=, <, >, <=, >=), including float comparisons (table-driven suite) |
 | `e2e_functions.rs` | E2E | 28 | User-defined function calls and typed returns/arguments |
 | `e2e_if_else.rs` | E2E | 9 | `if`/`else if`/`else` statement behavior |
 | `e2e_if_expression.rs` | E2E | 9 | `if` expression behavior |
@@ -32,12 +32,12 @@ Comprehensive test suite verifying the compiler's functionality from source code
 | `errors_lex.rs` | Errors | 8 | Lexical analysis error detection |
 | `errors_modules.rs` | Errors | 18 | Module resolution error detection |
 | `errors_parse.rs` | Errors | 29 | Parser error detection |
-| `errors_semantic.rs` | Errors | 116 | Semantic analysis error detection |
+| `errors_semantic.rs` | Errors | 116 | Semantic analysis error detection (delegates to `errors_semantic/*.rs`) |
 | `pipeline.rs` | Integration | 9 | Phase integration and direct AST construction |
 
 ## Test Categories
 
-### E2E Tests (410 tests)
+### E2E Tests (208 tests)
 
 Compile, link, and execute real Lak programs, validating stdout output.
 

@@ -28,6 +28,7 @@ Validates an AST for semantic correctness before code generation. Performs name 
 | `tests/variable_tests.rs` | Duplicate/undefined variable detection, mutable declaration/reassignment paths |
 | `tests/type_tests.rs` | Type mismatch, overflow, invalid expressions, println arguments, valid programs |
 | `tests/symbol_table_tests.rs` | SymbolTable data structure unit tests, mutable flag preservation |
+| `tests/reuse_regression_tests.rs` | Regression coverage for analyzer/session state reuse |
 
 ## Analysis Phases
 
@@ -51,6 +52,7 @@ Note: `analyze_module()` (used for imported modules) skips phase 2 (main validat
 | `ImmutableVariableReassignment` | Reassignment to immutable variable |
 | `UndefinedFunction` | Function called but not defined |
 | `TypeMismatch` | Expected vs actual type mismatch |
+| `IfExpressionBranchTypeMismatch` | `if` expression branches yield different types |
 | `IntegerOverflow` | Integer out of range for target type |
 | `InvalidArgument` | Wrong argument count or type |
 | `InvalidControlFlow` | Invalid loop control usage (e.g., break/continue outside loops) |
@@ -131,19 +133,20 @@ Only function calls and module-qualified function calls are valid as expression 
 ## Guarantees to Codegen
 
 If `analyze()` returns `Ok(())`, codegen can assume:
-- `main` function exists with `void` return type
+- `main` function exists, has zero parameters, and has `void` return type
 - All variable references are defined
 - Reassignments target mutable variables only
 - All variable types match their usage
 - All integer literals fit their target types
 - All function calls reference defined functions with compatible argument and return types
+- All non-void functions satisfy return-path requirements
 - All module references are valid (imported and resolved)
 - All module function calls reference existing public functions
 
 ## Extension Guidelines
 
 1. New types: update `check_expr_type()`, `infer_expr_type()`, operator type rules, and (for integers) `check_integer_range()`
-2. New built-in functions: add case in `analyze_call()`
+2. New built-in functions: add validation in `analyze_call_stmt()` / `analyze_call_value()`
 3. New expression forms: add case in `check_expr_type()` and `analyze_expr_stmt()`
 4. New statement forms: add case in `analyze_stmt()`
 5. Scoping changes: modify `enter_scope()` / `exit_scope()` in `symbol.rs`

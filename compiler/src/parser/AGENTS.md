@@ -14,6 +14,7 @@ Transforms a token stream from the lexer into an Abstract Syntax Tree (AST). Imp
 | `error.rs` | `ParseError` type |
 | `helpers.rs` | Token navigation (`current`, `advance`, `expect`, `skip_newlines`) |
 | `fn_def.rs` | Function definition parsing |
+| `import.rs` | Import declaration parsing |
 | `stmt.rs` | Statement parsing (`let`, assignment, `return`, `if`, `while`, `break`, `continue`, expression statements) |
 | `types.rs` | Type annotation parsing |
 | `expr.rs` | Expression parsing (if-expression, calls, operators, identifiers, literals) |
@@ -29,6 +30,7 @@ Tests are organized by parser component:
 | `tests/fn_def.rs` | Function definitions, parameters, visibility, spans |
 | `tests/stmt.rs` | Statements, newlines, `let mut`, assignment, discard |
 | `tests/expr.rs` | Expressions, precedence, calls, literals, `if` expression |
+| `tests/import.rs` | Import declaration parsing |
 | `tests/errors.rs` | Error detection and message quality |
 | `tests/helpers.rs` | Edge cases, utilities |
 
@@ -50,8 +52,9 @@ continue_stmt → "continue"
 type        → "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "f32" | "f64" | "byte" | "string" | "bool"
 return_type → type | "void"
 expr_stmt   → expr
-expr        → if_expr | unary | binary | call | module_call | IDENTIFIER | STRING | INT | FLOAT | BOOL
+expr        → if_expr | unary | binary | call | member_access | module_call | IDENTIFIER | STRING | INT | FLOAT | BOOL
 call        → IDENTIFIER "(" arguments? ")"
+member_access → IDENTIFIER "." IDENTIFIER
 module_call → IDENTIFIER "." IDENTIFIER "(" arguments? ")"
 arguments   → expr ("," expr)*
 ```
@@ -120,6 +123,6 @@ Each AST node includes a `Span` for error reporting:
 
 ## Invariants
 
-- Token list is never empty (enforced by `Parser::new`)
+- Token list is never empty (`Parser::new` inserts synthetic `Eof` when needed)
 - Last token is always `Eof`
 - `advance()` does not move past `Eof`

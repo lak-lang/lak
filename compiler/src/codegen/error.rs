@@ -675,6 +675,19 @@ impl CodegenError {
         )
     }
 
+    /// Creates an internal error for mismatched `if` expression branch types.
+    pub fn internal_if_expr_branch_type_mismatch(then_ty: &str, else_ty: &str, span: Span) -> Self {
+        Self::new(
+            CodegenErrorKind::InternalError,
+            format!(
+                "Internal error: if expression branches have mismatched types '{}' and '{}' in codegen. \
+                 Semantic analysis should have caught this. This is a compiler bug.",
+                then_ty, else_ty
+            ),
+            span,
+        )
+    }
+
     /// Creates an internal error for failed binary operation.
     pub fn internal_binary_op_failed(
         op: crate::ast::BinaryOperator,

@@ -39,6 +39,8 @@ Functions are marked with `#[unsafe(no_mangle)]` to preserve their names in the 
 | `lak_println_f32` | `fn(value: f32)` | Print f32 with newline |
 | `lak_println_f64` | `fn(value: f64)` | Print f64 with newline |
 | `lak_println_bool` | `fn(value: bool)` | Print boolean ("true"/"false") with newline |
+| `lak_streq` | `unsafe fn(a: *const c_char, b: *const c_char) -> bool` | Compare C strings for equality |
+| `lak_strcmp` | `unsafe fn(a: *const c_char, b: *const c_char) -> i32` | Lexicographic C-string compare (`-1/0/1`) |
 | `lak_panic` | `unsafe fn(message: *const c_char) -> !` | Print panic message to stderr and exit(1) |
 
 ### `lak_println`
@@ -79,6 +81,27 @@ pub extern "C" fn lak_println_bool(value: bool)
 - Prints "true" or "false" followed by a newline to stdout
 - Called by Lak's `println()` when argument is a boolean type
 
+### `lak_streq`
+
+```rust
+pub unsafe extern "C" fn lak_streq(a: *const c_char, b: *const c_char) -> bool
+```
+
+- Compares two C strings for equality
+- Handles null pointers (`null == null` is true, `null` vs non-null is false)
+- Called by codegen for string equality/inequality operations
+
+### `lak_strcmp`
+
+```rust
+pub unsafe extern "C" fn lak_strcmp(a: *const c_char, b: *const c_char) -> i32
+```
+
+- Lexicographically compares two C strings
+- Returns `-1` (`a < b`), `0` (`a == b`), `1` (`a > b`)
+- Handles null pointers (`null < non-null`, `null == null`)
+- Called by codegen for string ordering comparisons (`<`, `<=`, `>`, `>=`)
+
 ### `lak_panic`
 
 ```rust
@@ -93,12 +116,13 @@ pub unsafe extern "C" fn lak_panic(message: *const c_char) -> !
 
 ## Safety
 
-Pointer-taking exported functions are `unsafe` because they accept raw pointers
-from C/LLVM code. Numeric/bool print functions are safe `extern "C"` entry points.
+Pointer-taking exported functions (`lak_println`, `lak_streq`, `lak_strcmp`, `lak_panic`)
+are `unsafe` because they accept raw pointers from C/LLVM code. Numeric/bool print
+functions are safe `extern "C"` entry points.
 
 ## Integration with Compiler
 
-1. Compiler generates calls to runtime functions (`lak_println`, `lak_println_i*`, `lak_println_u*`, `lak_println_f*`, `lak_println_bool`, `lak_panic`) in LLVM IR
+1. Compiler generates calls to runtime functions (`lak_println`, `lak_println_i*`, `lak_println_u*`, `lak_println_f*`, `lak_println_bool`, `lak_streq`, `lak_strcmp`, `lak_panic`) in LLVM IR
 2. Compiler resolves the runtime static library from the same directory as the running `lak` executable
 3. System linker (`cc` on Unix, `link.exe` on Windows MSVC) links the object file with the runtime
 
@@ -121,7 +145,7 @@ When adding new runtime functions:
 5. Add corresponding:
    - Declaration in `codegen/builtins.rs` (`declare_*`)
    - Code generation in `codegen/builtins.rs` (`generate_*`)
-   - Validation in `semantic/mod.rs` (`analyze_call`)
+   - Call-site/type validation in semantic analysis (`semantic/typecheck_stmt.rs`, `semantic/typecheck_expr.rs`)
 
 ## Testing
 

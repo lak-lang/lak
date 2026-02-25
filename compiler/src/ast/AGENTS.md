@@ -14,14 +14,16 @@ Defines the data structures that represent parsed Lak programs. The AST is produ
 | `types.rs` | Type annotations (`Type` enum: integer/float primitives, bool, string) |
 | `expr.rs` | Expression nodes (`Expr`, `ExprKind`) |
 | `stmt.rs` | Statement nodes (`Stmt`, `StmtKind`) |
-| `program.rs` | Top-level structure (`Program`, `FnDef`) |
+| `program.rs` | Top-level nodes (`Program`, `ImportDecl`, `FnDef`, `FnParam`, `Visibility`) |
 | `tests.rs` | Unit tests |
 
 ## AST Hierarchy
 
 ```
 Program
+  ├─ ImportDecl
   └─ FnDef (function definition)
+      ├─ FnParam
       └─ Stmt (statement)
           ├─ StmtKind::Expr(Expr)
           ├─ StmtKind::Let { is_mutable, name, ty: Type, init: Expr }
@@ -66,7 +68,7 @@ Implements `Display` for user-facing error messages.
 - `BinaryOp { left, op, right }` - Binary operator expression
 - `UnaryOp { op, operand }` - Unary operator expression
 - `IfExpr { condition, then_block, else_block }` - If-expression value form
-- `MemberAccess { object, field }` - Member access syntax node (module access path)
+- `MemberAccess { object, member }` - Member access syntax node (module access path)
 - `ModuleCall { module, function, args }` - Module-qualified function call
 
 Expression nodes are recursive and include helper logic for numeric operand
@@ -89,20 +91,27 @@ adaptation in binary expressions.
 
 ## Program Structure
 
-`Program` is the root AST node containing a list of function definitions.
+`Program` is the root AST node containing:
+- `imports: Vec<ImportDecl>` - Import declarations
+- `functions: Vec<FnDef>` - Function definitions
+
+`ImportDecl` represents `import "path"` / `import "path" as alias` declarations.
 
 `FnDef` represents a function definition:
+- `visibility: Visibility` - `Public` or `Private`
 - `name: String` - Function name
+- `params: Vec<FnParam>` - Parameter definitions (`name`, `ty`, `span`)
 - `return_type: String` - Return type as parsed source text (e.g., `void`, `i32`, `f64`)
 - `return_type_span: Span` - Location of return type token
 - `body: Vec<Stmt>` - Function body statements
-- `span: Span` - Location from `fn` to `{`
+- `span: Span` - Location from `pub`/`fn` to `{`
 
 ### Invariants
 
 `FnDef` maintains these invariants (enforced by parser):
 - `name` is a non-empty valid identifier
-- `return_type` is a valid type name
+- each parameter name is a non-empty valid identifier
+- `return_type` is a non-empty source type name (`void` or primitive type validation is semantic phase)
 - `return_type_span` points to the actual return type token
 - `span` encompasses the function signature
 - `span.start <= span.end`
@@ -116,7 +125,8 @@ adaptation in binary expressions.
 All AST nodes include a `Span` for error reporting:
 - `Expr`: first token to last token of expression
 - `Stmt`: first token to last token of statement
-- `FnDef`: `fn` keyword to before `{`
+- `ImportDecl`: `import` keyword to path/alias
+- `FnDef`: `pub`/`fn` keyword to before `{`
 
 ## Dependencies
 

@@ -9,6 +9,9 @@ compiler/
 ├── src/
 │   ├── main.rs      # CLI entry point (lak build, lak run)
 │   ├── lib.rs       # Library crate exposing all modules
+│   ├── diagnostics/ # Diagnostic rendering for CLI errors
+│   ├── driver/      # Build/run pipeline orchestration
+│   ├── linker.rs    # Runtime library and linker command resolution
 │   ├── token/       # Token and Span definitions (see token/AGENTS.md)
 │   ├── ast/         # AST node definitions (see ast/AGENTS.md)
 │   ├── lexer/       # Lexical analysis (see lexer/AGENTS.md)
@@ -69,12 +72,15 @@ Executable
 | `semantic` | AST validation |
 | `resolver` | Module resolution, dependency graph, cycle detection |
 | `codegen` | AST → LLVM IR → Object file |
+| `driver` | `build`/`run` pipeline, cross-phase error unification |
+| `diagnostics` | Ariadne-based error rendering and fallback reporting |
+| `linker` | Runtime library path resolution and linker command creation |
 
 ## Error Handling
 
 ### Error Type Hierarchy
 
-`CompileError` in `main.rs` unifies all error types:
+`CompileError` in `driver/mod.rs` unifies all error types:
 - `Resolve(ResolverError)` - Module resolution errors
 - `Semantic(SemanticError)` - Semantic analysis errors
 - `ModuleSemantic(...)` - Semantic errors in imported modules (with source context)
@@ -82,7 +88,7 @@ Executable
 - `Link(LinkError)` - Linker errors
 - `PathNotUtf8`, `FileReadError`, `PathResolutionError`, `TempDirCreationError`, `ExecutableRunError`, `EntryModuleNotFound`, `FilenameError` - Infrastructure errors (typed variants, not generic strings)
 
-Phase-specific errors may include `Span` for source location (see details below). `report_error()` in `main.rs` uses ariadne for formatted output.
+Phase-specific errors may include `Span` for source location (see details below). CLI error rendering is implemented in `diagnostics/mod.rs` via `report_error()`.
 
 ### Error Type Structure
 
@@ -149,7 +155,7 @@ pub fn type_mismatch_int_to_string(value: i64, span: Span) -> Self { ... }
 
 ### CompileError Design
 
-`CompileError` in `main.rs` uses **typed variants** instead of generic string wrappers. Each variant carries structured data relevant to the error:
+`CompileError` in `driver/mod.rs` uses **typed variants** instead of generic string wrappers. Each variant carries structured data relevant to the error:
 
 ```rust
 // GOOD: Typed variant with structured data
@@ -211,7 +217,10 @@ Distribution packages must keep `lak` and the runtime static library in the same
 | `e2e_run.rs` | `lak run` command |
 | `e2e_any.rs` | Mixed type println tests |
 | `e2e_arithmetic.rs` | Arithmetic operations and division-by-zero |
+| `e2e_comparison.rs` | Comparison operators and mixed-float comparison behavior |
 | `e2e_functions.rs` | User-defined function calls |
+| `e2e_if_else.rs` | `if` / `else if` / `else` statement behavior |
+| `e2e_if_expression.rs` | `if` expression behavior |
 | `e2e_panic.rs` | `panic()` function behavior |
 | `e2e_bool.rs` | Boolean type handling |
 | `e2e_visibility.rs` | `pub fn` visibility keyword |

@@ -4,7 +4,7 @@
 //! println (string, integer, bool variants), panic, and string comparison helpers.
 
 use super::Codegen;
-use super::error::{CodegenError, CodegenErrorKind};
+use super::error::CodegenError;
 use crate::ast::{Expr, ExprKind, StmtKind, Type};
 use crate::token::Span;
 use inkwell::AddressSpace;
@@ -363,12 +363,9 @@ impl<'ctx> Codegen<'ctx> {
                 let else_ty = self.get_expr_type_with_locals(&else_block.value, &else_locals)?;
 
                 if then_ty != else_ty {
-                    return Err(CodegenError::new(
-                        CodegenErrorKind::InternalError,
-                        format!(
-                            "Internal error: if expression branches have mismatched types '{}' and '{}' in codegen. Semantic analysis should have caught this. This is a compiler bug.",
-                            then_ty, else_ty
-                        ),
+                    return Err(CodegenError::internal_if_expr_branch_type_mismatch(
+                        &then_ty.to_string(),
+                        &else_ty.to_string(),
                         expr.span,
                     ));
                 }
