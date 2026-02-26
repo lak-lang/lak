@@ -119,6 +119,23 @@ fn test_stmt_let() {
 }
 
 #[test]
+fn test_stmt_let_inferred_type() {
+    let stmt = Stmt::new(
+        StmtKind::Let {
+            is_mutable: false,
+            name: "x".to_string(),
+            ty: Type::Inferred,
+            init: Expr::new(ExprKind::IntLiteral(42), dummy_span()),
+        },
+        dummy_span(),
+    );
+    match stmt.kind {
+        StmtKind::Let { ty, .. } => assert_eq!(ty, Type::Inferred),
+        _ => panic!("Expected Let statement"),
+    }
+}
+
+#[test]
 fn test_stmt_assign() {
     let stmt = Stmt::new(
         StmtKind::Assign {
@@ -307,6 +324,21 @@ fn test_type_is_integer() {
     assert!(Type::I64.is_integer());
     assert!(!Type::String.is_integer());
     assert!(!Type::Bool.is_integer());
+}
+
+#[test]
+fn test_type_inferred_display_is_internal_marker() {
+    assert_eq!(Type::Inferred.to_string(), "<inferred>");
+}
+
+#[test]
+fn test_type_inferred_is_not_numeric_or_resolved() {
+    assert!(!Type::Inferred.is_integer());
+    assert!(!Type::Inferred.is_signed_integer());
+    assert!(!Type::Inferred.is_unsigned_integer());
+    assert!(!Type::Inferred.is_float());
+    assert!(!Type::Inferred.is_numeric());
+    assert!(!Type::Inferred.is_resolved());
 }
 
 #[test]

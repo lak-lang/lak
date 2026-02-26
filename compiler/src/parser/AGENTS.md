@@ -42,7 +42,7 @@ import      → "import" STRING ("as" IDENTIFIER)?
 fn_def      → ("pub")? "fn" IDENTIFIER "(" param_list? ")" "->" return_type "{" stmt* "}"
 param_list  → IDENTIFIER ":" type ("," IDENTIFIER ":" type)*
 stmt        → let_stmt | assign_stmt | return_stmt | if_stmt | while_stmt | break_stmt | continue_stmt | expr_stmt
-let_stmt    → "let" "mut"? IDENTIFIER ":" type "=" expr | "let" "_" "=" expr
+let_stmt    → "let" "mut"? IDENTIFIER (":" type)? "=" expr | "let" "_" "=" expr
 assign_stmt → IDENTIFIER "=" expr
 return_stmt → "return" expr?
 if_stmt     → "if" expr "{" stmt* "}" ("else" (if_stmt | "{" stmt* "}"))?
@@ -63,6 +63,7 @@ Grammar notes:
 - Mutable discard bindings are rejected with parse errors because `_` is discard-only:
   - `let mut _ = expr`
   - `let mut _: type = expr`
+- `let` type annotations are optional. When omitted, the parser sets `Type::Inferred` in the AST.
 - `byte` is parsed as an alias of `u8`.
 - `if`/`while`/`return`/`break`/`continue` are parsed as statements.
 

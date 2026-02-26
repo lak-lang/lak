@@ -33,6 +33,135 @@ fn test_let_mut_statement_with_type_annotation() {
 }
 
 #[test]
+fn test_let_statement_inferred_i64() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x = 42
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "42\n");
+}
+
+#[test]
+fn test_let_statement_chained_inferred_variables() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x = 42
+    let y = x
+    println(y)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "42\n");
+}
+
+#[test]
+fn test_let_statement_inferred_negated_i64() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x = -42
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "-42\n");
+}
+
+#[test]
+fn test_let_statement_inferred_negated_f64() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x = -3.14
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "-3.14\n");
+}
+
+#[test]
+fn test_let_statement_inferred_expression_i64() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x = 5 + 10
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "15\n");
+}
+
+#[test]
+fn test_inferred_variable_arithmetic_with_explicit_i64_variable() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x = 40
+    let y: i64 = 2
+    let z: i64 = x + y
+    println(z)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "42\n");
+}
+
+#[test]
+fn test_let_statement_inferred_string_and_bool() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let s = "hello"
+    let ok = true
+    println(s)
+    println(ok)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "hello\ntrue\n");
+}
+
+#[test]
+fn test_let_statement_inferred_f64() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let x = 3.14
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "3.14\n");
+}
+
+#[test]
+fn test_let_mut_statement_inferred_with_reassignment() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let mut x = 1
+    x = x + 2
+    println(x)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "3\n");
+}
+
+#[test]
+fn test_let_mut_statement_inferred_reassignment_in_while_loop() {
+    let output = compile_and_run(
+        r#"fn main() -> void {
+    let mut i = 0
+    while i < 3 {
+        i = i + 1
+    }
+    println(i)
+}"#,
+    )
+    .unwrap();
+    assert_eq!(output, "3\n");
+}
+
+#[test]
 fn test_let_mut_i64_with_type_annotation() {
     let output = compile_and_run(
         r#"fn main() -> void {

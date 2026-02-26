@@ -176,6 +176,18 @@ impl ParseError {
         )
     }
 
+    /// Creates an error for missing `:` type annotation separator or `=` initializer.
+    pub fn expected_type_annotation_or_initializer(found: &str, span: Span) -> Self {
+        Self::new(
+            ParseErrorKind::UnexpectedToken,
+            format!(
+                "Expected ':' for type annotation or '=' for initializer, found {}",
+                found
+            ),
+            span,
+        )
+    }
+
     /// Creates an error for unknown type.
     pub fn unknown_type(name: &str, span: Span) -> Self {
         Self::new(

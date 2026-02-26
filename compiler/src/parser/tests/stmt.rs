@@ -143,6 +143,46 @@ fn test_let_stmt_i32() {
 }
 
 #[test]
+fn test_let_stmt_inferred_type_without_annotation() {
+    let program = parse("fn main() -> void { let x = 42 }").unwrap();
+    assert_eq!(program.functions[0].body.len(), 1);
+    match &program.functions[0].body[0].kind {
+        StmtKind::Let {
+            is_mutable,
+            name,
+            ty,
+            init,
+        } => {
+            assert!(!is_mutable);
+            assert_eq!(name, "x");
+            assert_eq!(*ty, Type::Inferred);
+            assert!(matches!(init.kind, ExprKind::IntLiteral(42)));
+        }
+        _ => panic!("Expected Let statement"),
+    }
+}
+
+#[test]
+fn test_let_mut_stmt_inferred_type_without_annotation() {
+    let program = parse(r#"fn main() -> void { let mut s = "hello" }"#).unwrap();
+    assert_eq!(program.functions[0].body.len(), 1);
+    match &program.functions[0].body[0].kind {
+        StmtKind::Let {
+            is_mutable,
+            name,
+            ty,
+            init,
+        } => {
+            assert!(*is_mutable);
+            assert_eq!(name, "s");
+            assert_eq!(*ty, Type::Inferred);
+            assert!(matches!(init.kind, ExprKind::StringLiteral(_)));
+        }
+        _ => panic!("Expected Let statement"),
+    }
+}
+
+#[test]
 fn test_let_stmt_i64() {
     let program = parse("fn main() -> void { let y: i64 = 100 }").unwrap();
     match &program.functions[0].body[0].kind {
@@ -338,9 +378,12 @@ fn test_expression_statement_equality_is_not_assignment() {
 }
 
 #[test]
-fn test_error_let_missing_colon() {
+fn test_error_let_missing_type_annotation_separator_or_initializer() {
     let err = parse_error("fn main() -> void { let x i32 = 42 }");
-    assert_eq!(err.message(), "Expected ':', found identifier 'i32'");
+    assert_eq!(
+        err.message(),
+        "Expected ':' for type annotation or '=' for initializer, found identifier 'i32'"
+    );
 }
 
 #[test]
@@ -380,6 +423,26 @@ fn test_error_let_unknown_type() {
 fn test_error_let_missing_equals() {
     let err = parse_error("fn main() -> void { let x: i32 42 }");
     assert_eq!(err.message(), "Expected '=', found integer '42'");
+}
+
+#[test]
+fn test_let_stmt_inferred_bool_without_annotation() {
+    let program = parse("fn main() -> void { let x = true }").unwrap();
+    assert_eq!(program.functions[0].body.len(), 1);
+    match &program.functions[0].body[0].kind {
+        StmtKind::Let {
+            is_mutable,
+            name,
+            ty,
+            init,
+        } => {
+            assert!(!is_mutable);
+            assert_eq!(name, "x");
+            assert_eq!(*ty, Type::Inferred);
+            assert!(matches!(init.kind, ExprKind::BoolLiteral(true)));
+        }
+        _ => panic!("Expected Let statement"),
+    }
 }
 
 #[test]

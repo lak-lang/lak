@@ -290,7 +290,8 @@ impl<'ctx> Codegen<'ctx> {
     /// Integer literals in arithmetic/comparison expressions are adapted to
     /// the non-literal integer operand type.
     ///
-    /// Kept in sync with `SemanticAnalyzer::infer_expr_type` in `semantic/mod.rs`
+    /// Kept in sync with `SemanticAnalyzer::infer_expr_type` in
+    /// `semantic/typecheck_expr.rs`
     /// and `Codegen::infer_expr_type_for_comparison` in `codegen/expr.rs`.
     ///
     /// # Returns
@@ -309,11 +310,27 @@ impl<'ctx> Codegen<'ctx> {
             ExprKind::BoolLiteral(_) => Ok(Type::Bool),
             ExprKind::Identifier(name) => {
                 if let Some(ty) = local_types.get(name) {
+                    if !ty.is_resolved() {
+                        let context = format!(
+                            "branch-local variable '{}' type lookup for println dispatch",
+                            name
+                        );
+                        return Err(CodegenError::internal_unresolved_inferred_type(
+                            &context, expr.span,
+                        ));
+                    }
                     return Ok(ty.clone());
                 }
-                self.lookup_variable(name)
-                    .map(|b| b.ty().clone())
-                    .ok_or_else(|| CodegenError::internal_variable_not_found(name, expr.span))
+                let binding = self
+                    .lookup_variable(name)
+                    .ok_or_else(|| CodegenError::internal_variable_not_found(name, expr.span))?;
+                if !binding.ty().is_resolved() {
+                    let context = format!("variable '{}' type lookup for println dispatch", name);
+                    return Err(CodegenError::internal_unresolved_inferred_type(
+                        &context, expr.span,
+                    ));
+                }
+                Ok(binding.ty().clone())
             }
             ExprKind::Call { callee, .. } => {
                 let (llvm_name, _) = self.resolve_user_function_target(callee, expr.span)?;
@@ -324,8 +341,18 @@ impl<'ctx> Codegen<'ctx> {
                     .ok_or_else(|| {
                         CodegenError::internal_function_signature_not_found(callee, expr.span)
                     })?;
-                return_ty
-                    .ok_or_else(|| CodegenError::internal_call_returned_void(callee, expr.span))
+                let return_ty = return_ty
+                    .ok_or_else(|| CodegenError::internal_call_returned_void(callee, expr.span))?;
+                if !return_ty.is_resolved() {
+                    let context = format!(
+                        "println dispatch type inference for function call '{}'",
+                        callee
+                    );
+                    return Err(CodegenError::internal_unresolved_inferred_type(
+                        &context, expr.span,
+                    ));
+                }
+                Ok(return_ty)
             }
             ExprKind::BinaryOp { left, op, right } => {
                 if op.is_comparison() || op.is_logical() {
@@ -348,16 +375,30 @@ impl<'ctx> Codegen<'ctx> {
             } => {
                 let mut then_locals = local_types.clone();
                 for stmt in &then_block.stmts {
-                    if let StmtKind::Let { name, ty, .. } = &stmt.kind {
-                        then_locals.insert(name.clone(), ty.clone());
+                    if let StmtKind::Let { name, ty, init, .. } = &stmt.kind {
+                        let binding_ty = self.resolve_let_type_with_locals(
+                            name,
+                            ty,
+                            init,
+                            &then_locals,
+                            stmt.span,
+                        )?;
+                        then_locals.insert(name.clone(), binding_ty);
                     }
                 }
                 let then_ty = self.get_expr_type_with_locals(&then_block.value, &then_locals)?;
 
                 let mut else_locals = local_types.clone();
                 for stmt in &else_block.stmts {
-                    if let StmtKind::Let { name, ty, .. } = &stmt.kind {
-                        else_locals.insert(name.clone(), ty.clone());
+                    if let StmtKind::Let { name, ty, init, .. } = &stmt.kind {
+                        let binding_ty = self.resolve_let_type_with_locals(
+                            name,
+                            ty,
+                            init,
+                            &else_locals,
+                            stmt.span,
+                        )?;
+                        else_locals.insert(name.clone(), binding_ty);
                     }
                 }
                 let else_ty = self.get_expr_type_with_locals(&else_block.value, &else_locals)?;
@@ -393,15 +434,56 @@ impl<'ctx> Codegen<'ctx> {
                             expr.span,
                         )
                     })?;
-                return_ty.ok_or_else(|| {
+                let return_ty = return_ty.ok_or_else(|| {
                     CodegenError::internal_module_call_as_value(module, function, expr.span)
-                })
+                })?;
+                if !return_ty.is_resolved() {
+                    let context = format!(
+                        "println dispatch type inference for module call '{}.{}'",
+                        module, function
+                    );
+                    return Err(CodegenError::internal_unresolved_inferred_type(
+                        &context, expr.span,
+                    ));
+                }
+                Ok(return_ty)
             }
         }
     }
 
     pub(super) fn get_expr_type(&self, expr: &Expr) -> Result<Type, CodegenError> {
         self.get_expr_type_with_locals(expr, &HashMap::new())
+    }
+
+    /// Resolves the effective type of a `let` binding while tracking branch-local variables.
+    ///
+    /// This is used by `if`-expression type reconstruction in codegen when branch
+    /// statements introduce local `let` bindings.
+    ///
+    /// In strict mode (`compile_with_inferred_types` / `compile_modules_with_inferred_types`),
+    /// this resolves inferred placeholders from semantic side-channel data.
+    /// In compatibility mode, unresolved placeholders are rejected with an
+    /// internal error to prevent divergent re-inference.
+    fn resolve_let_type_with_locals(
+        &self,
+        name: &str,
+        ty: &Type,
+        _init: &Expr,
+        _local_types: &HashMap<String, Type>,
+        span: Span,
+    ) -> Result<Type, CodegenError> {
+        if !ty.is_resolved() {
+            let context = if self.should_enforce_semantic_inferred_types() {
+                format!("branch-local let binding '{}' type resolution", name)
+            } else {
+                format!(
+                    "branch-local let binding '{}' type resolution in compatibility codegen entry point; use compile_with_inferred_types",
+                    name
+                )
+            };
+            return self.inferred_binding_type(span, &context);
+        }
+        Ok(ty.clone())
     }
 
     /// Generates LLVM IR for a `println` call.
@@ -527,6 +609,12 @@ impl<'ctx> Codegen<'ctx> {
                 "println_f64 expr",
             ),
             Type::Bool => self.generate_println_bool(arg, span),
+            Type::Inferred => Err(CodegenError::internal_println_type_mismatch(
+                "<expr>",
+                "concrete type",
+                "<inferred>",
+                span,
+            )),
         }
     }
 

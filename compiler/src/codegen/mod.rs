@@ -26,6 +26,7 @@
 //! use inkwell::context::Context;
 //! use lak::codegen::Codegen;
 //! use lak::ast::{Program, FnDef, Stmt, StmtKind, Expr, ExprKind, Visibility};
+//! use lak::semantic::SemanticAnalyzer;
 //! use lak::token::Span;
 //! use std::path::Path;
 //!
@@ -57,7 +58,12 @@
 //!     }],
 //! };
 //!
-//! codegen.compile(&program).unwrap();
+//! let mut analyzer = SemanticAnalyzer::new();
+//! analyzer.analyze(&program).unwrap();
+//! let inferred_binding_types = analyzer.inferred_binding_types();
+//! codegen
+//!     .compile_with_inferred_types(&program, &inferred_binding_types)
+//!     .unwrap();
 //! codegen.write_object_file(Path::new("output.o")).unwrap();
 //! ```
 //!
@@ -89,8 +95,9 @@ mod tests;
 
 pub use error::{CodegenError, CodegenErrorKind};
 
-use crate::ast::{FnDef, Program, Type};
+use crate::ast::{FnDef, FnParam, Program, Type};
 use crate::resolver::ResolvedModule;
+use crate::token::Span;
 use binding::VarBinding;
 use inkwell::AddressSpace;
 use inkwell::basic_block::BasicBlock;
@@ -165,6 +172,14 @@ pub struct Codegen<'ctx> {
     ///
     /// `None` represents `void` return type.
     function_return_types: HashMap<String, Option<Type>>,
+    /// Semantic-analysis-resolved types for inferred `let` bindings in the current module.
+    inferred_binding_types: HashMap<Span, Type>,
+    /// Semantic-analysis-resolved inferred binding types keyed by module path.
+    module_inferred_binding_types: HashMap<PathBuf, HashMap<Span, Type>>,
+    /// If true, codegen must resolve `Type::Inferred` only via semantic side-channel data.
+    /// If false, compatibility entry points remain available, but unresolved
+    /// placeholders are still rejected to avoid divergent re-inference.
+    enforce_semantic_inferred_types: bool,
     /// Stack of loop control-flow targets (innermost loop at the end).
     loop_controls: Vec<LoopControl<'ctx>>,
 }
@@ -396,6 +411,9 @@ impl<'ctx> Codegen<'ctx> {
             current_module_prefix: None,
             function_param_types: HashMap::new(),
             function_return_types: HashMap::new(),
+            inferred_binding_types: HashMap::new(),
+            module_inferred_binding_types: HashMap::new(),
+            enforce_semantic_inferred_types: false,
             loop_controls: Vec::new(),
         }
     }
@@ -428,6 +446,73 @@ impl<'ctx> Codegen<'ctx> {
         self.function_return_types.clear();
     }
 
+    pub(super) fn inferred_binding_type(
+        &self,
+        span: Span,
+        context: &str,
+    ) -> Result<Type, CodegenError> {
+        self.inferred_binding_types
+            .get(&span)
+            .cloned()
+            .ok_or_else(|| CodegenError::internal_unresolved_inferred_type(context, span))
+    }
+
+    pub(super) fn should_enforce_semantic_inferred_types(&self) -> bool {
+        self.enforce_semantic_inferred_types
+    }
+
+    fn with_strict_inferred_types<T, F>(
+        &mut self,
+        inferred_binding_types: HashMap<Span, Type>,
+        module_inferred_binding_types: HashMap<PathBuf, HashMap<Span, Type>>,
+        compile_fn: F,
+    ) -> Result<T, CodegenError>
+    where
+        F: FnOnce(&mut Self) -> Result<T, CodegenError>,
+    {
+        let previous_enforce = self.enforce_semantic_inferred_types;
+        let previous_inferred_binding_types =
+            std::mem::replace(&mut self.inferred_binding_types, inferred_binding_types);
+        let previous_module_inferred_binding_types = std::mem::replace(
+            &mut self.module_inferred_binding_types,
+            module_inferred_binding_types,
+        );
+        self.enforce_semantic_inferred_types = true;
+
+        let result = compile_fn(self);
+
+        self.enforce_semantic_inferred_types = previous_enforce;
+        self.inferred_binding_types = previous_inferred_binding_types;
+        self.module_inferred_binding_types = previous_module_inferred_binding_types;
+
+        result
+    }
+
+    /// Compiles a single module using inferred binding types resolved by semantic analysis.
+    pub fn compile_with_inferred_types(
+        &mut self,
+        program: &Program,
+        inferred_binding_types: &HashMap<Span, Type>,
+    ) -> Result<(), CodegenError> {
+        self.with_strict_inferred_types(inferred_binding_types.clone(), HashMap::new(), |codegen| {
+            codegen.compile(program)
+        })
+    }
+
+    /// Compiles multiple modules using inferred binding types resolved by semantic analysis.
+    pub fn compile_modules_with_inferred_types(
+        &mut self,
+        modules: &[ResolvedModule],
+        entry_path: &Path,
+        inferred_binding_types_by_module: &HashMap<PathBuf, HashMap<Span, Type>>,
+    ) -> Result<(), CodegenError> {
+        self.with_strict_inferred_types(
+            HashMap::new(),
+            inferred_binding_types_by_module.clone(),
+            |codegen| codegen.compile_modules(modules, entry_path),
+        )
+    }
+
     fn run_compile_passes<DeclarePass, GeneratePass>(
         &mut self,
         declare_pass: DeclarePass,
@@ -447,14 +532,9 @@ impl<'ctx> Codegen<'ctx> {
         function: &FnDef,
     ) -> Result<(), CodegenError> {
         let llvm_name = mangle_name(module_prefix, &function.name);
-        let param_types = function
-            .params
-            .iter()
-            .map(|param| param.ty.clone())
-            .collect::<Vec<_>>();
         self.declare_function(
             &llvm_name,
-            &param_types,
+            &function.params,
             &function.return_type,
             function.return_type_span,
         )
@@ -487,7 +567,16 @@ impl<'ctx> Codegen<'ctx> {
     /// # Errors
     ///
     /// Returns an error if LLVM IR generation fails (internal errors).
+    ///
+    /// # Note
+    ///
+    /// This compatibility entry point rejects unresolved `Type::Inferred` placeholders.
+    /// Driver paths should use [`compile_with_inferred_types`](Self::compile_with_inferred_types)
+    /// to provide semantic side-channel type data.
     pub fn compile(&mut self, program: &Program) -> Result<(), CodegenError> {
+        if !self.enforce_semantic_inferred_types {
+            self.inferred_binding_types.clear();
+        }
         self.initialize_compile_state();
         self.current_module_prefix = Some(SINGLE_FILE_MANGLE_PREFIX.to_string());
         let result = self.run_compile_passes(
@@ -544,11 +633,22 @@ impl<'ctx> Codegen<'ctx> {
     /// - Two modules produce the same mangle prefix
     /// - An import path is not found in the resolved imports
     /// - LLVM IR generation fails for any module
+    ///
+    /// # Note
+    ///
+    /// This compatibility entry point rejects unresolved `Type::Inferred` placeholders.
+    /// Driver paths should use
+    /// [`compile_modules_with_inferred_types`](Self::compile_modules_with_inferred_types)
+    /// to provide semantic side-channel type data.
     pub fn compile_modules(
         &mut self,
         modules: &[ResolvedModule],
         entry_path: &Path,
     ) -> Result<(), CodegenError> {
+        if !self.enforce_semantic_inferred_types {
+            self.inferred_binding_types.clear();
+            self.module_inferred_binding_types.clear();
+        }
         self.initialize_compile_state();
 
         // Validate that entry module exists in the module list
@@ -585,6 +685,20 @@ impl<'ctx> Codegen<'ctx> {
             |codegen| {
                 // Pass 2: Generate function bodies for all modules
                 for module in modules {
+                    if codegen.enforce_semantic_inferred_types {
+                        codegen.inferred_binding_types = codegen
+                            .module_inferred_binding_types
+                            .get(module.path())
+                            .cloned()
+                            .ok_or_else(|| {
+                                CodegenError::internal_module_inferred_binding_types_not_found(
+                                    module.path(),
+                                )
+                            })?;
+                    } else {
+                        codegen.inferred_binding_types.clear();
+                    }
+
                     // Set up this module's alias map for resolving ModuleCall expressions
                     codegen.module_aliases.clear();
                     for import in &module.program().imports {
@@ -639,6 +753,7 @@ impl<'ctx> Codegen<'ctx> {
 
         // Reset module prefix after compilation
         self.current_module_prefix = None;
+        self.inferred_binding_types.clear();
 
         result
     }
@@ -650,14 +765,24 @@ impl<'ctx> Codegen<'ctx> {
     fn declare_function(
         &mut self,
         name: &str,
-        param_types: &[Type],
+        params: &[FnParam],
         return_type: &str,
         return_type_span: crate::token::Span,
     ) -> Result<(), CodegenError> {
-        let llvm_param_types: Vec<BasicMetadataTypeEnum<'ctx>> = param_types
+        if let Some(param) = params.iter().find(|param| !param.ty.is_resolved()) {
+            let context = format!(
+                "function parameter '{}' in declaration of '{}'",
+                param.name, name
+            );
+            return Err(CodegenError::internal_unresolved_inferred_type(
+                &context, param.span,
+            ));
+        }
+
+        let llvm_param_types: Vec<BasicMetadataTypeEnum<'ctx>> = params
             .iter()
-            .map(|ty| self.get_llvm_type(ty).into())
-            .collect();
+            .map(|param| self.get_llvm_type(&param.ty, param.span).map(Into::into))
+            .collect::<Result<Vec<_>, _>>()?;
         let parsed_return_type = self.parse_return_type(return_type, return_type_span)?;
         let fn_type = match &parsed_return_type {
             None => self.context.void_type().fn_type(&llvm_param_types, false),
@@ -676,10 +801,17 @@ impl<'ctx> Codegen<'ctx> {
                 .ptr_type(AddressSpace::default())
                 .fn_type(&llvm_param_types, false),
             Some(Type::Bool) => self.context.bool_type().fn_type(&llvm_param_types, false),
+            Some(Type::Inferred) => {
+                return Err(CodegenError::internal_unsupported_function_return_type(
+                    "inferred",
+                    return_type_span,
+                ));
+            }
         };
         self.module.add_function(name, fn_type, None);
+        let param_types: Vec<Type> = params.iter().map(|param| param.ty.clone()).collect();
         self.function_param_types
-            .insert(name.to_string(), param_types.to_vec());
+            .insert(name.to_string(), param_types);
         self.function_return_types
             .insert(name.to_string(), parsed_return_type);
         Ok(())
@@ -734,6 +866,15 @@ impl<'ctx> Codegen<'ctx> {
             let llvm_param = function.get_nth_param(idx as u32).ok_or_else(|| {
                 CodegenError::internal_function_param_missing(&fn_def.name, idx, param.span)
             })?;
+            if !param.ty.is_resolved() {
+                let context = format!(
+                    "function parameter '{}' in function body generation for '{}'",
+                    param.name, fn_def.name
+                );
+                return Err(CodegenError::internal_unresolved_inferred_type(
+                    &context, param.span,
+                ));
+            }
             let binding = VarBinding::new(
                 &self.builder,
                 self.context,
@@ -845,22 +986,33 @@ impl<'ctx> Codegen<'ctx> {
     /// - `Type::U16` → LLVM `i16`
     /// - `Type::U32` → LLVM `i32`
     /// - `Type::U64` → LLVM `i64`
+    /// - `Type::F32` → LLVM `f32`
+    /// - `Type::F64` → LLVM `f64`
     /// - `Type::String` → LLVM `ptr` (opaque pointer)
     /// - `Type::Bool` → LLVM `i1`
-    fn get_llvm_type(&self, ty: &Type) -> BasicTypeEnum<'ctx> {
+    /// - `Type::Inferred` → internal error (must be resolved before mapping)
+    fn get_llvm_type(
+        &self,
+        ty: &Type,
+        span: crate::token::Span,
+    ) -> Result<BasicTypeEnum<'ctx>, CodegenError> {
         match ty {
-            Type::I8 => self.context.i8_type().into(),
-            Type::I16 => self.context.i16_type().into(),
-            Type::I32 => self.context.i32_type().into(),
-            Type::I64 => self.context.i64_type().into(),
-            Type::U8 => self.context.i8_type().into(),
-            Type::U16 => self.context.i16_type().into(),
-            Type::U32 => self.context.i32_type().into(),
-            Type::U64 => self.context.i64_type().into(),
-            Type::F32 => self.context.f32_type().into(),
-            Type::F64 => self.context.f64_type().into(),
-            Type::String => self.context.ptr_type(AddressSpace::default()).into(),
-            Type::Bool => self.context.bool_type().into(),
+            Type::I8 => Ok(self.context.i8_type().into()),
+            Type::I16 => Ok(self.context.i16_type().into()),
+            Type::I32 => Ok(self.context.i32_type().into()),
+            Type::I64 => Ok(self.context.i64_type().into()),
+            Type::U8 => Ok(self.context.i8_type().into()),
+            Type::U16 => Ok(self.context.i16_type().into()),
+            Type::U32 => Ok(self.context.i32_type().into()),
+            Type::U64 => Ok(self.context.i64_type().into()),
+            Type::F32 => Ok(self.context.f32_type().into()),
+            Type::F64 => Ok(self.context.f64_type().into()),
+            Type::String => Ok(self.context.ptr_type(AddressSpace::default()).into()),
+            Type::Bool => Ok(self.context.bool_type().into()),
+            Type::Inferred => Err(CodegenError::internal_unresolved_inferred_type(
+                "LLVM type mapping",
+                span,
+            )),
         }
     }
 

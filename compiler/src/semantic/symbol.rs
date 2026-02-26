@@ -121,6 +121,13 @@ impl SymbolTable {
     /// - The variable is already defined in the current scope
     pub fn define_variable(&mut self, info: VariableInfo) -> Result<(), SemanticError> {
         let definition_span = info.definition_span;
+        if !info.ty.is_resolved() {
+            return Err(SemanticError::internal_define_variable_unexpected_inferred(
+                &info.name,
+                definition_span,
+            ));
+        }
+
         let current_scope = self
             .scopes
             .last_mut()

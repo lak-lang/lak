@@ -20,14 +20,16 @@ pub enum StmtKind {
 
     /// A variable declaration with `let`.
     ///
-    /// Declares a new variable with an explicit type annotation and
-    /// initializer expression.
+    /// Declares a new variable with either an explicit type annotation
+    /// or an inferred type from the initializer expression.
     Let {
         /// Whether this binding is declared as mutable (`let mut`).
         is_mutable: bool,
         /// The name of the variable being declared.
         name: String,
-        /// The type annotation for the variable.
+        /// The binding type annotation.
+        ///
+        /// `Type::Inferred` means semantic analysis must infer it from `init`.
         ty: Type,
         /// The initializer expression.
         init: Expr,

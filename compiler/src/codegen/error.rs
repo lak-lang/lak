@@ -371,6 +371,20 @@ impl CodegenError {
         )
     }
 
+    /// Creates an internal error for unresolved inferred type.
+    pub fn internal_unresolved_inferred_type(context: &str, span: Span) -> Self {
+        Self::new(
+            CodegenErrorKind::InternalError,
+            format!(
+                "Internal error: unresolved inferred type reached {} in codegen. \
+                 Semantic analysis should have resolved inferred types before codegen. \
+                 This is a compiler bug.",
+                context
+            ),
+            span,
+        )
+    }
+
     /// Creates an internal error for undefined variable.
     pub fn internal_variable_not_found(name: &str, span: Span) -> Self {
         Self::new(
@@ -1060,6 +1074,18 @@ impl CodegenError {
                 alias_or_name
             ),
             span,
+        )
+    }
+
+    /// Creates an internal error for missing semantic inferred-binding map for a module.
+    pub fn internal_module_inferred_binding_types_not_found(module_path: &Path) -> Self {
+        Self::without_span(
+            CodegenErrorKind::InternalError,
+            format!(
+                "Internal error: semantic inferred binding map not found for module '{}'. \
+                 Strict codegen requires inferred types from semantic analysis. This is a compiler bug.",
+                module_path.display()
+            ),
         )
     }
 

@@ -43,7 +43,7 @@ Program (AST)
 Vec<ResolvedModule> (all modules with ASTs)
     ↓ SemanticAnalyzer::analyze() / analyze_with_modules()
 Program (validated)
-    ↓ Codegen::compile() / compile_modules()
+    ↓ Codegen::compile_with_inferred_types() / compile_modules_with_inferred_types()
 LLVM IR
     ↓ Codegen::write_object_file()
 Object file (.o)

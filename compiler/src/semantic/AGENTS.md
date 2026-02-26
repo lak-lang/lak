@@ -103,9 +103,10 @@ Currently supports:
 - Float modulo (`%`) is rejected
 - `string`: string literals
 - `bool`: boolean literals
+- `let` inference: for `let x = expr` / `let mut x = expr`, `infer_expr_type` determines the concrete type (`i64` for integers, `f64` for floats)
 
 Type checking occurs in:
-- `let` statements (`let` / `let mut`): initializer must match declared type
+- `let` statements (`let` / `let mut`): when an explicit type exists, the initializer must match it; otherwise the type is inferred from the initializer
 - reassignment statements (`x = expr`): variable must be mutable and RHS must match variable type
 - Variable references: variable type must match expected type
 
@@ -137,6 +138,7 @@ If `analyze()` returns `Ok(())`, codegen can assume:
 - All variable references are defined
 - Reassignments target mutable variables only
 - All variable types match their usage
+- All inferred `let` bindings are resolved to concrete types in semantic symbol metadata and exported via `SemanticAnalyzer::inferred_binding_types()` for strict codegen paths
 - All integer literals fit their target types
 - All function calls reference defined functions with compatible argument and return types
 - All non-void functions satisfy return-path requirements

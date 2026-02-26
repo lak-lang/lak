@@ -9,6 +9,12 @@ impl SemanticAnalyzer {
         expr: &Expr,
         expected_ty: &Type,
     ) -> Result<(), SemanticError> {
+        if !expected_ty.is_resolved() {
+            return Err(SemanticError::internal_check_expr_expected_inferred(
+                expr.span,
+            ));
+        }
+
         match &expr.kind {
             ExprKind::IntLiteral(value) => {
                 if *expected_ty == Type::String {
@@ -309,6 +315,13 @@ impl SemanticAnalyzer {
                     .symbols
                     .lookup_variable(name)
                     .ok_or_else(|| SemanticError::undefined_variable(name, expr.span))?;
+                if !var.ty.is_resolved() {
+                    return Err(
+                        SemanticError::internal_infer_expr_identifier_unexpected_inferred(
+                            name, expr.span,
+                        ),
+                    );
+                }
                 Ok(var.ty.clone())
             }
             ExprKind::BinaryOp { left, op, right } => {
@@ -628,6 +641,13 @@ impl SemanticAnalyzer {
                 return Err(SemanticError::internal_check_integer_range_bool(
                     value, span,
                 ));
+            }
+            Type::Inferred => {
+                // This branch should never be reached because inferred binding
+                // types are resolved before integer range checks.
+                return Err(
+                    SemanticError::internal_check_integer_range_unexpected_inferred(value, span),
+                );
             }
         }
         Ok(())

@@ -329,11 +329,18 @@ impl<'ctx> Codegen<'ctx> {
         expr: &Expr,
         expected_ty: &Type,
     ) -> Result<BasicValueEnum<'ctx>, CodegenError> {
+        if !expected_ty.is_resolved() {
+            return Err(CodegenError::internal_unresolved_inferred_type(
+                "expression value generation",
+                expr.span,
+            ));
+        }
+
         match &expr.kind {
             ExprKind::IntLiteral(value) => {
                 // Semantic analysis guarantees the value fits in the expected type.
                 if expected_ty.is_integer() {
-                    let llvm_type = self.get_llvm_type(expected_ty).into_int_type();
+                    let llvm_type = self.get_llvm_type(expected_ty, expr.span)?.into_int_type();
                     // `const_int` receives a raw `u64` bit pattern; LLVM materializes the
                     // destination integer constant from that pattern. Passing destination
                     // signedness keeps the intent explicit.
@@ -355,7 +362,9 @@ impl<'ctx> Codegen<'ctx> {
             }
             ExprKind::FloatLiteral(value) => {
                 if expected_ty.is_float() {
-                    let llvm_type = self.get_llvm_type(expected_ty).into_float_type();
+                    let llvm_type = self
+                        .get_llvm_type(expected_ty, expr.span)?
+                        .into_float_type();
                     Ok(llvm_type.const_float(*value).into())
                 } else {
                     Err(CodegenError::internal_float_as_type(
@@ -390,7 +399,7 @@ impl<'ctx> Codegen<'ctx> {
                     ));
                 }
 
-                let llvm_type = self.get_llvm_type(binding.ty());
+                let llvm_type = self.get_llvm_type(binding.ty(), expr.span)?;
                 let loaded = self
                     .builder
                     .build_load(llvm_type, binding.alloca(), &format!("{}_load", name))
@@ -492,7 +501,8 @@ impl<'ctx> Codegen<'ctx> {
     /// Semantic analysis has already validated types. This re-infers the operand
     /// type at the codegen level to determine which LLVM instructions to emit.
     ///
-    /// Kept in sync with `SemanticAnalyzer::infer_expr_type` in `semantic/mod.rs`
+    /// Kept in sync with `SemanticAnalyzer::infer_expr_type` in
+    /// `semantic/typecheck_expr.rs`
     /// and `Codegen::get_expr_type` in `codegen/builtins.rs`.
     fn infer_binary_operand_type_for_codegen(
         &self,
@@ -524,6 +534,15 @@ impl<'ctx> Codegen<'ctx> {
                 let binding = self
                     .lookup_variable(name)
                     .ok_or_else(|| CodegenError::internal_variable_not_found(name, expr.span))?;
+                if !binding.ty().is_resolved() {
+                    let context = format!(
+                        "comparison expression type inference for identifier '{}'",
+                        name
+                    );
+                    return Err(CodegenError::internal_unresolved_inferred_type(
+                        &context, expr.span,
+                    ));
+                }
                 Ok(binding.ty().clone())
             }
             ExprKind::BinaryOp { left, op, right } => {
@@ -553,7 +572,18 @@ impl<'ctx> Codegen<'ctx> {
                     .ok_or_else(|| {
                         CodegenError::internal_function_signature_not_found(callee, expr.span)
                     })?;
-                return_ty.ok_or_else(|| CodegenError::internal_call_as_value(callee, expr.span))
+                let return_ty = return_ty
+                    .ok_or_else(|| CodegenError::internal_call_as_value(callee, expr.span))?;
+                if !return_ty.is_resolved() {
+                    let context = format!(
+                        "comparison expression type inference for function call '{}'",
+                        callee
+                    );
+                    return Err(CodegenError::internal_unresolved_inferred_type(
+                        &context, expr.span,
+                    ));
+                }
+                Ok(return_ty)
             }
             ExprKind::MemberAccess { .. } => Err(
                 CodegenError::internal_member_access_not_implemented(expr.span),
@@ -574,9 +604,19 @@ impl<'ctx> Codegen<'ctx> {
                             expr.span,
                         )
                     })?;
-                return_ty.ok_or_else(|| {
+                let return_ty = return_ty.ok_or_else(|| {
                     CodegenError::internal_module_call_as_value(module, function, expr.span)
-                })
+                })?;
+                if !return_ty.is_resolved() {
+                    let context = format!(
+                        "comparison expression type inference for module call '{}.{}'",
+                        module, function
+                    );
+                    return Err(CodegenError::internal_unresolved_inferred_type(
+                        &context, expr.span,
+                    ));
+                }
+                Ok(return_ty)
             }
         }
     }
@@ -596,7 +636,7 @@ impl<'ctx> Codegen<'ctx> {
             .and_then(|bb| bb.get_parent())
             .ok_or_else(|| CodegenError::internal_no_current_function(span))?;
 
-        let llvm_branch_type = self.get_llvm_type(expected_ty);
+        let llvm_branch_type = self.get_llvm_type(expected_ty, span)?;
 
         let then_bb = self.context.append_basic_block(parent_fn, "if_expr_then");
         let else_bb = self.context.append_basic_block(parent_fn, "if_expr_else");
@@ -945,6 +985,11 @@ impl<'ctx> Codegen<'ctx> {
                     )),
                 }
             }
+            Type::Inferred => Err(CodegenError::internal_binary_op_failed(
+                op,
+                "inferred operand type reached comparison codegen",
+                span,
+            )),
         }
     }
 

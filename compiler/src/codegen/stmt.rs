@@ -52,7 +52,7 @@ impl<'ctx> Codegen<'ctx> {
     ///   Mutability rules are enforced during semantic analysis, so codegen
     ///   does not need to branch on this flag.
     /// * `name` - The variable name
-    /// * `ty` - The declared type
+    /// * `ty` - The declared type (`Type::Inferred` may appear in AST placeholders)
     /// * `init` - The initializer expression
     /// * `span` - The source location of the let statement
     ///
@@ -73,9 +73,10 @@ impl<'ctx> Codegen<'ctx> {
             return Err(CodegenError::internal_duplicate_variable(name, span));
         }
 
-        let binding = VarBinding::new(&self.builder, self.context, ty, name, span)?;
+        let resolved_ty = self.resolve_let_type_for_codegen(name, ty, init, span)?;
+        let binding = VarBinding::new(&self.builder, self.context, &resolved_ty, name, span)?;
 
-        let init_value = self.generate_expr_value(init, ty)?;
+        let init_value = self.generate_expr_value(init, &resolved_ty)?;
 
         self.builder
             .build_store(binding.alloca(), init_value)
@@ -86,6 +87,33 @@ impl<'ctx> Codegen<'ctx> {
         self.define_variable_in_current_scope(name, binding, span)?;
 
         Ok(())
+    }
+
+    /// Resolves the effective type of a `let` binding for code generation.
+    ///
+    /// Parser-produced `Type::Inferred` placeholders remain in the AST.
+    /// In strict mode (`compile_with_inferred_types`), this resolves types from
+    /// semantic side-channel data. In compatibility mode, unresolved placeholders
+    /// are rejected with an internal error to prevent divergent re-inference.
+    fn resolve_let_type_for_codegen(
+        &self,
+        name: &str,
+        ty: &Type,
+        _init: &Expr,
+        span: Span,
+    ) -> Result<Type, CodegenError> {
+        if !ty.is_resolved() {
+            let context = if self.should_enforce_semantic_inferred_types() {
+                format!("let binding '{}' type resolution", name)
+            } else {
+                format!(
+                    "let binding '{}' type resolution in compatibility codegen entry point; use compile_with_inferred_types",
+                    name
+                )
+            };
+            return self.inferred_binding_type(span, &context);
+        }
+        Ok(ty.clone())
     }
 
     /// Generates LLVM IR for a reassignment statement.

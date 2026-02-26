@@ -11,7 +11,7 @@ Defines the data structures that represent parsed Lak programs. The AST is produ
 | File | Responsibility |
 |------|----------------|
 | `mod.rs` | Module documentation, public re-exports |
-| `types.rs` | Type annotations (`Type` enum: integer/float primitives, bool, string) |
+| `types.rs` | Type annotations (`Type` enum: integer/float primitives, bool, string, inferred marker) |
 | `expr.rs` | Expression nodes (`Expr`, `ExprKind`) |
 | `stmt.rs` | Statement nodes (`Stmt`, `StmtKind`) |
 | `program.rs` | Top-level nodes (`Program`, `ImportDecl`, `FnDef`, `FnParam`, `Visibility`) |
@@ -51,6 +51,7 @@ Program
 - `F64` - 64-bit floating-point (`f64`)
 - `Bool` - boolean (`bool`)
 - `String` - UTF-8 string (`string`)
+- `Inferred` - Internal marker for `let` bindings without explicit annotations (resolved to concrete types during semantic analysis)
 
 Implements `Display` for user-facing error messages.
 
@@ -80,7 +81,7 @@ adaptation in binary expressions.
 
 `StmtKind` variants:
 - `Expr(Expr)` - Expression statement (side effects only)
-- `Let { is_mutable, name, ty, init }` - Variable declaration (`let` / `let mut`)
+- `Let { is_mutable, name, ty, init }` - Variable declaration (`let` / `let mut`; `ty` is either an explicit type or `Type::Inferred`)
 - `Assign { name, value }` - Reassignment of an existing variable (`x = expr`)
 - `Discard(Expr)` - Explicit discard (`let _ = expr`)
 - `Return(Option<Expr>)` - Return statement

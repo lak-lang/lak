@@ -107,6 +107,28 @@ fn test_define_variable_outside_scope_error() {
 }
 
 #[test]
+fn test_define_variable_with_inferred_type_is_internal_error() {
+    let mut table = SymbolTable::new();
+    table.enter_scope();
+
+    let info = VariableInfo {
+        name: "x".to_string(),
+        is_mutable: false,
+        ty: Type::Inferred,
+        definition_span: span_at(2, 5),
+    };
+
+    let result = table.define_variable(info);
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert_eq!(err.kind(), SemanticErrorKind::InternalError);
+    assert_eq!(
+        err.message(),
+        "Internal error: attempted to define variable 'x' with unresolved inferred type in symbol table. This is a compiler bug."
+    );
+}
+
+#[test]
 fn test_duplicate_variable_in_same_scope() {
     let mut table = SymbolTable::new();
     table.enter_scope();

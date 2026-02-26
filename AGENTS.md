@@ -110,7 +110,7 @@ Source (.lak) → Lexer → Parser → Semantic Analyzer → Codegen → LLVM �
 3. `Parser::parse()` produces `Program` (AST)
 4. `ModuleResolver::resolve_from_entry_with_source()` discovers imported modules
 5. `SemanticAnalyzer::analyze_module()` (imports) and `analyze()` / `analyze_with_modules()` (entry) validate ASTs
-6. `Codegen::compile()` / `compile_modules()` generates LLVM IR
+6. `Codegen::compile_with_inferred_types()` / `compile_modules_with_inferred_types()` generates LLVM IR
 7. `Codegen::write_object_file()` outputs `.o` file
 8. System linker (`cc` on Unix, MSVC `link.exe` on Windows) produces final executable
 

@@ -21,6 +21,20 @@ fn main() -> void {
 }
 
 #[test]
+fn test_if_expression_result_assigned_to_inferred_variable() {
+    let output = compile_and_run(
+        r#"
+fn main() -> void {
+    let result = if true { 42 } else { 0 }
+    println(result)
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "42\n");
+}
+
+#[test]
 fn test_if_expression_nested() {
     let output = compile_and_run(
         r#"
@@ -127,6 +141,25 @@ fn main() -> void {
         x
     } else {
         20
+    })
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "10\n");
+}
+
+#[test]
+fn test_if_expression_with_inferred_branch_local_in_println_argument() {
+    let output = compile_and_run(
+        r#"
+fn main() -> void {
+    println(if true {
+        let x = 10
+        x
+    } else {
+        let y = 20
+        y
     })
 }
 "#,

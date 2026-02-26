@@ -35,7 +35,9 @@ pub use error::{SemanticError, SemanticErrorKind};
 pub use module_table::ModuleTable;
 use symbol::SymbolTable;
 
-use crate::ast::Program;
+use crate::ast::{Program, Type};
+use crate::token::Span;
+use std::collections::HashMap;
 
 /// The mode of semantic analysis, determining which validations are performed.
 enum AnalysisMode {
@@ -63,6 +65,7 @@ pub struct SemanticAnalyzer {
     mode: AnalysisMode,
     current_function_return_type: Option<String>,
     loop_depth: usize,
+    inferred_binding_types: HashMap<Span, Type>,
 }
 
 impl SemanticAnalyzer {
@@ -73,6 +76,7 @@ impl SemanticAnalyzer {
             mode: AnalysisMode::SingleFile,
             current_function_return_type: None,
             loop_depth: 0,
+            inferred_binding_types: HashMap::new(),
         }
     }
 
@@ -103,6 +107,7 @@ impl SemanticAnalyzer {
         self.mode = mode;
         self.current_function_return_type = None;
         self.loop_depth = 0;
+        self.inferred_binding_types.clear();
     }
 
     fn analyze_program(
@@ -153,6 +158,14 @@ impl SemanticAnalyzer {
     ) -> Result<(), SemanticError> {
         self.begin_session(AnalysisMode::ImportedModule(module_table));
         self.analyze_program(program, false)
+    }
+
+    /// Returns inferred `let` binding types resolved during the last analysis session.
+    ///
+    /// The key is the source span of the `let` statement, and the value is the
+    /// concrete type inferred by semantic analysis.
+    pub fn inferred_binding_types(&self) -> HashMap<Span, Type> {
+        self.inferred_binding_types.clone()
     }
 }
 

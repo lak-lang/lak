@@ -928,6 +928,63 @@ impl SemanticError {
         )
     }
 
+    /// Creates an internal error for integer range checks receiving `inferred`.
+    pub fn internal_check_integer_range_unexpected_inferred(value: i128, span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::InternalError,
+            format!(
+                "Internal error: integer range check received unresolved inferred type for value '{}'. This is a compiler bug.",
+                value
+            ),
+            span,
+        )
+    }
+
+    /// Creates an internal error for expression checks receiving inferred expected type.
+    pub fn internal_check_expr_expected_inferred(span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::InternalError,
+            "Internal error: expression type check received unresolved inferred expected type. This is a compiler bug.",
+            span,
+        )
+    }
+
+    /// Creates an internal error for symbol registration with inferred type.
+    pub fn internal_define_variable_unexpected_inferred(name: &str, span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::InternalError,
+            format!(
+                "Internal error: attempted to define variable '{}' with unresolved inferred type in symbol table. This is a compiler bug.",
+                name
+            ),
+            span,
+        )
+    }
+
+    /// Creates an internal error for inferred identifier type lookup.
+    pub fn internal_infer_expr_identifier_unexpected_inferred(name: &str, span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::InternalError,
+            format!(
+                "Internal error: identifier '{}' type inference found unresolved inferred type in symbol table. This is a compiler bug.",
+                name
+            ),
+            span,
+        )
+    }
+
+    /// Creates an internal error for duplicate inferred-binding span mappings.
+    pub fn internal_inferred_binding_span_collision(name: &str, span: Span) -> Self {
+        Self::new(
+            SemanticErrorKind::InternalError,
+            format!(
+                "Internal error: inferred binding for variable '{}' produced a conflicting span-to-type mapping in semantic analysis. The same span resolved to different inferred types. This is a compiler bug.",
+                name
+            ),
+            span,
+        )
+    }
+
     /// Creates an internal error for defining variable outside a scope.
     pub fn internal_no_scope(name: &str, span: Span) -> Self {
         Self::new(

@@ -78,6 +78,13 @@ impl<'ctx> VarBinding<'ctx> {
             Type::F64 => context.f64_type().into(),
             Type::String => context.ptr_type(AddressSpace::default()).into(),
             Type::Bool => context.bool_type().into(),
+            Type::Inferred => {
+                let message_context = format!("variable binding allocation for '{}'", name);
+                return Err(CodegenError::internal_unresolved_inferred_type(
+                    &message_context,
+                    span,
+                ));
+            }
         };
         let alloca = builder.build_alloca(llvm_type, name).map_err(|e| {
             CodegenError::internal_variable_alloca_failed(name, &e.to_string(), span)

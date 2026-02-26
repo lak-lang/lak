@@ -90,10 +90,35 @@ fn test_compile_error_self_referential_let_initializer() {
 }
 
 #[test]
+fn test_compile_error_self_referential_inferred_let_initializer() {
+    assert_semantic_error(
+        r#"fn main() -> void {
+    let x = x
+}"#,
+        "Undefined variable: 'x'",
+        "Undefined variable",
+        SemanticErrorKind::UndefinedVariable,
+    );
+}
+
+#[test]
 fn test_compile_error_reassignment_to_immutable_variable() {
     assert_semantic_error(
         r#"fn main() -> void {
     let x: i32 = 1
+    x = 2
+}"#,
+        "Cannot reassign immutable variable 'x'",
+        "Invalid assignment",
+        SemanticErrorKind::ImmutableVariableReassignment,
+    );
+}
+
+#[test]
+fn test_compile_error_reassignment_to_immutable_inferred_variable() {
+    assert_semantic_error(
+        r#"fn main() -> void {
+    let x = 1
     x = 2
 }"#,
         "Cannot reassign immutable variable 'x'",
@@ -110,6 +135,45 @@ fn test_compile_error_reassignment_type_mismatch() {
     x = "hello"
 }"#,
         "Type mismatch: string literal cannot be assigned to type 'i32'",
+        "Type mismatch",
+        SemanticErrorKind::TypeMismatch,
+    );
+}
+
+#[test]
+fn test_compile_error_reassignment_type_mismatch_for_inferred_mutable_variable() {
+    assert_semantic_error(
+        r#"fn main() -> void {
+    let mut x = 1
+    x = "hello"
+}"#,
+        "Type mismatch: string literal cannot be assigned to type 'i64'",
+        "Type mismatch",
+        SemanticErrorKind::TypeMismatch,
+    );
+}
+
+#[test]
+fn test_compile_error_reassignment_type_mismatch_int_to_float_for_inferred_mutable_variable() {
+    assert_semantic_error(
+        r#"fn main() -> void {
+    let mut x = 42
+    x = 3.14
+}"#,
+        "Type mismatch: float literal cannot be assigned to type 'i64'",
+        "Type mismatch",
+        SemanticErrorKind::TypeMismatch,
+    );
+}
+
+#[test]
+fn test_compile_error_inferred_variable_used_in_incompatible_context() {
+    assert_semantic_error(
+        r#"fn main() -> void {
+    let x = 42
+    let y: string = x
+}"#,
+        "Type mismatch: variable 'x' has type 'i64', expected 'string'",
         "Type mismatch",
         SemanticErrorKind::TypeMismatch,
     );

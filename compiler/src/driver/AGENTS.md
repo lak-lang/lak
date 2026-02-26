@@ -32,8 +32,8 @@ pipeline, and return rich errors with source context for diagnostics.
 6. Object file emission
 7. Native linking (`link::link`)
 
-Single-module input uses `Codegen::compile`; multi-module input uses
-`Codegen::compile_modules`.
+Single-module input uses `Codegen::compile_with_inferred_types`; multi-module input uses
+`Codegen::compile_modules_with_inferred_types`.
 
 ## Error Model
 

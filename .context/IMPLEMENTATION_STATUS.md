@@ -93,8 +93,8 @@ This document tracks the implementation status of Lak language features as defin
 
 - [x] Basic `let` declaration
 - [x] Explicit type annotation `let x: type = value`
-- [ ] Type inference `let x = value`
-- [ ] Mutable declaration `let mut x = value`
+- [x] Type inference `let x = value`
+- [x] Mutable declaration `let mut x = value`
 - [x] Mutable with type annotation `let mut x: type = value`
 
 ### 3.2 Reassignment

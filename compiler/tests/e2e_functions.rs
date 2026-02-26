@@ -45,6 +45,60 @@ fn main() -> void {
 }
 
 #[test]
+fn test_function_call_with_inferred_argument_variable() {
+    let output = compile_and_run(
+        r#"
+fn print_i64(value: i64) -> void {
+    println(value)
+}
+
+fn main() -> void {
+    let x = 42
+    print_i64(x)
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "42\n");
+}
+
+#[test]
+fn test_let_inferred_from_function_call_return_value() {
+    let output = compile_and_run(
+        r#"
+fn add(a: i64, b: i64) -> i64 {
+    return a + b
+}
+
+fn main() -> void {
+    let result = add(2, 3)
+    println(result)
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "5\n");
+}
+
+#[test]
+fn test_non_void_function_return_inferred_local_variable() {
+    let output = compile_and_run(
+        r#"
+fn answer() -> i64 {
+    let result = 40 + 2
+    return result
+}
+
+fn main() -> void {
+    println(answer())
+}
+"#,
+    )
+    .unwrap();
+    assert_eq!(output, "42\n");
+}
+
+#[test]
 fn test_function_call_with_multiple_parameters() {
     let output = compile_and_run(
         r#"

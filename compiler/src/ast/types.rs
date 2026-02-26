@@ -6,7 +6,7 @@ use std::fmt;
 ///
 /// This enum represents the types that can be specified in Lak code.
 /// Currently supports integer primitives, floating-point primitives, strings,
-/// and booleans.
+/// booleans, and an internal inference placeholder (`Type::Inferred`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Type {
     /// 8-bit signed integer type (`i8` in Lak source code).
@@ -33,10 +33,22 @@ pub enum Type {
     String,
     /// Boolean type (`bool` in Lak source code).
     Bool,
+    /// Type to be inferred from initializer expression (`let x = ...`).
+    ///
+    /// This variant is an AST-level placeholder created by the parser.
+    /// Semantic analysis resolves inferred bindings in symbol metadata.
+    /// Codegen resolves placeholders where needed, and safety-net guards
+    /// reject unresolved placeholders that reach low-level type mapping.
+    /// Use `Type::is_resolved()` for invariant checks instead of equality
+    /// comparisons against concrete variants.
+    Inferred,
 }
 
 impl Type {
     /// Decodes a source-level type name into a [`Type`].
+    ///
+    /// `Type::Inferred` is intentionally excluded because it is an internal
+    /// AST placeholder, not a source-level type keyword.
     pub(crate) fn from_source_name(name: &str) -> Option<Self> {
         match name {
             "i8" => Some(Self::I8),
@@ -100,11 +112,17 @@ impl Type {
     pub fn is_numeric(&self) -> bool {
         self.is_integer() || self.is_float()
     }
+
+    /// Returns true when this type is concrete and safe for backend mapping.
+    pub fn is_resolved(&self) -> bool {
+        !matches!(self, Type::Inferred)
+    }
 }
 
-/// Displays the type as it would appear in Lak source code.
+/// Displays a human-readable type label for diagnostics.
 ///
-/// This is used for generating user-facing error messages.
+/// Concrete variants use Lak source syntax (e.g. `i32`, `string`), while
+/// internal placeholders use explicit markers (e.g. `<inferred>`).
 impl fmt::Display for Type {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -120,6 +138,8 @@ impl fmt::Display for Type {
             Type::F64 => write!(f, "f64"),
             Type::String => write!(f, "string"),
             Type::Bool => write!(f, "bool"),
+            // Keep internal placeholders visually explicit in diagnostics.
+            Type::Inferred => write!(f, "<inferred>"),
         }
     }
 }

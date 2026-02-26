@@ -91,12 +91,13 @@ pub fn compile_source_to_object(source: &str, object_path: &Path) -> Result<(), 
     // Semantic analysis
     let mut analyzer = SemanticAnalyzer::new();
     analyzer.analyze(&program).map_err(|e| e.to_string())?;
+    let inferred_binding_types = analyzer.inferred_binding_types();
 
     // Codegen
     let context = Context::create();
     let mut codegen = Codegen::new(&context, "integration_test");
     codegen
-        .compile(&program)
+        .compile_with_inferred_types(&program, &inferred_binding_types)
         .map_err(|e: CodegenError| e.message().to_string())?;
 
     codegen
@@ -210,10 +211,11 @@ pub fn compile_error(source: &str) -> Option<(CompileStage, String)> {
     if let Err(e) = analyzer.analyze(&program) {
         return Some((CompileStage::Semantic, e.message().to_string()));
     }
+    let inferred_binding_types = analyzer.inferred_binding_types();
 
     let context = Context::create();
     let mut codegen = Codegen::new(&context, "test");
-    match codegen.compile(&program) {
+    match codegen.compile_with_inferred_types(&program, &inferred_binding_types) {
         Ok(()) => None,
         Err(e) => Some((CompileStage::Codegen, e.message().to_string())),
     }
@@ -275,10 +277,11 @@ pub fn compile_error_with_kind(
             CompileErrorKind::Semantic(e.kind()),
         ));
     }
+    let inferred_binding_types = analyzer.inferred_binding_types();
 
     let context = Context::create();
     let mut codegen = Codegen::new(&context, "test");
-    match codegen.compile(&program) {
+    match codegen.compile_with_inferred_types(&program, &inferred_binding_types) {
         Ok(()) => None,
         Err(e) => Some((
             CompileStage::Codegen,

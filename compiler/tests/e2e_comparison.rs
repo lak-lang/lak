@@ -392,6 +392,25 @@ const SUCCESS_CASES: &[SuccessCase] = &[
         expected_stdout: "true\n",
     },
     SuccessCase {
+        id: "test_comparison_with_inferred_i64_variable",
+        source: r#"fn main() -> void {
+    let x = 7
+    let result: bool = x > 3
+    println(result)
+}"#,
+        expected_stdout: "true\n",
+    },
+    SuccessCase {
+        id: "test_comparison_inferred_and_explicit_i64_variables",
+        source: r#"fn main() -> void {
+    let x = 10
+    let y: i64 = 5
+    let result: bool = x > y
+    println(result)
+}"#,
+        expected_stdout: "true\n",
+    },
+    SuccessCase {
         id: "test_comparison_negative_numbers",
         source: r#"fn main() -> void {
     let x: i32 = -5

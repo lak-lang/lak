@@ -41,7 +41,7 @@ impl Parser {
     /// # Grammar
     ///
     /// ```text
-    /// let_stmt → "let" "mut"? IDENTIFIER ":" type "=" expr | "let" "_" "=" expr
+    /// let_stmt → "let" "mut"? IDENTIFIER (":" type)? "=" expr | "let" "_" "=" expr
     /// type → integer/float primitives | "string" | "bool"
     /// ```
     pub(super) fn parse_let_stmt(&mut self) -> Result<Stmt, ParseError> {
@@ -89,9 +89,18 @@ impl Parser {
             ));
         }
 
-        // Expect `:` type annotation
-        self.expect(&TokenKind::Colon)?;
-        let ty = self.parse_type()?;
+        // Optional `:` type annotation.
+        let ty = if matches!(self.current_kind(), TokenKind::Colon) {
+            self.expect(&TokenKind::Colon)?;
+            self.parse_type()?
+        } else if matches!(self.current_kind(), TokenKind::Equals) {
+            crate::ast::Type::Inferred
+        } else {
+            return Err(ParseError::expected_type_annotation_or_initializer(
+                &Self::token_kind_display(self.current_kind()),
+                self.current_span(),
+            ));
+        };
 
         // Expect `=` initializer
         self.expect(&TokenKind::Equals)?;

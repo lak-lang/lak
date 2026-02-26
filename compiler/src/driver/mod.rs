@@ -3,6 +3,7 @@ use lak::codegen::{Codegen, CodegenError};
 use lak::resolver::{ModuleResolver, ResolvedModule, ResolverError};
 use lak::semantic::SemanticAnalyzer;
 use lak::semantic::SemanticError;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus};
 use tempfile::TempDir;
@@ -360,6 +361,7 @@ fn compile_to_executable(
         })?;
 
     // Phase 2a: Semantic analysis on imported modules (basic validation)
+    let mut inferred_binding_types_by_module = HashMap::new();
     for module in &modules {
         if module.path() != canonical_entry {
             let mut module_analyzer = SemanticAnalyzer::new();
@@ -377,6 +379,10 @@ fn compile_to_executable(
             module_analyzer
                 .analyze_module(module.program(), module_table)
                 .map_err(|e| CompileError::module_semantic(module, e))?;
+            inferred_binding_types_by_module.insert(
+                module.path().to_path_buf(),
+                module_analyzer.inferred_binding_types(),
+            );
         }
     }
 
@@ -389,6 +395,11 @@ fn compile_to_executable(
     analyzer
         .analyze_with_modules(entry_module.program(), module_table)
         .map_err(CompileError::Semantic)?;
+    let entry_inferred_binding_types = analyzer.inferred_binding_types();
+    inferred_binding_types_by_module.insert(
+        entry_module.path().to_path_buf(),
+        entry_inferred_binding_types.clone(),
+    );
 
     // Phase 3: Code generation
     let llvm_context = Context::create();
@@ -397,12 +408,16 @@ fn compile_to_executable(
     if modules.len() == 1 {
         // Single module: use simple compile
         codegen
-            .compile(entry_module.program())
+            .compile_with_inferred_types(entry_module.program(), &entry_inferred_binding_types)
             .map_err(CompileError::Codegen)?;
     } else {
         // Multiple modules: use multi-module compile
         codegen
-            .compile_modules(&modules, entry_module.path())
+            .compile_modules_with_inferred_types(
+                &modules,
+                entry_module.path(),
+                &inferred_binding_types_by_module,
+            )
             .map_err(CompileError::Codegen)?;
     }
 

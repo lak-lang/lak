@@ -35,7 +35,7 @@ Status:
 ### Variables
 - `mut-modifier.md` - mut Modifier [Done]
 - `reassignment.md` - Reassignment for Mutable Variables [Done]
-- `type-inference.md` - Type Inference
+- `type-inference.md` - Type Inference [Done]
 
 ### Types
 - `integer-types.md` - Remaining Integer Types [Done]
@@ -78,7 +78,7 @@ Status:
 10. `print-function.md` [Todo]
 11. `mut-modifier.md` [Done]
 12. `reassignment.md` [Done]
-13. `type-inference.md` [Todo]
+13. `type-inference.md` [Done]
 14. `integer-types.md` [Done]
 15. `float-types.md` [Done]
 16. `tuple-type.md` [Todo]

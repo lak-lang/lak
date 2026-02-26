@@ -418,13 +418,38 @@ impl SemanticAnalyzer {
         }
 
         // Type check initializer before introducing the new binding.
-        // This rejects self-referential initializers like `let x: i32 = x`.
-        self.check_expr_type(init, ty)?;
+        // This rejects self-referential initializers like `let x: i32 = x`
+        // and `let x = x`.
+        let resolved_ty = if !ty.is_resolved() {
+            let inferred_ty = self.infer_expr_type(init)?;
+            if !inferred_ty.is_resolved() {
+                return Err(SemanticError::internal_define_variable_unexpected_inferred(
+                    name, span,
+                ));
+            }
+            // Re-validate the initializer under the inferred concrete type so
+            // structural checks (for example integer range validation) still run.
+            self.check_expr_type(init, &inferred_ty)?;
+            if let Some(existing_ty) = self.inferred_binding_types.get(&span) {
+                if *existing_ty != inferred_ty {
+                    return Err(SemanticError::internal_inferred_binding_span_collision(
+                        name, span,
+                    ));
+                }
+            } else {
+                self.inferred_binding_types
+                    .insert(span, inferred_ty.clone());
+            }
+            inferred_ty
+        } else {
+            self.check_expr_type(init, ty)?;
+            ty.clone()
+        };
 
         let info = VariableInfo {
             name: name.to_string(),
             is_mutable,
-            ty: ty.clone(),
+            ty: resolved_ty,
             definition_span: span,
         };
         self.symbols.define_variable(info)?;

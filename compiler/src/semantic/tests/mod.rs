@@ -157,6 +157,47 @@ fn test_if_expression_branch_type_mismatch_constructor() {
 }
 
 #[test]
+fn test_internal_check_expr_expected_inferred_constructor() {
+    let err = SemanticError::internal_check_expr_expected_inferred(span_at(9, 3));
+    assert_eq!(err.kind(), SemanticErrorKind::InternalError);
+    assert_eq!(
+        err.message(),
+        "Internal error: expression type check received unresolved inferred expected type. This is a compiler bug."
+    );
+    assert_eq!(err.span().unwrap().line, 9);
+    assert_eq!(err.span().unwrap().column, 3);
+}
+
+#[test]
+fn test_check_expr_type_rejects_inferred_expected_type() {
+    let mut analyzer = SemanticAnalyzer::new();
+    let expr = Expr::new(ExprKind::IntLiteral(1), span_at(4, 8));
+    let err = analyzer
+        .check_expr_type(&expr, &Type::Inferred)
+        .expect_err("inferred expected type must be rejected");
+
+    assert_eq!(err.kind(), SemanticErrorKind::InternalError);
+    assert_eq!(
+        err.message(),
+        "Internal error: expression type check received unresolved inferred expected type. This is a compiler bug."
+    );
+    assert_eq!(err.span().unwrap().line, 4);
+    assert_eq!(err.span().unwrap().column, 8);
+}
+
+#[test]
+fn test_internal_check_integer_range_unexpected_inferred_constructor() {
+    let err = SemanticError::internal_check_integer_range_unexpected_inferred(42, span_at(7, 2));
+    assert_eq!(err.kind(), SemanticErrorKind::InternalError);
+    assert_eq!(
+        err.message(),
+        "Internal error: integer range check received unresolved inferred type for value '42'. This is a compiler bug."
+    );
+    assert_eq!(err.span().unwrap().line, 7);
+    assert_eq!(err.span().unwrap().column, 2);
+}
+
+#[test]
 fn test_invalid_argument_println_count_constructor() {
     let err = SemanticError::invalid_argument_println_count(span_at(5, 5));
     assert_eq!(err.kind(), SemanticErrorKind::InvalidArgument);

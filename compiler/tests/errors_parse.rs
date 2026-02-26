@@ -79,6 +79,32 @@ fn test_compile_error_let_missing_variable_name() {
 }
 
 #[test]
+fn test_compile_error_let_missing_type_separator_or_initializer() {
+    let result = compile_error_with_kind(
+        r#"fn main() -> void {
+    let x i32 = 42
+}"#,
+    );
+    let (stage, msg, short_msg, kind) = result.expect("Expected compilation to fail");
+    assert!(
+        matches!(stage, CompileStage::Parse),
+        "Expected Parse error, got {:?}: {}",
+        stage,
+        msg
+    );
+    assert_eq!(
+        msg,
+        "Expected ':' for type annotation or '=' for initializer, found identifier 'i32'"
+    );
+    assert_eq!(short_msg, "Unexpected token");
+    assert_eq!(
+        kind,
+        CompileErrorKind::Parse(ParseErrorKind::UnexpectedToken),
+        "Expected UnexpectedToken error kind"
+    );
+}
+
+#[test]
 fn test_compile_error_let_mut_discard_binding() {
     let result = compile_error_with_kind(
         r#"fn main() -> void {

@@ -521,6 +521,138 @@ fn test_compile_invalid_return_type_reports_internal_error_at_return_type_span()
 }
 
 #[test]
+fn test_compile_invalid_parameter_type_reports_internal_error_at_param_span() {
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "test");
+
+    let invalid_param_span = Span::new(0, 0, 1, 13);
+    let return_type_span = Span::new(0, 0, 1, 24);
+    let program = Program {
+        imports: vec![],
+        functions: vec![
+            FnDef {
+                visibility: Visibility::Private,
+                name: "helper".to_string(),
+                params: vec![FnParam {
+                    name: "x".to_string(),
+                    ty: Type::Inferred,
+                    span: invalid_param_span,
+                }],
+                return_type: "void".to_string(),
+                return_type_span,
+                body: vec![],
+                span: dummy_span(),
+            },
+            FnDef {
+                visibility: Visibility::Private,
+                name: "main".to_string(),
+                params: vec![],
+                return_type: "void".to_string(),
+                return_type_span: dummy_span(),
+                body: vec![],
+                span: dummy_span(),
+            },
+        ],
+    };
+
+    let err = codegen
+        .compile(&program)
+        .expect_err("invalid parameter type must fail in declaration path");
+    assert_eq!(err.kind(), CodegenErrorKind::InternalError);
+    assert_eq!(
+        err.message(),
+        "Internal error: unresolved inferred type reached function parameter 'x' in declaration of '_L5_entry_helper' in codegen. Semantic analysis should have resolved inferred types before codegen. This is a compiler bug."
+    );
+    assert_eq!(err.span(), Some(invalid_param_span));
+}
+
+#[test]
+fn test_compile_with_inferred_types_uses_semantic_side_channel() {
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "test");
+
+    let inferred_let_span = Span::new(0, 0, 2, 5);
+    let program = make_program(vec![Stmt::new(
+        StmtKind::Let {
+            is_mutable: false,
+            name: "x".to_string(),
+            ty: Type::Inferred,
+            init: Expr::new(ExprKind::IntLiteral(1), Span::new(0, 0, 2, 13)),
+        },
+        inferred_let_span,
+    )]);
+
+    // Intentionally inject a wrong semantic result to verify that strict
+    // codegen paths consume side-channel inferred types instead of re-inferring.
+    let mut inferred_types = HashMap::new();
+    inferred_types.insert(inferred_let_span, Type::Bool);
+
+    let err = codegen
+        .compile_with_inferred_types(&program, &inferred_types)
+        .expect_err("strict compile must use semantic inferred binding types");
+    assert_eq!(err.kind(), CodegenErrorKind::InternalError);
+    assert_eq!(
+        err.message(),
+        "Internal error: integer literal 1 used as 'bool' value in codegen. Semantic analysis should have caught this. This is a compiler bug."
+    );
+}
+
+#[test]
+fn test_compile_rejects_inferred_let_without_semantic_side_channel() {
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "test");
+
+    let inferred_let_span = Span::new(0, 0, 2, 5);
+    let program = make_program(vec![Stmt::new(
+        StmtKind::Let {
+            is_mutable: false,
+            name: "x".to_string(),
+            ty: Type::Inferred,
+            init: Expr::new(ExprKind::IntLiteral(1), Span::new(0, 0, 2, 13)),
+        },
+        inferred_let_span,
+    )]);
+
+    let err = codegen
+        .compile(&program)
+        .expect_err("compile must reject unresolved inferred lets without semantic side-channel");
+    assert_eq!(err.kind(), CodegenErrorKind::InternalError);
+    assert_eq!(
+        err.message(),
+        "Internal error: unresolved inferred type reached let binding 'x' type resolution in compatibility codegen entry point; use compile_with_inferred_types in codegen. Semantic analysis should have resolved inferred types before codegen. This is a compiler bug."
+    );
+    assert_eq!(err.span(), Some(inferred_let_span));
+}
+
+#[test]
+fn test_compile_modules_with_inferred_types_requires_module_maps() {
+    let context = Context::create();
+    let mut codegen = Codegen::new(&context, "test");
+
+    let entry_path = std::env::temp_dir().join("strict_missing_map_main.lak");
+    let entry_module = ResolvedModule::for_testing(
+        entry_path.clone(),
+        "strict_missing_map_main".to_string(),
+        make_program(vec![]),
+        "".to_string(),
+    );
+    let modules = [entry_module];
+
+    let err = codegen
+        .compile_modules_with_inferred_types(&modules, &entry_path, &HashMap::new())
+        .expect_err("strict multi-module compile must fail when inferred maps are missing");
+    assert_eq!(err.kind(), CodegenErrorKind::InternalError);
+    assert!(err.span().is_none());
+    assert_eq!(
+        err.message(),
+        format!(
+            "Internal error: semantic inferred binding map not found for module '{}'. Strict codegen requires inferred types from semantic analysis. This is a compiler bug.",
+            entry_path.display()
+        )
+    );
+}
+
+#[test]
 fn test_compile_if_condition_non_bool_returns_internal_error() {
     let context = Context::create();
     let mut codegen = Codegen::new(&context, "test");

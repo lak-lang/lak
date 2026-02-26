@@ -7,6 +7,7 @@
 ///
 /// `Span` tracks both byte offsets (for slicing the source string) and
 /// human-readable positions (line and column numbers) for error reporting.
+/// It is also used as a stable key in compiler-internal metadata maps.
 ///
 /// # Fields
 ///
@@ -30,7 +31,7 @@
 /// assert_eq!(span.start, 0);
 /// assert_eq!(span.end, 5);
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Span {
     /// The starting byte offset (inclusive) in the source string.
     /// Must be a valid UTF-8 character boundary.
