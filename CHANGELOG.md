@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.1.0](https://github.com/lak-lang/lak/compare/v0.0.2...v0.1.0) (2026-02-26)
+
+
+### Features
+
+* add f32/f64 support across compiler pipeline ([bd8312f](https://github.com/lak-lang/lak/commit/bd8312f665902a715c63d32f53f928f1bd45c700))
+* add ordered comparison operators for string ([27845d4](https://github.com/lak-lang/lak/commit/27845d419cf35c8c1789dcab0e00d39f1e2a7f60))
+* add return statements and non-void returns ([8463122](https://github.com/lak-lang/lak/commit/84631222bdad1e9f8e1bc8dff90dbcbb23594541))
+* implement function parameters across parser, semantic, and codegen ([09c3e1e](https://github.com/lak-lang/lak/commit/09c3e1e885a84754cbeb283e03ed9ed65f866645))
+* implement reassignment for mutable variables ([cd20d1d](https://github.com/lak-lang/lak/commit/cd20d1d4a99fab659a2281b19c6c226c6acf1aa5))
+* implement remaining integer types ([4341ab4](https://github.com/lak-lang/lak/commit/4341ab410809627978093f94f0d5ecef537c77f2))
+* implement while loop with break and continue ([a70b113](https://github.com/lak-lang/lak/commit/a70b113a9d4d73fd13263489ed73ac64b75ded7e))
+* support let mut declarations and diagnostics ([8995e64](https://github.com/lak-lang/lak/commit/8995e640e4921533d2d309393097774817b2d8de))
+
+
+### Patches
+
+* adapt integer literals in binary operations ([79cc03c](https://github.com/lak-lang/lak/commit/79cc03c3d388cd6c5b8a8756fb50432f8a6c7c0d))
+* avoid exposing mangled names in codegen internal errors ([0f920d1](https://github.com/lak-lang/lak/commit/0f920d1576ccdd00a5010f946aed43eb7d25c3a6))
+* avoid false missing return for while true ([fb4a742](https://github.com/lak-lang/lak/commit/fb4a742bda752803123ca91c00d3adf7f77d616b))
+* enforce discard binding syntax ([2b6a6ed](https://github.com/lak-lang/lak/commit/2b6a6ed6d06cfe821996322c25b26f0a6a5ef586))
+* enforce inferred type contracts across semantic and codegen ([5f24071](https://github.com/lak-lang/lak/commit/5f24071e424ddaa5cf9b0218463b0f8e4bde0b66))
+* handle const-bool if return reachability ([69e6732](https://github.com/lak-lang/lak/commit/69e67326af1cf039040ccfb5783f2b24e2c9a62a))
+* isolate semantic analyzer state per analysis call ([c9b8097](https://github.com/lak-lang/lak/commit/c9b809780878c4943367cbb07184410fc9ed4da4))
+* resolve runtime and msvc linker paths at runtime ([d1e0ed7](https://github.com/lak-lang/lak/commit/d1e0ed7e970662280722706a308e95781d95283b))
+
 ## [0.0.2](https://github.com/lak-lang/lak/compare/v0.0.1...v0.0.2) (2026-02-11)
 
 
